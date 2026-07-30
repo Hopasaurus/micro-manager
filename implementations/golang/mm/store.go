@@ -211,6 +211,10 @@ func (s *Store) Directory() (Directory, error) {
 
 func (m *dirModel) directory() Directory {
 	d := Directory{Path: m.path, Slots: m.slots(), WipLimit: len(m.working)}
+	// ProjectID fails only on an empty path, which a loaded model cannot have.
+	// Path stays as opened rather than canonicalised: the id is derived from the
+	// canonical form, but the path a caller reads back is the one it passed.
+	d.ProjectID, _ = ProjectID(m.path)
 	for _, sl := range d.Slots {
 		if sl.Occupied() {
 			d.WipUsed++

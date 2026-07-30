@@ -26,21 +26,24 @@ import (
 type Op string
 
 const (
-	OpNone   Op = ""
-	OpInit   Op = "init"
-	OpAdd    Op = "add"
-	OpList   Op = "list"
-	OpShow   Op = "show"
-	OpEdit   Op = "edit"
-	OpRemove Op = "remove"
-	OpMove   Op = "move"
-	OpStart  Op = "start"
-	OpPause  Op = "pause"
-	OpFinish Op = "finish"
-	OpReport Op = "report"
-	OpCheck  Op = "check"
-	OpWip    Op = "wip"
-	OpFind   Op = "find"
+	OpNone    Op = ""
+	OpInit    Op = "init"
+	OpAdd     Op = "add"
+	OpList    Op = "list"
+	OpShow    Op = "show"
+	OpEdit    Op = "edit"
+	OpRemove  Op = "remove"
+	OpMove    Op = "move"
+	OpStart   Op = "start"
+	OpPause   Op = "pause"
+	OpFinish  Op = "finish"
+	OpReport  Op = "report"
+	OpCheck   Op = "check"
+	OpWip     Op = "wip"
+	OpFind    Op = "find"
+	OpBlock   Op = "block"
+	OpUnblock Op = "unblock"
+	OpNote    Op = "note"
 )
 
 // takesValue reports whether an operation switch consumes the argument after it
@@ -49,7 +52,7 @@ const (
 var opTakesValue = map[Op]bool{
 	OpShow: true, OpEdit: true, OpRemove: true, OpMove: true,
 	OpStart: true, OpPause: true, OpFinish: true, OpAdd: true,
-	OpWip: true,
+	OpWip: true, OpBlock: true, OpUnblock: true, OpNote: true,
 }
 
 // operations maps the switch name to its operation. Operation and modifier
@@ -59,6 +62,7 @@ var operations = map[string]Op{
 	"edit": OpEdit, "remove": OpRemove, "move": OpMove, "start": OpStart,
 	"pause": OpPause, "finish": OpFinish, "report": OpReport, "check": OpCheck,
 	"wip": OpWip, "find": OpFind,
+	"block": OpBlock, "unblock": OpUnblock, "note": OpNote,
 }
 
 // Invocation is one parsed command line.
@@ -114,7 +118,8 @@ var valueModifiers = map[string]bool{
 	"detail-text": true, "detail-file": true, "slot": true,
 	"project": true, "slots": true, "slot-width": true,
 	"period": true, "week": true, "since": true, "until": true,
-	"group-by": true, "state": true, "limit": true, "note": true,
+	"group-by": true, "state": true, "limit": true,
+	"reason": true, "closing-note": true,
 }
 
 // modifiers that accumulate rather than replace.
@@ -127,7 +132,7 @@ var boolModifiers = map[string]bool{
 	"json": true, "porcelain": true, "dry-run": true, "yes": true,
 	"force": true, "quiet": true, "verbose": true, "help": true,
 	"version": true, "all": true, "top": true, "end": true,
-	"detail": true, "with-detail": true,
+	"detail": true, "with-detail": true, "no-edit": true,
 	"last-week": true, "this-week": true, "include-wip": true,
 	"include-backlog": true, "include-archives": true, "keep-notes": true,
 	"discard-notes": true, "blocked-only": true,

@@ -306,9 +306,10 @@ format spec §5.2.1). `--slots` sets how many are created.
 > preceded it, which is exactly the context-sensitivity §3.2 exists to prevent.
 >
 > **The same collision remains in two places** and must be resolved the same way
-> when those operations are implemented: `--note ID TEXT` (§5.2) collides with
-> `--finish --note TEXT` (§5.1.10), and `--detail ID` (§5.2) collides with
-> `--add --detail` (§5.1.2).
+> when those operations are implemented. `--note ID TEXT` (§5.2) collided with
+> `--finish --note TEXT` (§5.1.10) and was resolved at §5.1.10 by renaming the
+> modifier to `--closing-note`. **Still open:** `--detail ID` (§5.2) collides
+> with `--add --detail` (§5.1.2).
 
 Errors: `AlreadyExists` if the target already holds any of these files;
 `InvalidArgument` if `--project` is empty.
@@ -524,7 +525,7 @@ Errors: `NotFound`, `Conflict` (item is not in a working slot).
 
 ```
 mm --finish ID [--outcome shipped|cancelled|obsolete] [--done DATE]
-              [--note TEXT]
+              [--closing-note TEXT]
 ```
 
 Moves an item to `done.md`: box becomes `x`, `done` is set (default today),
@@ -539,7 +540,14 @@ directly — closing something without ever starting it is normal, and
 `## Notes` from a working slot is handled as in `--pause`: preserved into the
 detail file by default, since this is the last moment it exists.
 
-`--note TEXT` appends a closing note to the detail file, creating it if needed.
+`--closing-note TEXT` appends a closing note to the detail file, creating it if
+needed.
+
+> **Corrected.** This modifier was `--note` in an earlier revision, colliding
+> with the `--note ID TEXT` operation of §5.2 in the same way `--wip` collided
+> with `--init` (see §5.1.1). Resolved the same way and for the same reason: the
+> operation keeps the short name — §5.2 calls it the highest-frequency write in
+> daily use — and the modifier is renamed.
 
 Errors: `NotFound`, `InvalidArgument` (bad outcome or date), `Conflict` (item
 already in `done.md`).
@@ -996,7 +1004,7 @@ Operation-specific modifiers:
 ```
 --top --end --position --before --after --section
 --prio --tag --untag --set --unset --title --blocked --reason
---created --started --done --outcome
+--created --started --done --outcome --reason --closing-note
 --detail --detail-text --detail-file --no-edit --with-detail
 --slot --project --slots --slot-width
 --period --week --last-week --this-week --since --until --group-by

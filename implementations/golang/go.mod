@@ -2,4 +2,6 @@
 // has no remote. T-0040 replaces this with the published path.
 module micromanager
 
-go 1.24
+go 1.25.0
+
+require golang.org/x/text v0.40.0

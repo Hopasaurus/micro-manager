@@ -39,6 +39,14 @@ func dispatch(env Env, in *Invocation) error {
 	if in.Verbose {
 		fmt.Fprintf(env.Stderr, "directory: %s (from %s)\n", res.Path, res.Source)
 	}
+	if d, err := store.Directory(); err == nil {
+		env.json.directory = toJSONDirectory(d)
+	}
+	// §9.2: an error carries the id "where applicable". Recorded once here so
+	// that a failure anywhere below names the item the user asked about.
+	if id, err := ParseID(in.Subject); err == nil {
+		env.json.subject = string(id)
+	}
 
 	switch in.Op {
 	case OpAdd:
@@ -63,6 +71,12 @@ func dispatch(env Env, in *Invocation) error {
 		return runReport(env, in, store)
 	case OpWip:
 		return runWip(env, in, store)
+	case OpBlock:
+		return runBlock(env, in, store)
+	case OpUnblock:
+		return runUnblock(env, in, store)
+	case OpNote:
+		return runNote(env, in, store)
 	}
 	return usagef("--%s is not implemented", in.Op)
 }
@@ -116,6 +130,9 @@ func runInit(env Env, in *Invocation) error {
 	if err != nil {
 		return err
 	}
+	env.json.setChanges(res)
+	env.json.setResult(map[string]any{"path": target, "project": project})
+	env.porcelain.row(target, project)
 	renderInit(env, in, target, project, res)
 	return nil
 }
@@ -167,7 +184,20 @@ func runAdd(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return err
 	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONItem(item))
+	env.porcelain.item(item)
 	renderAdd(env, in, item, res)
+
+	// §5.1.2: the CLI opens the new detail file, the library only creates it.
+	// A failure to launch is reported and not returned: the item is already
+	// written and validated, and losing that over a misconfigured $EDITOR would
+	// be the tool destroying good work over a preference.
+	if item.Detail != "" && wantsEditor(in, env, env.Interactive) {
+		if err := openEditor(env, filepath.Join(s.Path(), item.Detail)); err != nil {
+			fmt.Fprintf(env.Stderr, "mm: could not open an editor: %v\n", err)
+		}
+	}
 	return nil
 }
 
@@ -246,6 +276,8 @@ func runList(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return err
 	}
+	env.json.setResult(toJSONItems(items))
+	env.porcelain.items(items)
 	renderList(env, in, dir, items)
 	return nil
 }
@@ -267,6 +299,8 @@ func runShow(env Env, in *Invocation, s *mm.Store) error {
 		}
 		detail = &d
 	}
+	env.json.setResult(toJSONShow(item, detail))
+	env.porcelain.item(item)
 	renderShow(env, item, detail)
 	return nil
 }
@@ -323,6 +357,9 @@ func runEdit(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return err
 	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONItem(item))
+	env.porcelain.item(item)
 	renderChange(env, in, "updated", item, res)
 	return nil
 }
@@ -339,6 +376,12 @@ func runRemove(env Env, in *Invocation, s *mm.Store) error {
 	}, env.Today)
 	if err != nil {
 		return err
+	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONRemoval(out))
+	env.porcelain.item(out.Item)
+	if out.DetailOrphan != "" {
+		env.json.warn(out.DetailOrphan + " was left with no item; the directory now fails I9")
 	}
 	renderRemove(env, in, out, res)
 	return nil
@@ -388,6 +431,9 @@ func runMove(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return err
 	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONItem(item))
+	env.porcelain.item(item)
 	renderChange(env, in, "moved", item, res)
 	return nil
 }
@@ -409,6 +455,9 @@ func runStart(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return err
 	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONItem(item))
+	env.porcelain.item(item)
 	renderStart(env, in, item, res)
 	return nil
 }
@@ -438,6 +487,9 @@ func runPause(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return err
 	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONItem(item))
+	env.porcelain.item(item)
 	renderChange(env, in, "paused", item, res)
 	return nil
 }
@@ -451,7 +503,7 @@ func runFinish(env Env, in *Invocation, s *mm.Store) error {
 		return usagef("--keep-notes and --discard-notes contradict each other")
 	}
 	req := mm.FinishRequest{
-		Note:         in.Value("note"),
+		Note:         in.Value("closing-note"),
 		DiscardNotes: in.Bool("discard-notes"),
 		DryRun:       in.DryRun,
 	}
@@ -473,7 +525,84 @@ func runFinish(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return err
 	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONItem(item))
+	env.porcelain.item(item)
 	renderChange(env, in, "finished", item, res)
+	return nil
+}
+
+// --block and --unblock are SUGAR OVER --move (spec-tools.md §5.2). They call
+// the same operation with the section set, rather than being a second path that
+// writes a blocked: field — two paths into I5 would eventually disagree.
+func runBlock(env Env, in *Invocation, s *mm.Store) error {
+	id, err := subjectID(in, "--block")
+	if err != nil {
+		return err
+	}
+	reason := in.Value("reason")
+	if reason == "" && len(in.Rest) > 0 {
+		reason = strings.Join(in.Rest, " ")
+	}
+	if reason == "" {
+		return usagef("--block needs --reason TEXT; I5 requires every blocked item to say why")
+	}
+	item, res, err := s.Move(id, mm.MoveRequest{
+		Section: mm.SectionBlocked,
+		Blocked: reason,
+		DryRun:  in.DryRun,
+	}, env.Today)
+	if err != nil {
+		return err
+	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONItem(item))
+	env.porcelain.item(item)
+	renderChange(env, in, "blocked", item, res)
+	return nil
+}
+
+func runUnblock(env Env, in *Invocation, s *mm.Store) error {
+	id, err := subjectID(in, "--unblock")
+	if err != nil {
+		return err
+	}
+	// Back to Ready, at the top by default: something that has just become
+	// possible is usually the next thing to pick up.
+	req := mm.MoveRequest{Section: mm.SectionReady, Top: true, DryRun: in.DryRun}
+	if in.Bool("end") {
+		req.Top, req.End = false, true
+	}
+	item, res, err := s.Move(id, req, env.Today)
+	if err != nil {
+		return err
+	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONItem(item))
+	env.porcelain.item(item)
+	renderChange(env, in, "unblocked", item, res)
+	return nil
+}
+
+func runNote(env Env, in *Invocation, s *mm.Store) error {
+	id, err := subjectID(in, "--note")
+	if err != nil {
+		return err
+	}
+	// mm --note T-0042 "the text": the id is the operation's value and the text
+	// is positional, because the operation takes two.
+	text := strings.Join(in.Rest, " ")
+	if text == "" {
+		return usagef("--note needs some text: mm --note %s \"what happened\"", id)
+	}
+	item, res, err := s.Note(id, mm.NoteRequest{Text: text, DryRun: in.DryRun}, env.Today)
+	if err != nil {
+		return err
+	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONItem(item))
+	env.porcelain.item(item)
+	renderNote(env, in, item, res)
 	return nil
 }
 
@@ -490,6 +619,10 @@ func runWip(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return err
 	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONDirectory(dir))
+	env.porcelain.row(dir.Path, dir.Project,
+		strconv.Itoa(dir.WipUsed), strconv.Itoa(dir.WipLimit))
 	renderWip(env, in, dir, res)
 	return nil
 }
@@ -517,6 +650,14 @@ func runReport(env Env, in *Invocation, s *mm.Store) error {
 	rep, err := s.Report(period, opts)
 	if err != nil {
 		return err
+	}
+	env.json.setResult(toJSONReport(rep))
+	for _, it := range rep.Done {
+		env.porcelain.row(string(it.ID), it.Done.String(), string(it.Outcome),
+			mm.FormatTags(it.Tags), it.Title)
+	}
+	for _, w := range rep.Warnings {
+		env.json.warn(w)
 	}
 	renderReport(env, rep)
 	return nil
@@ -607,7 +748,16 @@ func runFind(env Env, in *Invocation) error {
 	if len(roots) == 0 {
 		return usagef("--find needs a directory to scan from")
 	}
-	renderFind(env, mm.Discover(mm.DefaultDiscoveryOptions(roots...)))
+	found := mm.Discover(mm.DefaultDiscoveryOptions(roots...))
+	env.json.setResult(toJSONFind(found))
+	for _, d := range found.Directories {
+		env.porcelain.row(d.Path, d.Project,
+			strconv.Itoa(d.WipUsed), strconv.Itoa(d.WipLimit))
+	}
+	if found.Partial {
+		env.json.warn("the scan hit a limit; results may be incomplete")
+	}
+	renderFind(env, found)
 	return nil
 }
 

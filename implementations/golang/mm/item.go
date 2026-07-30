@@ -379,12 +379,13 @@ func (s Slot) Occupied() bool { return s.Item != nil }
 
 // Directory summarises an open micro-manager directory.
 type Directory struct {
-	Path     string // absolute
-	Project  string // the project frontmatter value
-	NextID   ID
-	Slots    []Slot
-	WipLimit int // == len(Slots)
-	WipUsed  int
+	Path      string // absolute, as opened
+	ProjectID string // spec-gui.md §3.1; how a URI addresses this directory
+	Project   string // the project frontmatter value
+	NextID    ID
+	Slots     []Slot
+	WipLimit  int // == len(Slots)
+	WipUsed   int
 }
 
 // ---------------------------------------------------------------------------

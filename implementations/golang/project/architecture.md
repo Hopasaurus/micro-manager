@@ -12,6 +12,9 @@ packages.
 Specs are normative. Where this document appears to contradict one, the spec
 wins and this document has a bug.
 
+The order the GUI gets built in, and the decisions to take before writing it, are
+in [plan-gui.md](plan-gui.md).
+
 ---
 
 ## 1. Artifacts
@@ -81,18 +84,22 @@ the TUI, it is in the wrong package.
 
 ## 3. Dependency policy
 
-Standard library first. Every dependency needs a reason recorded here.
+Standard library first. Every dependency needs a reason recorded here and a
+permissive licence — BSD, MIT, Apache-2.0.
 
-| Dependency | Used by | Reason |
-|---|---|---|
-| `github.com/labstack/echo/v5` | `internal/web` | HTTP routing, middleware, error handling |
-| `github.com/labstack/echo/v5/middleware` | `internal/web` | Recover, request ID, gzip (see §4.5) |
-| htmx (vendored JS) | `internal/web/static` | Server-driven interactivity without a SPA |
-| `htmx-ext-sse` (vendored JS) | `internal/web/static` | SSE extension; a separate file from htmx core |
+| Dependency | Licence | Used by | Reason |
+|---|---|---|---|
+| `golang.org/x/text/unicode/norm` | BSD-3-Clause | `mm` | NFC normalisation for `projectId` (§3.1 of `spec-gui.md`); the stdlib has no normaliser and hand-rolling one is a correctness risk in a shared cross-implementation identifier |
+| `github.com/labstack/echo/v5` | MIT | `internal/web` | HTTP routing, middleware, error handling |
+| `github.com/labstack/echo/v5/middleware` | MIT | `internal/web` | Recover, request ID, gzip (see §4.5) |
+| htmx (vendored JS) | BSD-2-Clause (0BSD from 2.0) | `internal/web/static` | Server-driven interactivity without a SPA |
+| `htmx-ext-sse` (vendored JS) | BSD-2-Clause | `internal/web/static` | SSE extension; a separate file from htmx core |
 
-That is the whole list. The library `mm/` MUST have **zero** third-party
-dependencies — it is compiled into every front end, and a transitive dependency
-there is one the TUI and CLI pay for too.
+`mm/` is held to a higher bar than the front ends, because it is compiled into
+all three: a dependency there is one the CLI and the TUI pay for too. It is a
+bar, not a ban — the earlier rule was zero dependencies, and it was relaxed
+deliberately when `projectId` needed Unicode normalisation the stdlib does not
+have. Adding one to `mm/` means naming what it costs every binary.
 
 ### Echo v5
 

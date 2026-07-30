@@ -222,15 +222,22 @@ func (w *walker) isDir(parent string, e os.DirEntry) bool {
 // given rather than dropped - being listed twice is a smaller failure than not
 // being listed at all.
 func canonical(path string) string {
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		if abs, err := filepath.Abs(resolved); err == nil {
-			return abs
-		}
+	// Absolute FIRST, then resolve. The other order is wrong for a relative
+	// path: EvalSymlinks("micro-manager") has nothing to resolve, and the
+	// working directory prepended afterwards may itself run through a symlink -
+	// /var -> /private/var on macOS - so the same directory canonicalises two
+	// ways depending on how the caller spelled it.
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = path
 	}
-	if abs, err := filepath.Abs(path); err == nil {
-		return abs
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved
 	}
-	return path
+	// The path does not exist yet, or a component is unreadable. Absolute is the
+	// best available answer: discovery, recent and favorites all carry entries
+	// for directories that are not present right now.
+	return abs
 }
 
 // describe reads a found directory's summary.
@@ -239,13 +246,19 @@ func canonical(path string) string {
 // path filled in: discovery matches on name, so reporting it and letting the
 // checker explain what is wrong is more useful than hiding it.
 func describe(path string) Directory {
+	unreadable := func() Directory {
+		// Still carries an id: spec-gui.md §3.1 addresses directories by id, and
+		// a directory the UI cannot read is one the user most needs to open.
+		id, _ := ProjectID(path)
+		return Directory{Path: path, ProjectID: id}
+	}
 	s, err := Open(path)
 	if err != nil {
-		return Directory{Path: path}
+		return unreadable()
 	}
 	d, err := s.Directory()
 	if err != nil {
-		return Directory{Path: path}
+		return unreadable()
 	}
 	return d
 }

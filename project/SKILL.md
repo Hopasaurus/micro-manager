@@ -1,6 +1,6 @@
 ---
 name: micro-manager
-description: Work with micro-manager todo directories — plain-markdown task tracking using backlog.md, working.NN.md, done.md and details/, with WIP slots and machine-checkable invariants. Use when a directory named micro-manager, .micro-manager, µmanager or .µmanager is present; when reading or editing backlog.md, working.NN.md, done.md or details/T-NNNN.md; when running the mm CLI; or when asked to add, start, pause, block, finish, validate, or report on todo items in a project.
+description: Work with micro-manager todo directories — plain-markdown task tracking using backlog.md, working.NN.md, done.md and details/, with WIP slots and machine-checkable invariants. Use when a directory named micro-manager, .micro-manager, µmanager, .µmanager, μmanager or .μmanager is present; when reading or editing backlog.md, working.NN.md, done.md or details/T-NNNN.md; when running the mm CLI or check.sh; or when asked to add, start, pause, block, note, finish, remove, validate, or report on todo items in a project.
 ---
 
 # micro-manager
@@ -18,14 +18,22 @@ after editing, run `cp project/SKILL.md implementations/golang/SKILL.md`.
 
 ## Status — read this first
 
-The **file format and the validator work today.** `check.sh` and `find.sh` are
-present and functional at the repository root.
+Working today:
 
-The **`mm` CLI does not exist yet.** It is specified in
-`project/spec-tools.md` but not implemented. Until it is, perform operations by
-editing the files directly using the recipes in *Operations by hand* below, and
-validate with `check.sh`. Do not invent `mm` invocations or claim to have run
-them.
+- **The file format**, and `check.sh` / `find.sh` at the repository root.
+- **The `mm` CLI**, in `implementations/golang`. Every operation of
+  `spec-tools.md` §5.1 is implemented, plus `--block`, `--unblock`, `--note`,
+  `--wip` and `--find`. `--dry-run`, `--json` and `--porcelain` work on
+  everything.
+
+Not built: the **UI service** of `spec-gui.md`, the **TUI** of `spec-tui.md`, and
+the Python, TypeScript and Erlang implementations.
+
+**Prefer the CLI when it is available** — see *Using the CLI* below. It is the
+only way to get `next_id` allocation, atomic multi-file writes and pre-commit
+validation for free. When it is not built, or the directory is not this
+repository's, use *Operations by hand* and validate with `check.sh`; both produce
+the same files, which is the whole point of the format.
 
 ## Install
 
@@ -58,12 +66,15 @@ and `go build -o <existing-directory>` does not fail — it writes the binary
 
 ## Find the directories
 
-A micro-manager directory is recognized by **name alone**. Four conventional
-names, and both Unicode micro signs are matched (U+00B5 and U+03BC render
-identically and are trivially confused):
+A micro-manager directory is recognized by **name alone**. Six recognized names:
+two spellings, each with a dotted variant, and both Unicode micro signs — they
+render identically in nearly every font and are trivially confused, so readers
+must accept either:
 
 ```
-micro-manager    .micro-manager    µmanager    .µmanager
+micro-manager    .micro-manager
+µmanager         .µmanager        # U+00B5 MICRO SIGN — write this one
+μmanager         .μmanager        # U+03BC GREEK SMALL LETTER MU
 ```
 
 ```bash
@@ -184,7 +195,67 @@ newest item first within a month. Every line closed, with `done:` and
 equal the filename stem and `title` must match the item line exactly; that
 duplication is the only way drift gets detected.
 
+## Using the CLI
+
+One command. **Switches select the operation, never a positional word** — it is
+`mm --add "…"`, not `mm add "…"` — and exactly one operation per invocation.
+
+```bash
+mm --init --project "Acme Rewrite" --slots 2   # creates ./micro-manager
+
+mm --add "Fix the deploy script" --prio high --tag infra --tag ci
+mm --add "Rotate the leaked token" --top
+mm --add "Needs a description" --detail        # creates details/<ID>.md, opens $EDITOR
+
+mm --list                                      # on-disk order, never re-sorted
+mm --list --state all --tag infra
+mm --show T-0042 --detail
+
+mm --start T-0042                              # lowest idle slot, or --slot 2
+mm --note T-0042 "the cache key includes the build id"
+mm --pause T-0042                              # ## Notes preserved to the detail file
+mm --finish T-0042 --outcome shipped --closing-note "shipped in v2.1"
+
+mm --block T-0031 --reason "waiting on the vendor"
+mm --unblock T-0031
+mm --move T-0042 --position 3
+mm --edit T-0042 --title "New title" --set owner=dana
+mm --remove T-0042 --force --with-detail
+
+mm --report --group-by outcome                 # defaults to last complete ISO week
+mm --wip 3                                     # adds or removes slot files
+mm --check --all
+mm --find
+```
+
+`mm --help` lists everything; `mm --help --start` prints one operation's page.
+
+**Two switch names differ from what you might guess**, because operation and
+modifier switches share one namespace and no modifier may reuse an operation's
+name:
+
+| Not this | But this | Because |
+|---|---|---|
+| `mm --init --wip 2` | `mm --init --slots 2` | `--wip N` is the operation that changes the limit |
+| `mm --finish X --note T` | `mm --finish X --closing-note T` | `--note ID TEXT` is the operation that adds one |
+
+Useful with every operation: `--dir PATH`, `--dry-run`, `--quiet`, `--verbose`,
+`--json`, `--porcelain`. Exit codes: `0` ok, `1` invariant violation, `2` usage,
+`3` not found, `4` precondition failed, `5` concurrent modification, `6` I/O.
+
+`--dry-run` is proven to produce the same exit code and the same report as the
+real run, so it is a way to check a command before running it.
+
+Without `--dir`, the directory is resolved in this order: `--dir`, then
+`$MM_DIR`, then the nearest directory above the current one that contains a
+micro-manager directory, then a downward search. **Ambiguity is never resolved by
+guessing** — the tool lists the candidates and refuses.
+
 ## Operations by hand
+
+Every one of these is what the CLI does, and the files it writes are identical.
+Use them when `mm` is not built or not to hand — the format's claim is that it
+needs no tool, and this is that claim being true.
 
 ### Add
 
@@ -238,11 +309,19 @@ Move the line between `## Ready` and `## Blocked`, adding or dropping the
 ## Validate
 
 ```bash
-./check.sh --all
+./check.sh --all      # the reference validator, bash + awk
+mm --check --all      # the same ten invariants, from the Go implementation
 ```
 
-Run it after any hand edit. It reports `file:line: message` and exits non-zero
-on any violation.
+Run one after any hand edit. Both report `file:line: message` and exit non-zero
+on any violation, and **they are cross-checked against each other** over the
+fixture corpus, the sample directories, and directories the Go implementation
+itself wrote — so either is a valid way to verify. `check.sh` needs only bash
+and awk, which is why it stays the reference.
+
+`mm --check` runs the very same validation every mutation runs before it
+commits, which is what makes it impossible for the tool to write a directory its
+own checker rejects.
 
 ## Hard rules
 
@@ -271,24 +350,6 @@ Also, when moving an item between files:
   extension point;
 - **do not reorder `## Ready`** as a side effect of anything else;
 - **do not reformat lines you did not need to change.**
-
-## The CLI, once it exists
-
-One command, switches select the operation, exactly one operation per
-invocation:
-
-```bash
-mm --add "Fix the deploy script" --prio high --tag infra --detail
-mm --add "Rotate the leaked token" --top
-mm --move T-0042 --position 3
-mm --start T-0042
-mm --pause T-0031
-mm --finish T-0042 --outcome shipped
-mm --report --group-by outcome        # defaults to last complete ISO week
-mm --check --all
-```
-
-`--dry-run` works on every mutation. `--json` emits a machine envelope.
 
 ## Specifications
 

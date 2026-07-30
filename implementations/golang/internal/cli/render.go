@@ -104,6 +104,20 @@ func renderRemove(env Env, in *Invocation, out2 mm.Removal, res mm.TxResult) {
 	_ = res
 }
 
+func renderNote(env Env, in *Invocation, item mm.Item, res mm.TxResult) {
+	if in.Quiet {
+		return
+	}
+	where := "its detail file"
+	if item.State == mm.StateWorking {
+		where = fmt.Sprintf("slot %d", item.Slot)
+	}
+	out(env, "%snote added to %s for %s\n", prefix(in), where, item.ID)
+	for _, f := range res.Files {
+		out(env, "  %s\n", f)
+	}
+}
+
 func renderWip(env Env, in *Invocation, dir mm.Directory, res mm.TxResult) {
 	if in.Quiet {
 		return

@@ -32,13 +32,16 @@ Operations:
   --report                  what closed in a period
   --check                   validate against the ten invariants
   --wip N                   set the WIP limit by adding or removing slot files
+  --block ID --reason T     move to Blocked with a reason
+  --unblock ID              move back to Ready and drop the reason
+  --note ID TEXT            append a dated note
   --find                    list discovered micro-manager directories
   --help, --version
 
 Global modifiers:
   --dir PATH                act on this directory
-  --json                    machine envelope (not implemented yet)
-  --porcelain               stable tab-separated output (not implemented yet)
+  --json                    one JSON object on stdout, on success and failure
+  --porcelain               tab-separated records, one per line, no header
   --dry-run                 compute and report the change, write nothing
   --force                   proceed with a guarded destructive action
   --quiet                   suppress non-essential output; errors still print
@@ -55,6 +58,9 @@ Environment:
   MM_DIR                    default directory
   MM_REPORT_PERIOD          default --report period
   NO_COLOR                  suppress colour
+  VISUAL, EDITOR            editor for detail files; VISUAL wins. Not opened
+                            under --quiet, --json, --porcelain, --dry-run,
+                            --no-edit, or when there is no terminal
 
 Run 'mm --help --OPERATION' for one operation's switches.
 `
@@ -82,7 +88,9 @@ more important than everything already queued.
   --section ready|blocked|someday
   --blocked REASON          implies --section blocked
   --tag T                   accumulates: --tag infra --tag ci
-  --detail                  create details/<ID>.md from the template
+  --detail                  create details/<ID>.md from the template, and open
+                            it in $VISUAL or $EDITOR
+  --no-edit                 create it but do not open an editor
 `,
 	OpList: `mm --list [--state S] [--section S] [--prio P] [--tag T]
                [--blocked-only] [--limit N]
@@ -136,12 +144,13 @@ notes exist nowhere else.
   --discard-notes           throw the notes away instead
 `,
 	OpFinish: `mm --finish ID [--outcome shipped|cancelled|obsolete] [--done DATE]
-                 [--note TEXT] [--discard-notes]
+                 [--closing-note TEXT] [--discard-notes]
 
 Works from a working slot and from the backlog directly. --outcome cancelled is
 how work is abandoned without deleting it.
 
-  --note TEXT               append a closing note to the detail file
+  --closing-note TEXT       append a closing note to the detail file
+                            (not --note: that is the operation that adds one)
   --keep-notes              preserve the slot's notes; this is the default
   --discard-notes           throw them away instead
 `,
@@ -161,12 +170,36 @@ period is reproducible and one over an open period is not.
 Runs the ten invariants and prints file:line: message for each finding. Exits 1
 if any directory has one. This is the same validation every mutation runs before
 it commits.
+
+Violations are results, not errors: under --json the envelope reports ok:true
+because the check ran, each directory carries its own ok, and the EXIT CODE is
+what a script gates on.
 `,
 	OpWip: `mm --wip N
 
 Sets the WIP limit by creating or deleting working files — the limit is the file
 count, not a setting. Lowering it refuses if a slot that would go is occupied,
 and never renumbers an occupied slot.
+`,
+	OpBlock: `mm --block ID --reason TEXT
+
+Moves the item to ## Blocked and records why. Sugar over
+--move ID --section blocked --blocked TEXT.
+
+I5 requires every item under Blocked to carry a reason, so --reason is required.
+`,
+	OpUnblock: `mm --unblock ID [--end]
+
+Moves the item back to ## Ready and drops the blocked: reason. It goes to the
+top by default: something that has just become possible is usually the next
+thing to pick up. --end appends instead.
+`,
+	OpNote: `mm --note ID TEXT
+
+Appends a dated entry to the item's notes. Where it lands depends on where the
+item is: a working item's notes go in its slot, next to the work, where --pause
+and --finish already know to preserve them. Anything else goes to the item's
+detail file, which is created if it does not exist.
 `,
 	OpFind: `mm --find [--dir PATH]
 

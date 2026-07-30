@@ -31,16 +31,21 @@ type runner struct {
 }
 
 func (r runner) run(args ...string) result {
+	return r.runWith(Env{}, args...)
+}
+
+// runWith layers the caller's environment over the runner's, so a test can add
+// an editor or a terminal without restating the rest.
+func (r runner) runWith(base Env, args ...string) result {
 	var stdout, stderr bytes.Buffer
-	code := Run(Env{
-		Args:         args,
-		Stdout:       &stdout,
-		Stderr:       &stderr,
-		Cwd:          r.cwd,
-		Dir:          r.dir,
-		ReportPeriod: r.period,
-		Today:        testDay,
-	})
+	base.Args = args
+	base.Stdout = &stdout
+	base.Stderr = &stderr
+	base.Cwd = r.cwd
+	base.Dir = r.dir
+	base.ReportPeriod = r.period
+	base.Today = testDay
+	code := Run(base)
 	return result{Code: code, Stdout: stdout.String(), Stderr: stderr.String()}
 }
 
@@ -81,7 +86,7 @@ func TestRunLifecycle(t *testing.T) {
 	if got := r.run("--start", "T-0001"); got.Code != ExitOK {
 		t.Fatalf("restart: %s", got)
 	}
-	if got := r.run("--finish", "T-0001", "--note", "shipped it"); got.Code != ExitOK {
+	if got := r.run("--finish", "T-0001", "--closing-note", "shipped it"); got.Code != ExitOK {
 		t.Fatalf("finish: %s", got)
 	}
 
@@ -320,17 +325,20 @@ func TestHelpAndVersion(t *testing.T) {
 	}
 }
 
-// A flag that is accepted and then ignored is worse than one that is refused:
-// a script would parse human output as JSON and get nonsense.
-func TestUnimplementedOutputModesAreRefused(t *testing.T) {
+// Both machine modes are implemented now (T-0036, T-0038). What must stay true
+// is that a mode never silently degrades into human output: a script would
+// parse prose and get nonsense.
+func TestMachineModesDoNotDegradeIntoProse(t *testing.T) {
 	r, _ := newProject(t)
+	r.run("--add", "Something")
+
 	for _, flag := range []string{"--json", "--porcelain"} {
 		got := r.run("--list", flag)
-		if got.Code != ExitUsage {
-			t.Errorf("%s: exit = %d, want %d", flag, got.Code, ExitUsage)
+		if got.Code != ExitOK {
+			t.Errorf("%s: %s", flag, got)
 		}
-		if !strings.Contains(got.Stderr, "not implemented") {
-			t.Errorf("%s should say so plainly: %s", flag, got.Stderr)
+		if strings.Contains(got.Stdout, "# Test Project") {
+			t.Errorf("%s emitted the human listing:\n%s", flag, got.Stdout)
 		}
 	}
 }
@@ -383,4 +391,55 @@ func readAll(t *testing.T, dir string) string {
 		t.Fatal(err)
 	}
 	return b.String()
+}
+
+// §5.2: --block and --unblock are sugar over --move, and --note is the
+// highest-frequency write in daily use.
+func TestBlockUnblockNote(t *testing.T) {
+	r, dir := newProject(t)
+	r.run("--add", "Something")
+
+	// I5 requires a reason, so the sugar requires one too.
+	if got := r.run("--block", "T-0001"); got.Code != ExitUsage {
+		t.Errorf("--block without a reason: exit = %d, want %d", got.Code, ExitUsage)
+	}
+	if got := r.run("--block", "T-0001", "--reason", "waiting on ops"); got.Code != ExitOK {
+		t.Fatalf("block: %s", got)
+	}
+	backlog := readFileAt(t, dir, "backlog.md")
+	if !strings.Contains(backlog, "blocked:waiting on ops") {
+		t.Errorf("the reason was not recorded:\n%s", backlog)
+	}
+
+	if got := r.run("--unblock", "T-0001"); got.Code != ExitOK {
+		t.Fatalf("unblock: %s", got)
+	}
+	backlog = readFileAt(t, dir, "backlog.md")
+	if strings.Contains(backlog, "blocked:") {
+		t.Errorf("unblocking must drop the reason (I5):\n%s", backlog)
+	}
+
+	// --note takes the id as its value and the text positionally.
+	if got := r.run("--note", "T-0001", "found the cause"); got.Code != ExitOK {
+		t.Fatalf("note: %s", got)
+	}
+	if !strings.Contains(readFileAt(t, dir, "details/T-0001.md"), "found the cause") {
+		t.Error("the note was not recorded")
+	}
+	if got := r.run("--note", "T-0001"); got.Code != ExitUsage {
+		t.Errorf("--note with no text: exit = %d, want %d", got.Code, ExitUsage)
+	}
+
+	if got := r.run("--check"); got.Code != ExitOK {
+		t.Errorf("check: %s", got)
+	}
+}
+
+func readFileAt(t *testing.T, dir, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }

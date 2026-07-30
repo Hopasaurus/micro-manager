@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 
 	"micromanager/mm"
 )
@@ -24,6 +25,11 @@ func runCheck(env Env, in *Invocation) error {
 		return err
 	}
 
+	// Collected as well as printed: --json reports the findings as structured
+	// data, and an operation cannot print as it goes and then be asked for one
+	// object at the end.
+	var results []checkResult
+
 	total := 0
 	problems := 0
 	for _, path := range dirs {
@@ -40,6 +46,10 @@ func runCheck(env Env, in *Invocation) error {
 			return err
 		}
 
+		results = append(results, checkResult{
+			Path: path, Project: dir.Project, Violations: violations,
+		})
+
 		// file:line: message, sorted by path then numeric line — the format is
 		// the reference checker's, so the two are diffable against each other.
 		for _, v := range violations {
@@ -55,6 +65,14 @@ func runCheck(env Env, in *Invocation) error {
 		}
 	}
 
+	env.json.setResult(toJSONCheck(results))
+	for _, r := range results {
+		for _, v := range r.Violations {
+			env.porcelain.row(r.Path, v.At.File, strconv.Itoa(v.At.Line),
+				v.Invariant, v.Message)
+		}
+	}
+
 	if problems > 0 {
 		fmt.Fprintf(env.Stdout, "\nmm: %d problem(s) in %d of %d director%s\n",
 			total, problems, len(dirs), plural(len(dirs), "y", "ies"))
@@ -67,6 +85,14 @@ func runCheck(env Env, in *Invocation) error {
 			len(dirs), plural(len(dirs), "y", "ies"))
 	}
 	return nil
+}
+
+// checkResult is one directory's verdict, kept so that --json can report the
+// findings as data rather than as the lines a person reads.
+type checkResult struct {
+	Path       string
+	Project    string
+	Violations []mm.Violation
 }
 
 // checkFailed carries "the check found problems" to the exit code without

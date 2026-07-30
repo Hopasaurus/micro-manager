@@ -53,6 +53,12 @@ type Env struct {
 	// without chdir, which is process-global.
 	Cwd string
 
+	// json and porcelain collect the two machine output modes while an operation
+	// runs. Unexported and set by Run: they are machinery, not something a
+	// caller supplies.
+	json      *jsonOut
+	porcelain *porcelainOut
+
 	// Today is the date operations stamp onto items. A parameter because a test
 	// that depends on the wall clock fails once a year at a month boundary.
 	Today mm.Date
@@ -62,15 +68,43 @@ type Env struct {
 	// that adding colour later cannot accidentally read the environment further
 	// down.
 	NoColor bool
+
+	// Editor and Visual are $EDITOR and $VISUAL (§3.5). VISUAL wins where both
+	// are set; resolving that is resolveEditor's job, not the caller's.
+	Editor string
+	Visual string
+
+	// Interactive reports whether there is a terminal to hand over to. False in
+	// a pipeline or a CI job, where launching an editor would hang forever.
+	Interactive bool
+
+	// Launch runs the editor. Nil means really run it; tests supply their own so
+	// that a test run never spawns vi.
+	Launch Editor
 }
 
 // Run executes one invocation and returns the process exit code. It does not
 // call os.Exit; cmd/mm does that with the value returned here.
 func Run(env Env) int {
+	// The envelope must be present on failure too, including a failure to parse
+	// the very switch that asked for it — so the raw arguments are scanned
+	// before parsing can reject them.
+	stdout := env.Stdout
+	env.json = &jsonOut{enabled: requestedSwitch(env.Args, "json")}
+	env.porcelain = &porcelainOut{enabled: requestedSwitch(env.Args, "porcelain")}
+	if env.json.enabled || env.porcelain.enabled {
+		// §9.2 and §9.3: the machine stream is the ONLY thing on stdout. The
+		// human renderers keep writing, to nowhere, so no operation needs two
+		// code paths.
+		env.Stdout = io.Discard
+	}
+
 	in, err := Parse(env.Args)
 	if err != nil {
-		return report(env, err)
+		return finish(env, stdout, err)
 	}
+	env.json.operation = string(in.Op)
+	env.porcelain.op = in.Op
 
 	// --help and --version answer without touching a directory, so they work
 	// from anywhere, including somewhere with no project at all.
@@ -84,28 +118,62 @@ func Run(env Env) int {
 		return ExitOK
 	}
 
-	// §9.2 and §9.3 are not built yet (T-0036, T-0038). A flag that is accepted
-	// and then ignored is worse than one that is refused: a script would parse
-	// human output as JSON and get nonsense.
-	if in.JSON {
-		return report(env, usagef("--json is not implemented yet (T-0036)"))
+	return finish(env, stdout, dispatch(env, in))
+}
+
+// finish emits whatever the invocation produced and returns its exit code.
+//
+// One place decides how a result or a failure reaches the user, so that adding
+// an output mode cannot leave one operation printing the old way.
+func finish(env Env, stdout io.Writer, err error) int {
+	// --check is the one operation whose failure is a RESULT rather than an
+	// error (§5.1.12): it already reported every finding, and the exit code
+	// carries the verdict. A trailing "command failed" line would read as a
+	// second, separate problem.
+	var failed *checkFailed
+	isCheck := errors.As(err, &failed)
+
+	// The violations are --check's result, not an error, in every output mode.
+	reported := err
+	if isCheck {
+		reported = nil
 	}
-	if in.Porcelain {
-		return report(env, usagef("--porcelain is not implemented yet (T-0038)"))
+	switch {
+	case env.json.enabled:
+		env.json.emit(Env{Stdout: stdout}, reported)
+		return exitCode(err)
+	case env.porcelain.enabled:
+		env.porcelain.emit(stdout, reported)
+		if reported != nil {
+			// A machine mode still owes a human a reason on stderr, where a
+			// pipeline reading stdout will not see it.
+			fmt.Fprintf(env.Stderr, "mm: %s\n", err)
+		}
+		return exitCode(err)
 	}
 
-	if err := dispatch(env, in); err != nil {
-		// --check is the one operation whose failure is a RESULT rather than an
-		// error (§5.1.12): it already printed every finding, and the exit code
-		// carries the verdict. Printing "mm: invariant violations found" after a
-		// list of violations adds nothing and reads as a second, separate failure.
-		var failed *checkFailed
-		if errors.As(err, &failed) {
-			return ExitInvariantViolation
-		}
-		return report(env, err)
+	switch {
+	case err == nil:
+		return ExitOK
+	case isCheck:
+		return ExitInvariantViolation
 	}
-	return ExitOK
+	return report(env, err)
+}
+
+// requestedSwitch scans the raw arguments, because an output mode has to survive
+// a parse error in the same command line that asked for it.
+func requestedSwitch(args []string, name string) bool {
+	for _, a := range args {
+		if a == "--" {
+			return false
+		}
+		switch a {
+		case "--" + name, "--" + name + "=true", "--" + name + "=yes", "--" + name + "=1":
+			return true
+		}
+	}
+	return false
 }
 
 // report writes an error to stderr and returns its exit code.

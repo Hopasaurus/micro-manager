@@ -88,6 +88,18 @@ func fixtures(t *testing.T) []fixture {
 	return out
 }
 
+// copyFixture copies a fixture into a temporary directory so a test may write
+// to it. The corpus under testdata/ is read-only by convention: a test that
+// mutates it in place breaks every test that runs after it.
+func copyFixture(t *testing.T, name string) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), name)
+	if err := os.CopyFS(dir, os.DirFS(filepath.Join("../testdata", name))); err != nil {
+		t.Fatalf("copy fixture %s: %v", name, err)
+	}
+	return dir
+}
+
 func TestFixtureCorpusIsComplete(t *testing.T) {
 	fs := fixtures(t)
 

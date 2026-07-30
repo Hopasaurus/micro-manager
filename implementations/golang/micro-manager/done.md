@@ -1,7 +1,7 @@
 ---
 doc: done
 version: 1
-updated: 2026-07-29
+updated: 2026-07-30
 ---
 
 # Done
@@ -11,6 +11,16 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-07
 
+- [x] [T-0042] Implement status, next and search in the library | prio:med | tags:library,ops,phase-0 | detail:details/T-0042.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0048] Implement the recent and favorites list files | prio:med | tags:library,ui,phase-0 | detail:details/T-0048.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0041] Implement theme and config loading for the UI service | prio:high | tags:library,ui,phase-0 | detail:details/T-0041.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0047] Derive projectId from the canonical directory path | prio:high | tags:library,ui,phase-0 | detail:details/T-0047.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0046] Expose a cheap directory fingerprint for change detection | prio:high | tags:library,tx,phase-0 | detail:details/T-0046.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0039] Integrate EDITOR and VISUAL for detail editing | prio:low | tags:cli | detail:details/T-0039.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0038] Implement porcelain output | prio:low | tags:cli,output | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0037] Implement block, unblock and note | prio:med | tags:library,ops | detail:details/T-0037.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0036] Implement the JSON envelope | prio:med | tags:cli,output | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0035] Implement dry-run across every mutation | prio:med | tags:cli | detail:details/T-0035.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
 - [x] [T-0034] Wire check to the shared validator | prio:high | tags:cli | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
 - [x] [T-0033] Render human output for every operation | prio:high | tags:cli,output | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
 - [x] [T-0032] Map library errors to the seven exit codes | prio:high | tags:cli | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped

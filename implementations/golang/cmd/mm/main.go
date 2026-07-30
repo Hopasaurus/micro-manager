@@ -14,6 +14,14 @@ import (
 	"micromanager/mm"
 )
 
+// isTerminal reports whether a file is a character device, which is the cheap
+// portable test for "a person is on the other end". A pipe or a CI job is not,
+// and launching an editor there would hang forever.
+func isTerminal(f *os.File) bool {
+	fi, err := f.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
 func main() {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -35,5 +43,9 @@ func main() {
 		// date on everything it writes.
 		Today:   mm.Date{Year: now.Year(), Month: int(now.Month()), Day: now.Day()},
 		NoColor: os.Getenv("NO_COLOR") != "",
+		Editor:  os.Getenv("EDITOR"),
+		Visual:  os.Getenv("VISUAL"),
+		// Only hand the terminal to an editor when there is one to hand over.
+		Interactive: isTerminal(os.Stdin) && isTerminal(os.Stdout),
 	}))
 }

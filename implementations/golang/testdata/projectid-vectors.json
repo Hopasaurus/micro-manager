@@ -1,0 +1,28 @@
+{
+  "_comment": [
+    "Test vectors for projectId, spec-gui.md §3.1:",
+    "projectId = lowercase(hex(sha256(canonicalPath)))[0:12], where canonicalPath",
+    "is absolute, symlinks resolved, no trailing separator, UTF-8 in NFC.",
+    "",
+    "Each path here is already canonical and need not exist on disk: an",
+    "implementation asserts by hashing the string, so this table is portable to",
+    "the Python, TypeScript and Erlang implementations with no filesystem and no",
+    "fixtures.",
+    "",
+    "The last two entries are one directory written two ways - caf\\u00e9 and",
+    "cafe\\u0301 - and they MUST produce the same id. That is the whole reason the",
+    "spec fixes NFC: macOS hands back the decomposed form from a directory",
+    "listing while a config file usually holds the composed one."
+  ],
+  "vectors": [
+    { "path": "/", "id": "8a5edab28263" },
+    { "path": "/home/u/code/micro-manager", "id": "d71d0f3d1313" },
+    { "path": "/Users/dana/para/Projects/Manager/micro-manager", "id": "d3025ff6fc9c" },
+    { "path": "/home/u/code/.micro-manager", "id": "718b0cc3d26f" },
+    { "path": "/home/u/code/µmanager", "id": "c71677df4ffa" },
+    { "path": "/home/u/code/μmanager", "id": "c235ce733438" },
+    { "path": "/home/u/日本語/micro-manager", "id": "80428bc4f4eb" },
+    { "path": "/home/u/café/micro-manager", "id": "80aac25caa10" },
+    { "path": "/home/u/café/micro-manager", "id": "80aac25caa10" }
+  ]
+}
