@@ -1,8 +1,6 @@
 package mm
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -281,53 +279,6 @@ func TestDoneCreatesFirstMonthGroup(t *testing.T) {
 		t.Error("existing content lost")
 	}
 	assertLineIs(t, e, d.Month("2026-07").Items[0].Source.Line, "T-0001")
-}
-
-// The whole repository, again: every real file must survive a parse-and-write
-// with identical bytes. This is the cheapest guard against a regression in any
-// of the above, because it uses data nobody wrote for a test.
-func TestRoundTripRealRepositoryFiles(t *testing.T) {
-	dirs := []string{
-		"../../../sample1/micro-manager", "../../../sample2/micro-manager",
-		"../../../hidden/.micro-manager", "../../../symbol/µmanager",
-		"../../../symbol-hidden/.µmanager", "../micro-manager",
-	}
-	n := 0
-	for _, dir := range dirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Skipf("repository fixtures not present: %v", err)
-		}
-		for _, ent := range entries {
-			name := ent.Name()
-			if !strings.HasSuffix(name, ".md") {
-				continue
-			}
-			data, err := os.ReadFile(filepath.Join(dir, name))
-			if err != nil {
-				t.Fatalf("%s/%s: %v", dir, name, err)
-			}
-			var e *fileEdit
-			switch {
-			case name == "backlog.md":
-				b, _ := parseBacklog(name, data)
-				e = b.Edit()
-			case name == "done.md":
-				d, _ := parseDone(name, data)
-				e = d.Edit()
-			case strings.HasPrefix(name, "working."):
-				w, _ := parseWorking(name, data)
-				e = w.Edit()
-			default:
-				continue // structure.md and friends are not parsed
-			}
-			if got := string(e.Bytes()); got != string(data) {
-				t.Errorf("%s/%s: round trip is not byte-exact", dir, name)
-			}
-			n++
-		}
-	}
-	t.Logf("round-tripped %d real files byte-for-byte", n)
 }
 
 // ---------------------------------------------------------------------------

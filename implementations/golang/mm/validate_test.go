@@ -1,9 +1,6 @@
 package mm
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -217,94 +214,6 @@ func TestViolationsSortNumerically(t *testing.T) {
 			t.Errorf("position %d = %q, want %q", i, got, w)
 		}
 	}
-}
-
-// The oracle. check.sh is a working reference implementation of I1-I10; if the
-// two disagree about a real directory, one of them is wrong. This is a cheap
-// preview of T-0028, run over data nobody wrote for a test.
-func TestAgreesWithCheckShOnRealDirectories(t *testing.T) {
-	check, err := filepath.Abs("../../../check.sh")
-	if err != nil {
-		t.Skip(err)
-	}
-	if _, err := os.Stat(check); err != nil {
-		t.Skipf("reference checker not present: %v", err)
-	}
-	if _, err := exec.LookPath("bash"); err != nil {
-		t.Skipf("bash unavailable: %v", err)
-	}
-
-	dirs := []string{
-		"../../../sample1/micro-manager", "../../../sample2/micro-manager",
-		"../../../hidden/.micro-manager", "../../../symbol/µmanager",
-		"../../../symbol-hidden/.µmanager", "../micro-manager",
-	}
-	for _, dir := range dirs {
-		abs, err := filepath.Abs(dir)
-		if err != nil || !isDir(abs) {
-			t.Skipf("fixtures not present: %s", dir)
-		}
-		s, err := Open(abs)
-		if err != nil {
-			t.Fatalf("%s: %v", dir, err)
-		}
-		vs, err := s.Validate()
-		if err != nil {
-			t.Fatalf("%s: %v", dir, err)
-		}
-		refClean := exec.Command(check, abs).Run() == nil
-		ourClean := len(vs) == 0
-
-		if refClean != ourClean {
-			t.Errorf("%s: check.sh clean=%v but Go clean=%v\n%s",
-				dir, refClean, ourClean, violationMessages(vs))
-		}
-	}
-
-	// Every real directory is clean, so the loop above only proves the two
-	// agree on "no findings" - which a validator that reports nothing at all
-	// would also satisfy. Feed both a directory broken in several ways and
-	// require both to reject it, so the agreement is not vacuous.
-	broken := newDir(t, map[string]string{
-		"backlog.md": strings.NewReplacer(
-			"prio:med", "prio:URGENT",
-			"| blocked:on a thing", "",
-			"next_id: T-0011", "next_id: T-0002",
-		).Replace(dirBacklog),
-		"done.md": strings.Replace(sampleDone, "done:2026-07-23", "done:2026-03-02", 1),
-	})
-	s, err := Open(broken)
-	if err != nil {
-		t.Fatal(err)
-	}
-	vs, err := s.Validate()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(vs) == 0 {
-		t.Fatal("the Go validator found nothing in a deliberately broken directory")
-	}
-	if exec.Command(check, broken).Run() == nil {
-		t.Fatal("check.sh accepted a deliberately broken directory")
-	}
-	// And they agree on which invariants are at fault.
-	for _, want := range []string{"I2", "I5", "I6"} {
-		found := false
-		for _, v := range vs {
-			if v.Invariant == want {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("expected an %s finding, got:\n%s", want, violationMessages(vs))
-		}
-	}
-}
-
-func isDir(p string) bool {
-	fi, err := os.Stat(p)
-	return err == nil && fi.IsDir()
 }
 
 func hasViolation(vs []Violation, invariant, substr string) bool {

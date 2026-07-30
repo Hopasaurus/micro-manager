@@ -81,6 +81,12 @@ go run ./cmd/mm --check --all
 Before claiming anything works, run `go test ./...` and report the actual
 result. If tests fail, say so with the output.
 
+**gopls is installed and enabled — use it.** Act on the diagnostics that arrive
+after each edit rather than waiting for a build, and query `findReferences`
+before deleting a symbol or `workspaceSymbol` before writing a helper that may
+already exist. The general guidance, and what it did and did not catch in this
+codebase, is in `../../AGENTS.md` and `../../project/report-lsp-results.md`.
+
 ## Mapping the spec to Go
 
 **Types** (`spec-tools.md` §6.1). Field names are normative; Go idiom governs

@@ -11,6 +11,12 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-07
 
+- [x] [T-0028] Cross-check the validator against check.sh on every fixture | prio:high | tags:test | detail:details/T-0028.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0027] Round-trip tests: parse, write unchanged, assert bytes identical | prio:high | tags:test | detail:details/T-0027.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0026] Build the test fixture corpus under testdata | prio:high | tags:test | detail:details/T-0026.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0025] Implement setWipLimit, refusing to delete an occupied slot | prio:low | tags:library,ops | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0024] Implement period resolution and report building | prio:med | tags:library,report | detail:details/T-0024.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0023] Implement the discovery walker with DiscoveryOptions | prio:med | tags:library,discover | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
 - [x] [T-0022] Implement init for a new micro-manager directory | prio:med | tags:library,ops | detail:details/T-0022.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
 - [x] [T-0021] Implement remove behind the force guard | prio:med | tags:library,ops | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
 - [x] [T-0020] Implement finish with month group insertion | prio:high | tags:library,ops | detail:details/T-0020.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped

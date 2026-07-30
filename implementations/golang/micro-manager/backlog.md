@@ -17,12 +17,6 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0023] Implement the discovery walker with DiscoveryOptions | prio:med | tags:library,discover | created:2026-07-29
-- [ ] [T-0024] Implement period resolution and report building | prio:med | tags:library,report | detail:details/T-0024.md | created:2026-07-29
-- [ ] [T-0025] Implement setWipLimit, refusing to delete an occupied slot | prio:low | tags:library,ops | created:2026-07-29
-- [ ] [T-0026] Build the test fixture corpus under testdata | prio:high | tags:test | created:2026-07-29
-- [ ] [T-0027] Round-trip tests: parse, write unchanged, assert bytes identical | prio:high | tags:test | created:2026-07-29
-- [ ] [T-0028] Cross-check the validator against check.sh on every fixture | prio:high | tags:test | detail:details/T-0028.md | created:2026-07-29
 - [ ] [T-0029] Guard the library against stdout, os.Exit and env access | prio:med | tags:test,hygiene | created:2026-07-29
 - [ ] [T-0030] Build the CLI switch parser, one operation per invocation | prio:high | tags:cli | detail:details/T-0030.md | created:2026-07-29
 - [ ] [T-0031] Implement CLI directory resolution and MM_DIR | prio:high | tags:cli | created:2026-07-29

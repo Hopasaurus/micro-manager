@@ -51,8 +51,11 @@ func (m *dirModel) checkIDs() []Violation {
 	next := ID(m.backlog.FM.Get("next_id"))
 	switch {
 	case next == "":
+		// No line: the key is ABSENT, so there is no line to point at. Line 1
+		// is the "---" delimiter, and naming it sends the reader to a line that
+		// has nothing to do with the problem.
 		vs = append(vs, Violation{
-			Invariant: "I2", At: Location{File: "backlog.md", Line: 1},
+			Invariant: "I2", At: Location{File: "backlog.md"},
 			Message: "frontmatter has no next_id",
 		})
 	case !next.Valid():
@@ -177,7 +180,7 @@ func (m *dirModel) checkProject() []Violation {
 	}
 	if v := m.backlog.FM.Get("project"); v == "" || v == "null" {
 		return []Violation{{
-			Invariant: "I7", At: Location{File: "backlog.md", Line: 1},
+			Invariant: "I7", At: Location{File: "backlog.md"},
 			Message: "frontmatter has no project name",
 		}}
 	}

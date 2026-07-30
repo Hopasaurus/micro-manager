@@ -144,6 +144,36 @@ Full detail in `implementations/golang/AGENTS.md`. The short version:
   a directory, one of them is wrong. There is a test that asserts they agree over
   the real directories and a deliberately broken one.
 
+## Use the language server
+
+An LSP is available and should be used whenever one is configured for the
+language you are editing — gopls is installed and enabled for Go. Two ways, and
+the cheap one is the one that pays:
+
+- **Read the diagnostics that arrive after every edit.** Type errors,
+  redeclarations and simplification hints appear within a second, before any
+  build. Acting on them there costs nothing; ignoring them means finding the
+  same thing a `go test` cycle later. Tests and source share a package here, so
+  a helper in a `_test.go` file really can collide with one in the library.
+- **Query before changing or deleting a symbol.** `findReferences` before
+  removing something, `workspaceSymbol` when you suspect a helper already
+  exists. Writing a second `itoa` next to `strconv.Itoa`, or a second
+  check.sh cross-check next to the existing one, is the failure this prevents.
+
+What it will not do: it has no opinion about paths inside string literals, it
+cannot tell a skipping test from a passing one, and it does not know the ten
+invariants. Those still need `check.sh` and a careful read. A clean diagnostic
+stream is the floor, not the ceiling.
+
+**"No references" is not "safe to delete."** Most of `mm/`'s exported surface has
+zero callers today because the CLI and the UI service that the specs require are
+not written yet. Reference counts answer "who calls this now", never "should this
+exist". See `project/report-lsp-results.md` for what it caught here and the
+seven ways it can mislead.
+
+Prefer an absolute `filePath` — relative paths are rejected. If a diagnostic
+contradicts a clean `go build`, believe the build and re-check.
+
 ## Verification habits that keep paying off
 
 - Run the real thing, not just fixtures. Dry-run operations against this
@@ -152,3 +182,7 @@ Full detail in `implementations/golang/AGENTS.md`. The short version:
 - `./check.sh --all` after anything that touches a data file.
 - Before claiming something works: `go -C implementations/golang test ./...` and
   report the actual result.
+- **A test that skips is not a test that passes.** Three tests in this
+  repository were silently skipping for a whole session because `t.Skipf` on a
+  missing fixture path makes a test survive being wrong. Log the count of files
+  a test actually covered, and read `-v` output after moving anything.
