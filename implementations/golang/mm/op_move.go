@@ -38,70 +38,70 @@ func (r MoveRequest) selectors() int {
 // ONLY BACKLOG ITEMS MOVE. Ordering is meaningless in done.md beyond its month
 // grouping, and working slots are interchangeable - so moving an item between
 // slots is --start --slot, not this (spec-file-format.md §5.2.1).
-func (s *Store) Move(id ID, req MoveRequest, today Date) (Item, txResult, error) {
+func (s *Store) Move(id ID, req MoveRequest, today Date) (Item, TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var zero Item
 	if n := req.selectors(); n > 1 {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: give one destination: --position, --top, --end, --before or --after",
 			ErrInvalidArgument)
 	} else if n == 0 && req.Section == "" {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: --move needs a destination: --position, --top, --end, --before, --after or --section",
 			ErrInvalidArgument)
 	}
 	if req.Before != "" && req.Before == id {
-		return zero, txResult{}, fmt.Errorf("%w: %s cannot move before itself", ErrInvalidArgument, id)
+		return zero, TxResult{}, fmt.Errorf("%w: %s cannot move before itself", ErrInvalidArgument, id)
 	}
 	if req.After != "" && req.After == id {
-		return zero, txResult{}, fmt.Errorf("%w: %s cannot move after itself", ErrInvalidArgument, id)
+		return zero, TxResult{}, fmt.Errorf("%w: %s cannot move after itself", ErrInvalidArgument, id)
 	}
 
 	t, err := s.begin()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	it := t.model.find(id)
 	if it == nil {
-		return zero, txResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
+		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
 	if it.State != StateBacklog {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: %s is %s, and only backlog items can be moved; use --start, --pause or --finish",
 			ErrConflict, id, it.State)
 	}
 
 	b, e, err := t.backlog()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 
 	from := it.Section
 	to := from
 	if req.Section != "" {
 		if _, err := ParseSection(string(req.Section)); err != nil {
-			return zero, txResult{}, err
+			return zero, TxResult{}, err
 		}
 		to = req.Section
 	}
 	if b.Section(to) == nil {
-		return zero, txResult{}, fmt.Errorf("%w: backlog.md has no ## %s section", ErrNotFound, to)
+		return zero, TxResult{}, fmt.Errorf("%w: backlog.md has no ## %s section", ErrNotFound, to)
 	}
 
 	// I5 ties the blocked: field to the section, so a section change has to
 	// carry it. Moving in needs a reason; moving out drops the one there was.
 	if to == SectionBlocked && it.Blocked == "" {
 		if req.Blocked == "" {
-			return zero, txResult{}, fmt.Errorf(
+			return zero, TxResult{}, fmt.Errorf(
 				"%w: moving %s into Blocked needs a reason (--blocked)", ErrInvalidArgument, id)
 		}
 		it.Blocked = req.Blocked
 	}
 	if to != SectionBlocked {
 		if req.Blocked != "" {
-			return zero, txResult{}, fmt.Errorf(
+			return zero, TxResult{}, fmt.Errorf(
 				"%w: a blocked: reason only belongs in Blocked, not %s", ErrInvalidArgument, to)
 		}
 		it.Blocked = ""
@@ -117,7 +117,7 @@ func (s *Store) Move(id ID, req MoveRequest, today Date) (Item, txResult, error)
 
 	index, err := resolveIndex(req, dest.Items, from == to)
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 
 	b.InsertItem(e, to, index, it)

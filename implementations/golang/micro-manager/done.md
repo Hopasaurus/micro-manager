@@ -11,6 +11,12 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-07
 
+- [x] [T-0034] Wire check to the shared validator | prio:high | tags:cli | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0033] Render human output for every operation | prio:high | tags:cli,output | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0032] Map library errors to the seven exit codes | prio:high | tags:cli | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0031] Implement CLI directory resolution and MM_DIR | prio:high | tags:cli | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0030] Build the CLI switch parser, one operation per invocation | prio:high | tags:cli | detail:details/T-0030.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0029] Guard the library against stdout, os.Exit and env access | prio:med | tags:test,hygiene | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
 - [x] [T-0028] Cross-check the validator against check.sh on every fixture | prio:high | tags:test | detail:details/T-0028.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
 - [x] [T-0027] Round-trip tests: parse, write unchanged, assert bytes identical | prio:high | tags:test | detail:details/T-0027.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
 - [x] [T-0026] Build the test fixture corpus under testdata | prio:high | tags:test | detail:details/T-0026.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped

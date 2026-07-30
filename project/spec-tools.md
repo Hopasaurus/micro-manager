@@ -286,7 +286,7 @@ A conforming implementation MUST provide all of these.
 #### 5.1.1 `--init` — create a directory
 
 ```
-mm --init [--dir PATH] --project NAME [--wip N] [--slot-width W]
+mm --init [--dir PATH] --project NAME [--slots N] [--slot-width W]
 ```
 
 Creates a micro-manager directory: `backlog.md` with the three sections and
@@ -295,7 +295,20 @@ Creates a micro-manager directory: `backlog.md` with the three sections and
 written too.
 
 `--slot-width` sets the digit width for working files (default 2, per
-format spec §5.2.1). `--wip` sets how many are created.
+format spec §5.2.1). `--slots` sets how many are created.
+
+> **Corrected.** This modifier was `--wip` in an earlier revision, which
+> contradicted §3.2: `--wip N` is an operation (§5.2), and §3.2 requires
+> operation and modifier switches to share one namespace so that no modifier may
+> reuse an operation's name. A parser implementing §3.2 literally reads
+> `mm --init --project P --wip 2` as two operations and refuses it. Renamed to
+> `--slots` rather than making the meaning of `--wip` depend on which operation
+> preceded it, which is exactly the context-sensitivity §3.2 exists to prevent.
+>
+> **The same collision remains in two places** and must be resolved the same way
+> when those operations are implemented: `--note ID TEXT` (§5.2) collides with
+> `--finish --note TEXT` (§5.1.10), and `--detail ID` (§5.2) collides with
+> `--add --detail` (§5.1.2).
 
 Errors: `AlreadyExists` if the target already holds any of these files;
 `InvalidArgument` if `--project` is empty.
@@ -985,7 +998,7 @@ Operation-specific modifiers:
 --prio --tag --untag --set --unset --title --blocked --reason
 --created --started --done --outcome
 --detail --detail-text --detail-file --no-edit --with-detail
---slot --project --wip --slot-width
+--slot --project --slots --slot-width
 --period --week --last-week --this-week --since --until --group-by
 --include-wip --include-backlog --include-archives
 --state --limit --sort --all --keep-notes --discard-notes

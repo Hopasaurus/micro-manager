@@ -39,30 +39,30 @@ type UpdateRequest struct {
 }
 
 // Update modifies an item wherever it lives.
-func (s *Store) Update(id ID, req UpdateRequest, today Date) (Item, txResult, error) {
+func (s *Store) Update(id ID, req UpdateRequest, today Date) (Item, TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var zero Item
 	t, err := s.begin()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	it := t.model.find(id)
 	if it == nil {
-		return zero, txResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
+		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
 	before := RenderItemLine(it)
 	oldTitle := it.Title
 
 	if err := applyUpdate(it, req); err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 
 	// Write the item back to whichever file holds it.
 	file, err := t.writeItemLine(it, today)
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	t.record(Change{Kind: ChangeUpdated, ID: id, File: file,
 		Before: before, After: RenderItemLine(it)})
@@ -72,7 +72,7 @@ func (s *Store) Update(id ID, req UpdateRequest, today Date) (Item, txResult, er
 	// the item write succeeds perfectly well on its own.
 	if it.Title != oldTitle && it.Detail != "" {
 		if err := t.syncDetailTitle(it, today); err != nil {
-			return zero, txResult{}, err
+			return zero, TxResult{}, err
 		}
 	}
 

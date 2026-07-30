@@ -37,10 +37,10 @@ type InitRequest struct {
 // The directory itself may already exist and hold anything else; what it may NOT
 // hold is any file this would write. Merging into a half-built directory would
 // mean guessing which of the two layouts is authoritative.
-func Init(path string, req InitRequest, today Date) (*Store, txResult, error) {
+func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
 	project := strings.TrimSpace(req.Project)
 	if project == "" || project == "null" {
-		return nil, txResult{}, fmt.Errorf(
+		return nil, TxResult{}, fmt.Errorf(
 			"%w: a directory needs a project name", ErrInvalidArgument)
 	}
 	// Frontmatter values are read with a trailing comment stripped, so a name
@@ -48,7 +48,7 @@ func Init(path string, req InitRequest, today Date) (*Store, txResult, error) {
 	// describe itself the moment it was written.
 	if strings.ContainsAny(project, "\n\r") || strings.Contains(project, " #") ||
 		strings.Contains(project, "\t#") {
-		return nil, txResult{}, fmt.Errorf(
+		return nil, TxResult{}, fmt.Errorf(
 			"%w: a project name may not contain a newline or a comment marker (' #')",
 			ErrInvalidArgument)
 	}
@@ -58,7 +58,7 @@ func Init(path string, req InitRequest, today Date) (*Store, txResult, error) {
 		wip = 1
 	}
 	if wip < 1 {
-		return nil, txResult{}, fmt.Errorf(
+		return nil, TxResult{}, fmt.Errorf(
 			"%w: a directory needs at least one working file", ErrInvalidArgument)
 	}
 	width := req.SlotWidth
@@ -66,19 +66,19 @@ func Init(path string, req InitRequest, today Date) (*Store, txResult, error) {
 		width = 2
 	}
 	if width < 1 {
-		return nil, txResult{}, fmt.Errorf("%w: slot width must be at least 1", ErrInvalidArgument)
+		return nil, TxResult{}, fmt.Errorf("%w: slot width must be at least 1", ErrInvalidArgument)
 	}
 	// Uniform width is I10. A width too narrow for the highest slot would force
 	// working.9.md next to working.10.md, which names nine slots and one lie.
 	if n := len(strconv.Itoa(wip)); n > width {
-		return nil, txResult{}, fmt.Errorf(
+		return nil, TxResult{}, fmt.Errorf(
 			"%w: %d slots need at least %d digits, but slot width is %d",
 			ErrInvalidArgument, wip, n, width)
 	}
 
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return nil, txResult{}, fmt.Errorf("%w: %s: %v", ErrIO, path, err)
+		return nil, TxResult{}, fmt.Errorf("%w: %s: %v", ErrIO, path, err)
 	}
 
 	files := map[string]string{
@@ -106,7 +106,7 @@ func Init(path string, req InitRequest, today Date) (*Store, txResult, error) {
 	// layout wins.
 	for _, name := range order {
 		if _, err := os.Stat(filepath.Join(abs, name)); err == nil {
-			return nil, txResult{}, fmt.Errorf(
+			return nil, TxResult{}, fmt.Errorf(
 				"%w: %s already exists in %s", ErrAlreadyExists, name, path)
 		}
 	}
@@ -115,11 +115,11 @@ func Init(path string, req InitRequest, today Date) (*Store, txResult, error) {
 	// about to be written and refuse to create a directory this package's own
 	// checker would reject.
 	if vs := validateInit(abs, files, order); len(vs) > 0 {
-		return nil, txResult{}, &InvariantError{Violations: vs}
+		return nil, TxResult{}, &InvariantError{Violations: vs}
 	}
 
 	var ws writeSet
-	var res txResult
+	var res TxResult
 	res.DryRun = req.DryRun
 	for _, name := range order {
 		ws.Add(filepath.Join(abs, name), []byte(files[name]), stamp{missing: true})

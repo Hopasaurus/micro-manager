@@ -31,27 +31,27 @@ type PauseRequest struct {
 // Fields are preserved, started: included - it records when the work began, not
 // when it was last picked up, and a paused item that comes back has not started
 // over. Subtasks in ## Plan are discarded, which is what they are for.
-func (s *Store) Pause(id ID, req PauseRequest, today Date) (Item, txResult, error) {
+func (s *Store) Pause(id ID, req PauseRequest, today Date) (Item, TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var zero Item
 	t, err := s.begin()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	it := t.model.find(id)
 	if it == nil {
-		return zero, txResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
+		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
 	if it.State != StateWorking {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: %s is %s, not in a working slot; there is nothing to pause",
 			ErrConflict, id, it.State)
 	}
 	w := t.slotOf(id)
 	if w == nil {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: %s claims to be working but is in no slot", ErrConflict, id)
 	}
 
@@ -60,30 +60,30 @@ func (s *Store) Pause(id ID, req PauseRequest, today Date) (Item, txResult, erro
 		sec = SectionReady
 	}
 	if _, err := ParseSection(string(sec)); err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	if sec == SectionBlocked && req.Blocked == "" {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: pausing %s into Blocked needs a reason (--blocked)", ErrInvalidArgument, id)
 	}
 	if sec != SectionBlocked && req.Blocked != "" {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: a blocked: reason only belongs in Blocked, not %s", ErrInvalidArgument, sec)
 	}
 
 	b, be, err := t.backlog()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	if b.Section(sec) == nil {
-		return zero, txResult{}, fmt.Errorf("%w: backlog.md has no ## %s section", ErrNotFound, sec)
+		return zero, TxResult{}, fmt.Errorf("%w: backlog.md has no ## %s section", ErrNotFound, sec)
 	}
 
 	e := t.working(w)
 	notes := sectionBody(e, w.FM, "Notes")
 	if notes != "" && !req.DiscardNotes {
 		if err := t.preserveNotes(it, notes, today); err != nil {
-			return zero, txResult{}, err
+			return zero, TxResult{}, err
 		}
 	}
 

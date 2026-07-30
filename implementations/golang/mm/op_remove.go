@@ -37,27 +37,27 @@ type Removal struct {
 // The ID is RETIRED, NOT RECYCLED: next_id is never decremented (I2). A future
 // item with the same number would silently inherit this one's history in every
 // log, commit message and detail file that ever named it.
-func (s *Store) Remove(id ID, req RemoveRequest, today Date) (Removal, txResult, error) {
+func (s *Store) Remove(id ID, req RemoveRequest, today Date) (Removal, TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var zero Removal
 	t, err := s.begin()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	it := t.model.find(id)
 	if it == nil {
-		return zero, txResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
+		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
 	if !req.Force {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: removing %s deletes it with no record; pass Force if that is really what you want, "+
 				"or close it with --finish %s --outcome cancelled to keep the history",
 			ErrPreconditionFailed, id, id)
 	}
 	if it.State == StateWorking {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: %s is in a working slot; pause or finish it before removing it",
 			ErrConflict, id)
 	}
@@ -70,7 +70,7 @@ func (s *Store) Remove(id ID, req RemoveRequest, today Date) (Removal, txResult,
 	case StateBacklog:
 		b, e, err := t.backlog()
 		if err != nil {
-			return zero, txResult{}, err
+			return zero, TxResult{}, err
 		}
 		b.RemoveItem(e, it)
 		touchUpdated(e, today)
@@ -79,14 +79,14 @@ func (s *Store) Remove(id ID, req RemoveRequest, today Date) (Removal, txResult,
 	case StateDone:
 		d, e, err := t.done()
 		if err != nil {
-			return zero, txResult{}, err
+			return zero, TxResult{}, err
 		}
 		d.RemoveItem(e, it)
 		touchUpdated(e, today)
 		t.stage("done.md")
 		t.record(Change{Kind: ChangeDeleted, ID: id, File: "done.md", Before: before})
 	default:
-		return zero, txResult{}, fmt.Errorf("%w: %s has no state", ErrConflict, id)
+		return zero, TxResult{}, fmt.Errorf("%w: %s has no state", ErrConflict, id)
 	}
 
 	// next_id is deliberately untouched.

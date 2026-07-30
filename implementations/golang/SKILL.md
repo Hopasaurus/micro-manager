@@ -43,14 +43,18 @@ chmod +x check.sh find.sh
 directories. `./check.sh <dir>` checks one. Exit code 0 means clean, 1 means an
 invariant was violated, 2 means a usage or setup problem.
 
-### The CLI, once implemented
+### The CLI
 
 ```bash
 cd implementations/golang
-go build -o mm ./cmd/mm
-sudo install -m 0755 mm /usr/local/bin/mm    # or put it anywhere on PATH
+go build -o bin/mm ./cmd/mm
+sudo install -m 0755 bin/mm /usr/local/bin/mm   # or put it anywhere on PATH
 mm --version
 ```
+
+Build into `bin/`, **not** `-o mm`. That path is the library package directory,
+and `go build -o <existing-directory>` does not fail — it writes the binary
+*inside* it, as `mm/mm`, where nothing ignores it and it gets committed.
 
 ## Find the directories
 

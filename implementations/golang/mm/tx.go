@@ -24,8 +24,14 @@ import (
 // rules would drift, and the drift would surface as a file the tool wrote and
 // then refused to read.
 
-// txResult reports what a transaction did, or would have done.
-type txResult struct {
+// TxResult reports what a transaction did, or would have done.
+//
+// Exported because it is part of the API: spec-tools.md §6.2 requires every
+// mutating operation to return the change set it produced, so that a front end
+// re-renders from the return value instead of re-reading the directory. An
+// unexported result type would be returned but unnameable, which means a caller
+// could not write a function that takes one.
+type TxResult struct {
 	Changes []Change
 	Files   []string // paths that would be written or removed
 	DryRun  bool
@@ -151,8 +157,8 @@ func (t *tx) stageRaw(name string, data []byte) {
 // dryRun performs every step except the write, so the report a caller gets is
 // the report of what would really happen - including a validation failure. An
 // operation that cannot be dry-run does not exist (spec-tools.md §3.4).
-func (t *tx) commit(dryRun bool) (txResult, error) {
-	res := txResult{Changes: t.changes, Files: t.ws.Paths(), DryRun: dryRun}
+func (t *tx) commit(dryRun bool) (TxResult, error) {
+	res := TxResult{Changes: t.changes, Files: t.ws.Paths(), DryRun: dryRun}
 
 	// Step 3. Compare against what was already wrong at begin(): a pre-existing
 	// violation must not be blamed on this change, and must not block it either.

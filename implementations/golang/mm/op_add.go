@@ -32,35 +32,35 @@ type AddRequest struct {
 }
 
 // Add creates a backlog item, allocating its ID from next_id.
-func (s *Store) Add(req AddRequest, today Date) (Item, txResult, error) {
+func (s *Store) Add(req AddRequest, today Date) (Item, TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var zero Item
 	t, err := s.begin()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	b, e, err := t.backlog()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 
 	it, err := buildNewItem(req, today)
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 
 	// Allocate from next_id. The counter only ever moves forward: an ID is never
 	// reused, so a deleted item's number stays retired (I2).
 	next := ID(b.FM.Get("next_id"))
 	if !next.Valid() {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: backlog.md has no usable next_id (found %q)", ErrInvalidArgument, b.FM.Get("next_id"))
 	}
 	n := next.Num()
 	if n > 9999 {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: next_id is exhausted at T-9999; the four-digit width caps a directory at 9999 items",
 			ErrConflict)
 	}

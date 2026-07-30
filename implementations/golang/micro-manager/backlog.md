@@ -17,12 +17,6 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0029] Guard the library against stdout, os.Exit and env access | prio:med | tags:test,hygiene | created:2026-07-29
-- [ ] [T-0030] Build the CLI switch parser, one operation per invocation | prio:high | tags:cli | detail:details/T-0030.md | created:2026-07-29
-- [ ] [T-0031] Implement CLI directory resolution and MM_DIR | prio:high | tags:cli | created:2026-07-29
-- [ ] [T-0032] Map library errors to the seven exit codes | prio:high | tags:cli | created:2026-07-29
-- [ ] [T-0033] Render human output for every operation | prio:high | tags:cli,output | created:2026-07-29
-- [ ] [T-0034] Wire check to the shared validator | prio:high | tags:cli | created:2026-07-29
 - [ ] [T-0035] Implement dry-run across every mutation | prio:med | tags:cli | created:2026-07-29
 - [ ] [T-0036] Implement the JSON envelope | prio:med | tags:cli,output | created:2026-07-29
 - [ ] [T-0037] Implement block, unblock and note | prio:med | tags:library,ops | created:2026-07-29

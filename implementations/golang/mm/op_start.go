@@ -25,26 +25,26 @@ type StartRequest struct {
 // at --pause time in ## Ready, which I5 forbids. The reason is not discarded -
 // it is seeded into the slot's ## Blockers section, where it is still in front of
 // whoever picks the work up.
-func (s *Store) Start(id ID, req StartRequest, today Date) (Item, txResult, error) {
+func (s *Store) Start(id ID, req StartRequest, today Date) (Item, TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var zero Item
 	t, err := s.begin()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	it := t.model.find(id)
 	if it == nil {
-		return zero, txResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
+		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
 	switch it.State {
 	case StateBacklog:
 	case StateWorking:
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: %s is already in slot %d; pause or finish it instead", ErrConflict, id, it.Slot)
 	default:
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: %s is done, and done work does not go back into a slot", ErrConflict, id)
 	}
 
@@ -54,7 +54,7 @@ func (s *Store) Start(id ID, req StartRequest, today Date) (Item, txResult, erro
 	// dropping it would destroy the field this whole path exists to preserve.
 	for _, f := range it.Extra {
 		if reservedKey(f.Key) {
-			return zero, txResult{}, fmt.Errorf(
+			return zero, TxResult{}, fmt.Errorf(
 				"%w: %s carries a reserved field %q, which a working file cannot hold; "+
 					"rename or remove it first", ErrInvalidArgument, id, f.Key)
 		}
@@ -62,11 +62,11 @@ func (s *Store) Start(id ID, req StartRequest, today Date) (Item, txResult, erro
 
 	w, err := t.pickSlot(req.Slot)
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	b, be, err := t.backlog()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 
 	before := RenderItemLine(it)

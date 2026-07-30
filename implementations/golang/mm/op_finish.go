@@ -28,7 +28,7 @@ type FinishRequest struct {
 // It works from a working slot AND from the backlog directly: closing something
 // that was never started is normal, and --outcome cancelled from the backlog is
 // the supported way to abandon work without deleting it.
-func (s *Store) Finish(id ID, req FinishRequest, today Date) (Item, txResult, error) {
+func (s *Store) Finish(id ID, req FinishRequest, today Date) (Item, TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -38,35 +38,35 @@ func (s *Store) Finish(id ID, req FinishRequest, today Date) (Item, txResult, er
 		outcome = OutcomeShipped
 	}
 	if _, err := ParseOutcome(string(outcome)); err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	when := req.Done
 	if when.IsZero() {
 		when = today
 	}
 	if !when.Valid() {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: done:%04d-%02d-%02d is not a real date", ErrInvalidArgument,
 			when.Year, when.Month, when.Day)
 	}
 
 	t, err := s.begin()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	it := t.model.find(id)
 	if it == nil {
-		return zero, txResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
+		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
 	if it.State == StateDone {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: %s was already closed on %s; edit it instead of finishing it twice",
 			ErrConflict, id, it.Done)
 	}
 
 	d, de, err := t.done()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 
 	// Collect what would otherwise be lost before anything is cleared.
@@ -75,7 +75,7 @@ func (s *Store) Finish(id ID, req FinishRequest, today Date) (Item, txResult, er
 	notes := ""
 	if it.State == StateWorking {
 		if w = t.slotOf(id); w == nil {
-			return zero, txResult{}, fmt.Errorf(
+			return zero, TxResult{}, fmt.Errorf(
 				"%w: %s claims to be working but is in no slot", ErrConflict, id)
 		}
 		we = t.working(w)
@@ -91,7 +91,7 @@ func (s *Store) Finish(id ID, req FinishRequest, today Date) (Item, txResult, er
 	}
 	if notes != "" {
 		if err := t.preserveNotes(it, notes, today); err != nil {
-			return zero, txResult{}, err
+			return zero, TxResult{}, err
 		}
 	}
 
@@ -102,7 +102,7 @@ func (s *Store) Finish(id ID, req FinishRequest, today Date) (Item, txResult, er
 	case StateBacklog:
 		b, be, err := t.backlog()
 		if err != nil {
-			return zero, txResult{}, err
+			return zero, TxResult{}, err
 		}
 		b.RemoveItem(be, it)
 		touchUpdated(be, today)

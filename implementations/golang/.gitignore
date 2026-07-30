@@ -4,6 +4,9 @@
 # rule excluded the whole library, and a binary cannot be built there anyway —
 # the name is taken. Build the CLI somewhere else, e.g. `go build -o bin/mm ./cmd/mm`.
 /bin/
+# Guard against the old `go build -o mm ./cmd/mm`, which does not fail: Go
+# writes the binary INTO the existing mm/ directory instead.
+/mm/mm
 /mm-ui
 /mm-tui
 *.test

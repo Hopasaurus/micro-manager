@@ -16,23 +16,23 @@ import (
 // gaps (I10), so only the highest-numbered files can go, and each of them must
 // be idle. Renumbering an occupied slot to close a gap is not an option: the
 // item would move files for a reason that has nothing to do with the item.
-func (s *Store) SetWipLimit(n int, dryRun bool) (Directory, txResult, error) {
+func (s *Store) SetWipLimit(n int, dryRun bool) (Directory, TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var zero Directory
 	if n < 1 {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: a directory needs at least one working file", ErrInvalidArgument)
 	}
 
 	t, err := s.begin()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	current := len(t.model.working)
 	if current == 0 {
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: this directory has no working.NN.md file to count from", ErrNotFound)
 	}
 
@@ -41,7 +41,7 @@ func (s *Store) SetWipLimit(n int, dryRun bool) (Directory, txResult, error) {
 		if w.Width != width {
 			// Mixed widths are already an I10 violation; picking one and writing
 			// more files at it would bury the problem under new files.
-			return zero, txResult{}, fmt.Errorf(
+			return zero, TxResult{}, fmt.Errorf(
 				"%w: working files mix digit widths; fix that before changing the limit",
 				ErrInvariantViolation)
 		}
@@ -58,7 +58,7 @@ func (s *Store) SetWipLimit(n int, dryRun bool) (Directory, txResult, error) {
 
 	case n > current:
 		if digits := len(fmt.Sprint(n)); digits > width {
-			return zero, txResult{}, fmt.Errorf(
+			return zero, TxResult{}, fmt.Errorf(
 				"%w: %d slots need at least %d digits, but this directory numbers its "+
 					"slots with %d; every working file must use the same width (I10)",
 				ErrInvalidArgument, n, digits, width)
@@ -82,7 +82,7 @@ func (s *Store) SetWipLimit(n int, dryRun bool) (Directory, txResult, error) {
 				b = append(b, fmt.Sprintf("\n  slot %0*d  %s  %s",
 					w.Width, w.Number, w.Item.ID, w.Item.Title)...)
 			}
-			return zero, txResult{}, fmt.Errorf(
+			return zero, TxResult{}, fmt.Errorf(
 				"%w: lowering the limit to %d would delete a slot that is in use:%s\n"+
 					"finish or pause it first; an occupied slot is never renumbered",
 				ErrConflict, n, b)

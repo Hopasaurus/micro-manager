@@ -79,28 +79,28 @@ type AttachDetailRequest struct {
 //
 // The path is not a parameter. I8 requires details/<that item's ID>.md, so
 // offering a choice would only offer a way to be wrong.
-func (s *Store) AttachDetail(id ID, req AttachDetailRequest, today Date) (Detail, txResult, error) {
+func (s *Store) AttachDetail(id ID, req AttachDetailRequest, today Date) (Detail, TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var zero Detail
 	t, err := s.begin()
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	it := t.model.find(id)
 	if it == nil {
-		return zero, txResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
+		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
 	path := it.DetailPath()
 	if it.Detail != "" {
-		return zero, txResult{}, fmt.Errorf("%w: %s already has a detail file at %s",
+		return zero, TxResult{}, fmt.Errorf("%w: %s already has a detail file at %s",
 			ErrAlreadyExists, id, it.Detail)
 	}
 	if _, exists := t.model.details[path]; exists {
 		// The file is there but nothing points at it - an I9 orphan. Adopting it
 		// is the repair, and losing its contents would not be.
-		return zero, txResult{}, fmt.Errorf(
+		return zero, TxResult{}, fmt.Errorf(
 			"%w: %s already exists as an orphan; adopt it with --set detail:%s",
 			ErrConflict, path, path)
 	}
@@ -119,7 +119,7 @@ func (s *Store) AttachDetail(id ID, req AttachDetailRequest, today Date) (Detail
 	it.Detail = path
 	file, err := t.writeItemLine(it, today)
 	if err != nil {
-		return zero, txResult{}, err
+		return zero, TxResult{}, err
 	}
 	t.record(Change{Kind: ChangeUpdated, ID: id, File: file})
 	t.stageRaw(path, []byte(content))
@@ -138,17 +138,17 @@ func (s *Store) AttachDetail(id ID, req AttachDetailRequest, today Date) (Detail
 // The frontmatter is not the caller's to write: id and title are maintained by
 // the operations that change them, and a caller that could set them freely could
 // break I9 at will.
-func (s *Store) SetDetailBody(id ID, body string, dryRun bool, today Date) (txResult, error) {
+func (s *Store) SetDetailBody(id ID, body string, dryRun bool, today Date) (TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	t, err := s.begin()
 	if err != nil {
-		return txResult{}, err
+		return TxResult{}, err
 	}
 	df, _, err := t.detailFor(id)
 	if err != nil {
-		return txResult{}, err
+		return TxResult{}, err
 	}
 	e := t.detailEdit(df)
 	replaceBody(e, df.FM, body)
@@ -169,17 +169,17 @@ func (s *Store) SetDetailBody(id ID, body string, dryRun bool, today Date) (txRe
 // This is how --pause and --finish preserve a working file's ## Notes: those
 // notes exist nowhere else, and the moment an item leaves its slot is the last
 // moment they exist at all.
-func (s *Store) AppendDetailSection(id ID, heading, text string, dryRun bool, today Date) (txResult, error) {
+func (s *Store) AppendDetailSection(id ID, heading, text string, dryRun bool, today Date) (TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	t, err := s.begin()
 	if err != nil {
-		return txResult{}, err
+		return TxResult{}, err
 	}
 	df, _, err := t.detailFor(id)
 	if err != nil {
-		return txResult{}, err
+		return TxResult{}, err
 	}
 	e := t.detailEdit(df)
 	appendUnderHeading(e, df.FM, heading, text)
@@ -214,23 +214,23 @@ type DetachDetailRequest struct {
 }
 
 // DetachDetail removes the link between an item and its detail file.
-func (s *Store) DetachDetail(id ID, req DetachDetailRequest, today Date) (txResult, error) {
+func (s *Store) DetachDetail(id ID, req DetachDetailRequest, today Date) (TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	t, err := s.begin()
 	if err != nil {
-		return txResult{}, err
+		return TxResult{}, err
 	}
 	it := t.model.find(id)
 	if it == nil {
-		return txResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
+		return TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
 	if it.Detail == "" {
-		return txResult{}, fmt.Errorf("%w: %s has no detail file", ErrNotFound, id)
+		return TxResult{}, fmt.Errorf("%w: %s has no detail file", ErrNotFound, id)
 	}
 	if req.Delete == req.AllowOrphan {
-		return txResult{}, fmt.Errorf(
+		return TxResult{}, fmt.Errorf(
 			"%w: detaching %s from %s leaves the file with no item; pass Delete to remove it, "+
 				"or AllowOrphan to keep it and accept the I9 violation",
 			ErrPreconditionFailed, id, it.Detail)
@@ -239,7 +239,7 @@ func (s *Store) DetachDetail(id ID, req DetachDetailRequest, today Date) (txResu
 
 	it.Detail = ""
 	if _, err := t.writeItemLine(it, today); err != nil {
-		return txResult{}, err
+		return TxResult{}, err
 	}
 
 	if req.Delete {
