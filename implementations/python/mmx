@@ -1,0 +1,308 @@
+#!/usr/bin/env python3
+"""mmx - move items around an implementation's micro-manager instance.
+
+    mmx <impl> start  ID              backlog -> lowest idle working slot
+    mmx <impl> finish ID [outcome]    working slot -> done.md  (default: shipped)
+    mmx <impl> note   ID text...      append a dated line to the slot's ## Notes
+    mmx <impl> status                 what is where
+
+<impl> names a sibling directory of this script: `golang`, `python`, `erlang`,
+`typescript`. The target is always <implementations>/<impl>/micro-manager.
+
+This is the Python implementation of micro-manager, such as it is: a partial
+implementation of the start/pause/finish operations in project/spec-tools.md,
+written to track work on the other implementations before any of them can track
+their own. It is the seed of a full Python implementation, not a throwaway - but
+it is currently a long way from the spec:
+
+  implemented   start, finish, note, status
+  missing       add, list, show, edit, remove, move, pause, report, check,
+                init, discovery, dry-run, JSON and porcelain output, the
+                library/CLI split of spec-tools.md §2, the error taxonomy,
+                transactional writes, and validation before commit
+
+It cannot be pointed outside the repository. <impl> is matched against a strict
+pattern and resolved relative to this script, so no argument reaches an
+arbitrary path - which is what makes it safe to permit without a prompt.
+
+Every mutation re-runs check.sh against the directory and fails loudly if the
+write broke an invariant, so a bad edit surfaces immediately rather than at the
+next manual check.
+"""
+import datetime
+import io
+import os
+import re
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+IMPLS = os.path.dirname(HERE)                                  # implementations/
+CHECK = os.path.abspath(os.path.join(IMPLS, "..", "check.sh"))
+
+TODAY = datetime.date.today().isoformat()
+ORDER = ["prio", "tags", "detail", "created", "started", "blocked", "done", "outcome"]
+ITEM = re.compile(r"^- \[([ x])\] \[(T-\d{4})\] (.+)$")
+IDRE = re.compile(r"^T-\d{4}$")
+IMPLRE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+
+IDLE = """---
+doc: working
+version: 1
+status: idle
+id: null
+title: null
+prio: null
+tags: null
+detail: null
+created: null
+started: null
+---
+
+# Working
+
+Nothing in progress. Pick an item from [backlog.md](backlog.md) — see the
+**Start** operation in [structure.md](structure.md).
+
+## Task
+
+## Plan
+
+## Notes
+
+## Blockers
+"""
+
+
+def die(msg):
+    sys.stderr.write("mmx: %s\n" % msg)
+    sys.exit(1)
+
+
+def resolve(impl):
+    """Map an implementation name to its micro-manager directory.
+
+    The pattern rejects slashes, dots and anything else that could escape
+    implementations/, so no input reaches a path outside the repository.
+    """
+    if not IMPLRE.match(impl):
+        die("%r is not an implementation name" % impl)
+    d = os.path.join(IMPLS, impl, "micro-manager")
+    if not os.path.isdir(d):
+        avail = sorted(n for n in os.listdir(IMPLS)
+                       if os.path.isdir(os.path.join(IMPLS, n, "micro-manager")))
+        die("no micro-manager directory for %r (have: %s)" % (impl, ", ".join(avail) or "none"))
+    return d
+
+
+def read(d, p):
+    return io.open(os.path.join(d, p), encoding="utf-8").read()
+
+
+def write(d, p, s):
+    io.open(os.path.join(d, p), "w", encoding="utf-8").write(s)
+
+
+def check_id(s):
+    if not IDRE.match(s):
+        die("%r is not an item id (want T-NNNN)" % s)
+    return s
+
+
+def parse_line(line):
+    m = ITEM.match(line)
+    if not m:
+        return None
+    rest = m.group(3).split(" | ")
+    fields = {}
+    for part in rest[1:]:
+        k, _, v = part.partition(":")
+        fields[k.strip()] = v.strip()
+    return {"box": m.group(1), "id": m.group(2),
+            "title": rest[0].strip(), "fields": fields}
+
+
+def render_line(box, id_, title, fields):
+    parts = ["- [%s] [%s] %s" % (box, id_, title)]
+    for k in ORDER:
+        if fields.get(k):
+            parts.append("%s:%s" % (k, fields[k]))
+    for k in sorted(fields):
+        if k not in ORDER and fields.get(k):
+            parts.append("%s:%s" % (k, fields[k]))
+    return " | ".join(parts)
+
+
+def fm_get(text, key):
+    for line in text.split("\n")[1:]:
+        if line == "---":
+            break
+        k, _, v = line.partition(":")
+        if k.strip() == key:
+            return v.strip()
+    return ""
+
+
+def slots(d):
+    return sorted(f for f in os.listdir(d) if re.match(r"^working\.\d+\.md$", f))
+
+
+def slot_of(d, item_id):
+    for f in slots(d):
+        if fm_get(read(d, f), "id") == item_id:
+            return f
+    return None
+
+
+def validate(d):
+    if not os.access(CHECK, os.X_OK):
+        return
+    r = subprocess.run([CHECK, d], capture_output=True, text=True)
+    out = (r.stdout + r.stderr).strip()
+    if r.returncode != 0:
+        sys.stderr.write(out + "\nmmx: the directory is now INVALID (see above)\n")
+        sys.exit(1)
+    print(out.splitlines()[0].strip() if out else "check: ok")
+
+
+def cmd_start(d, item_id):
+    check_id(item_id)
+    lines = read(d, "backlog.md").split("\n")
+    idx = None
+    for i, line in enumerate(lines):
+        it = parse_line(line)
+        if it and it["id"] == item_id:
+            found, idx = it, i
+            break
+    if idx is None:
+        die("%s is not in backlog.md" % item_id)
+
+    target = next((f for f in slots(d) if fm_get(read(d, f), "status") == "idle"), None)
+    if not target:
+        occupied = ["  %s  %s  %s" % (f, fm_get(read(d, f), "id"), fm_get(read(d, f), "title"))
+                    for f in slots(d)]
+        die("wip limit reached (%d/%d)\n%s\nfinish one, pause one, or add a working file"
+            % (len(slots(d)), len(slots(d)), "\n".join(occupied)))
+
+    del lines[idx]
+    while idx < len(lines) and lines[idx] == "" and lines[idx - 1] == "":
+        del lines[idx]
+    write(d, "backlog.md", "\n".join(lines))
+
+    f = found["fields"]
+    detail = f.get("detail") or "null"
+    task = "Implement per the specification. See `../AGENTS.md` for the working rules."
+    if detail != "null":
+        task = "See [%s](%s).\n\n%s" % (detail, detail, task)
+
+    write(d, target, """---
+doc: working
+version: 1
+status: working
+id: %s
+title: %s
+prio: %s
+tags: %s
+detail: %s
+created: %s
+started: %s
+---
+
+# Working
+
+## Task
+
+%s
+
+## Plan
+
+## Notes
+
+## Blockers
+""" % (item_id, found["title"], f.get("prio") or "null", f.get("tags") or "null",
+       detail, f.get("created") or "null", TODAY, task))
+
+    print("started %s in %s: %s" % (item_id, target, found["title"]))
+    validate(d)
+
+
+def cmd_finish(d, item_id, outcome="shipped"):
+    check_id(item_id)
+    if outcome not in ("shipped", "cancelled", "obsolete"):
+        die("outcome must be shipped, cancelled or obsolete")
+    target = slot_of(d, item_id)
+    if not target:
+        die("%s is not in a working slot" % item_id)
+
+    w = read(d, target)
+    fields = {}
+    for k in ("prio", "tags", "detail", "created", "started"):
+        v = fm_get(w, k)
+        if v and v != "null":
+            fields[k] = v
+    fields["done"] = TODAY
+    fields["outcome"] = outcome
+    line = render_line("x", item_id, fm_get(w, "title"), fields)
+
+    done = read(d, "done.md")
+    head = "## " + TODAY[:7]
+    if head not in done:
+        done = done.replace("# Done\n", "# Done\n\n" + head + "\n", 1)
+    lines = done.split("\n")
+    ins = lines.index(head) + 1
+    while ins < len(lines) and (lines[ins] == "" or lines[ins].startswith("<!--")):
+        ins += 1
+    lines.insert(ins, line)
+    write(d, "done.md", "\n".join(lines))
+    write(d, target, IDLE)
+
+    print("finished %s (%s); %s is idle" % (item_id, outcome, target))
+    validate(d)
+
+
+def cmd_note(d, item_id, text):
+    check_id(item_id)
+    if not text.strip():
+        die("note needs some text")
+    target = slot_of(d, item_id)
+    if not target:
+        die("%s is not in a working slot" % item_id)
+    s = read(d, target).replace("## Notes\n", "## Notes\n\n- %s — %s\n" % (TODAY, text), 1)
+    write(d, target, s)
+    print("noted on %s" % item_id)
+
+
+def cmd_status(d):
+    b = read(d, "backlog.md")
+    print("project: %s" % fm_get(b, "project"))
+    print("backlog: %d open" % sum(1 for l in b.split("\n") if parse_line(l)))
+    for f in slots(d):
+        w = read(d, f)
+        if fm_get(w, "status") == "working":
+            print("  %s  %s  %s" % (f, fm_get(w, "id"), fm_get(w, "title")))
+        else:
+            print("  %s  idle" % f)
+    print("done: %d" % sum(1 for l in read(d, "done.md").split("\n") if parse_line(l)))
+
+
+def main():
+    if len(sys.argv) < 3:
+        sys.stderr.write(__doc__)
+        sys.exit(2)
+    impl, cmd, args = sys.argv[1], sys.argv[2], sys.argv[3:]
+    d = resolve(impl)
+    if cmd == "start" and len(args) == 1:
+        cmd_start(d, args[0])
+    elif cmd == "finish" and 1 <= len(args) <= 2:
+        cmd_finish(d, *args)
+    elif cmd == "note" and len(args) >= 2:
+        cmd_note(d, args[0], " ".join(args[1:]))
+    elif cmd == "status" and not args:
+        cmd_status(d)
+    else:
+        sys.stderr.write(__doc__)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()

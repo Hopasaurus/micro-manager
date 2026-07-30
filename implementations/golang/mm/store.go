@@ -1,0 +1,317 @@
+package mm
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+)
+
+// Store is an open micro-manager directory.
+//
+// It is safe for concurrent use: spec-tools.md §2.3 requires the library to
+// satisfy the stricter of its front ends, and the UI service handles requests on
+// many goroutines. Synchronisation is internal rather than the caller's problem
+// because operations are short and file-bound.
+//
+// Nothing here reads the environment, the working directory, or argv. The path
+// arrives as a parameter, already expanded by whoever owns the process.
+type Store struct {
+	mu   sync.Mutex
+	path string
+}
+
+// Open prepares a Store for a directory. It does not read the files: every
+// operation re-reads, because the CLI, the UI service and a text editor may all
+// be writing and a cached model would go stale between calls.
+func Open(path string) (*Store, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s: %v", ErrIO, path, err)
+	}
+	fi, err := os.Stat(abs)
+	if err != nil || !fi.IsDir() {
+		return nil, fmt.Errorf("%w: not a directory: %s", ErrNotFound, path)
+	}
+	return &Store{path: abs}, nil
+}
+
+// Path returns the absolute directory path.
+func (s *Store) Path() string { return s.path }
+
+// detailFile is a parsed details/T-NNNN.md.
+type detailFile struct {
+	Name  string // "details/T-0042.md"
+	FM    *Frontmatter
+	Lines []string
+	stamp stamp
+}
+
+// dirModel is one consistent read of a whole directory.
+//
+// parseVs holds everything the parsers reported. Validation adds the cross-file
+// invariants on top; the two together are what --check prints.
+type dirModel struct {
+	path    string
+	backlog *backlogFile
+	working []*workingFile
+	done    *doneFile
+	details map[string]*detailFile // keyed by "details/T-0042.md"
+	entries []string               // the directory listing
+	stamps  map[string]stamp       // path -> as read
+	parseVs []Violation
+}
+
+// load reads every file of the directory into one model.
+//
+// It never fails on malformed content - only on I/O. A directory that already
+// violates its invariants must still open, list and report (spec-tools.md §8).
+func (s *Store) load() (*dirModel, error) {
+	entries, err := readDirNames(s.path)
+	if err != nil {
+		return nil, err
+	}
+	m := &dirModel{
+		path:    s.path,
+		details: map[string]*detailFile{},
+		entries: entries,
+		stamps:  map[string]stamp{},
+	}
+
+	read := func(name string) ([]byte, bool) {
+		p := filepath.Join(s.path, name)
+		m.stamps[name] = stampOf(p)
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return nil, false
+		}
+		return data, true
+	}
+
+	if data, ok := read("backlog.md"); ok {
+		var vs []Violation
+		m.backlog, vs = parseBacklog("backlog.md", data)
+		m.parseVs = append(m.parseVs, vs...)
+	} else {
+		m.parseVs = append(m.parseVs, Violation{
+			Invariant: invFormat, At: Location{File: "backlog.md"}, Message: "missing",
+		})
+	}
+
+	if data, ok := read("done.md"); ok {
+		var vs []Violation
+		m.done, vs = parseDone("done.md", data)
+		m.parseVs = append(m.parseVs, vs...)
+	} else {
+		m.parseVs = append(m.parseVs, Violation{
+			Invariant: invFormat, At: Location{File: "done.md"}, Message: "missing",
+		})
+	}
+
+	names, _, _, wvs := discoverWorkingFiles(entries, ".")
+	m.parseVs = append(m.parseVs, wvs...)
+	for _, name := range names {
+		data, ok := read(name)
+		if !ok {
+			continue
+		}
+		w, vs := parseWorking(name, data)
+		m.working = append(m.working, w)
+		m.parseVs = append(m.parseVs, vs...)
+	}
+
+	for _, name := range detailNames(s.path) {
+		rel := "details/" + name
+		data, ok := read(rel)
+		if !ok {
+			continue
+		}
+		lines := splitLines(data)
+		fm, _, vs := readHeader(rel, lines)
+		m.parseVs = append(m.parseVs, vs...)
+		m.details[rel] = &detailFile{Name: rel, FM: fm, Lines: lines, stamp: m.stamps[rel]}
+	}
+	return m, nil
+}
+
+// detailNames lists the non-template files in details/.
+//
+// A leading underscore marks a template, which is exempt from I9 - it belongs to
+// no item by design.
+func detailNames(dir string) []string {
+	entries, err := os.ReadDir(filepath.Join(dir, "details"))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		n := e.Name()
+		if e.IsDir() || !strings.HasSuffix(n, ".md") || strings.HasPrefix(n, "_") {
+			continue
+		}
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// items returns every item in the directory, in a stable order: backlog by
+// section and position, then working slots by number, then done newest first.
+func (m *dirModel) items() []*Item {
+	var out []*Item
+	if m.backlog != nil {
+		out = append(out, m.backlog.Items...)
+	}
+	for _, w := range m.working {
+		if w.Item != nil {
+			out = append(out, w.Item)
+		}
+	}
+	if m.done != nil {
+		out = append(out, m.done.Items...)
+	}
+	return out
+}
+
+// find locates an item by ID anywhere in the directory.
+func (m *dirModel) find(id ID) *Item {
+	for _, it := range m.items() {
+		if it.ID == id {
+			return it
+		}
+	}
+	return nil
+}
+
+// slots builds the public slot view.
+func (m *dirModel) slots() []Slot {
+	out := make([]Slot, 0, len(m.working))
+	for _, w := range m.working {
+		out = append(out, Slot{Number: w.Number, Width: w.Width, File: w.Name, Item: w.Item})
+	}
+	return out
+}
+
+// ---------------------------------------------------------------------------
+// Read operations
+// ---------------------------------------------------------------------------
+
+// Directory summarises the open directory.
+func (s *Store) Directory() (Directory, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, err := s.load()
+	if err != nil {
+		return Directory{}, err
+	}
+	return m.directory(), nil
+}
+
+func (m *dirModel) directory() Directory {
+	d := Directory{Path: m.path, Slots: m.slots(), WipLimit: len(m.working)}
+	for _, sl := range d.Slots {
+		if sl.Occupied() {
+			d.WipUsed++
+		}
+	}
+	if m.backlog != nil {
+		d.Project = m.backlog.FM.Get("project")
+		d.NextID = ID(m.backlog.FM.Get("next_id"))
+	}
+	return d
+}
+
+// Filter narrows a listing. A zero Filter matches the backlog, which is what
+// `mm --list` shows by default.
+type Filter struct {
+	State   State // "" means backlog only; StateAll spans everything
+	Section Section
+	Prio    Prio
+	Tag     string
+	Blocked bool // only items carrying a blocked: field
+	Limit   int
+}
+
+// StateAll asks List for every item regardless of where it lives.
+const StateAll State = "all"
+
+// List returns items matching a filter.
+//
+// Order is ON-DISK ORDER, never re-sorted. ## Ready order is the user's own
+// prioritisation (spec-file-format.md §5.1); a listing that silently re-sorts it
+// hides the one thing the section is for.
+func (s *Store) List(f Filter) ([]Item, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, err := s.load()
+	if err != nil {
+		return nil, err
+	}
+
+	want := f.State
+	if want == "" {
+		want = StateBacklog
+	}
+	var out []Item
+	for _, it := range m.items() {
+		if want != StateAll && it.State != want {
+			continue
+		}
+		if f.Section != "" && it.Section != f.Section {
+			continue
+		}
+		if f.Prio != "" && it.Prio.Effective() != f.Prio {
+			continue
+		}
+		if f.Tag != "" && !hasTag(it.Tags, f.Tag) {
+			continue
+		}
+		if f.Blocked && it.Blocked == "" {
+			continue
+		}
+		out = append(out, *it)
+		if f.Limit > 0 && len(out) == f.Limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+// Get returns one item, wherever it lives.
+func (s *Store) Get(id ID) (Item, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, err := s.load()
+	if err != nil {
+		return Item{}, err
+	}
+	it := m.find(id)
+	if it == nil {
+		return Item{}, fmt.Errorf("%w: %s is not in %s", ErrNotFound, id, filepath.Base(s.path))
+	}
+	return *it, nil
+}
+
+// Validate runs every invariant and returns the findings, sorted by file then
+// line. Violations are results, not errors: an error here would mean the
+// directory could not be read at all.
+func (s *Store) Validate() ([]Violation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, err := s.load()
+	if err != nil {
+		return nil, err
+	}
+	return m.validate(), nil
+}
+
+func hasTag(tags []string, want string) bool {
+	for _, t := range tags {
+		if t == want {
+			return true
+		}
+	}
+	return false
+}

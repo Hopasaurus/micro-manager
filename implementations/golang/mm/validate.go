@@ -1,0 +1,260 @@
+package mm
+
+import (
+	"fmt"
+	"sort"
+)
+
+// The invariants I1-I10 of spec-file-format.md §7, in one place.
+//
+// One implementation, used by --check AND by every mutation before it commits
+// (spec-tools.md §8). That is what makes it impossible for the tool to write a
+// directory its own checker would reject. A second copy of these rules would
+// drift, and the drift would only show up as a file the tool wrote and then
+// refused to read.
+
+// validate returns every finding for a loaded directory, parse problems
+// included, sorted by file then numeric line.
+func (m *dirModel) validate() []Violation {
+	vs := append([]Violation{}, m.parseVs...)
+	vs = append(vs, m.checkIDs()...)     // I1, I2
+	vs = append(vs, m.checkBacklog()...) // I3, I5, backlog structure
+	vs = append(vs, m.checkDone()...)    // I3, I6
+	vs = append(vs, m.checkProject()...) // I7
+	vs = append(vs, m.checkDetails()...) // I8, I9
+	sortViolations(vs)
+	return vs
+}
+
+// checkIDs covers I1 (one home per ID) and I2 (every ID below next_id).
+func (m *dirModel) checkIDs() []Violation {
+	var vs []Violation
+	seen := map[ID]Location{}
+
+	for _, it := range m.items() {
+		if it.ID == "" {
+			continue // already reported by the parser
+		}
+		if at, dup := seen[it.ID]; dup {
+			vs = append(vs, Violation{
+				Invariant: "I1", At: it.Source,
+				Message: fmt.Sprintf("%s is already defined at %s", it.ID, at),
+			})
+			continue
+		}
+		seen[it.ID] = it.Source
+	}
+
+	if m.backlog == nil {
+		return vs
+	}
+	next := ID(m.backlog.FM.Get("next_id"))
+	switch {
+	case next == "":
+		vs = append(vs, Violation{
+			Invariant: "I2", At: Location{File: "backlog.md", Line: 1},
+			Message: "frontmatter has no next_id",
+		})
+	case !next.Valid():
+		vs = append(vs, Violation{
+			Invariant: "I2", At: Location{File: "backlog.md", Line: m.backlog.FM.Line("next_id")},
+			Message: "next_id is not a T-NNNN id: " + string(next),
+		})
+	default:
+		for id, at := range seen {
+			if id.Num() >= next.Num() {
+				vs = append(vs, Violation{
+					Invariant: "I2", At: at,
+					Message: fmt.Sprintf("%s is at or above next_id (%s)", id, next),
+				})
+			}
+		}
+	}
+	return vs
+}
+
+// checkBacklog covers I3 (open boxes only), I5 (blocked field placement), and
+// the requirement that all three sections exist.
+func (m *dirModel) checkBacklog() []Violation {
+	if m.backlog == nil {
+		return nil
+	}
+	var vs []Violation
+
+	for _, want := range Sections() {
+		if m.backlog.Section(want) == nil {
+			vs = append(vs, Violation{
+				Invariant: invFormat, At: Location{File: "backlog.md"},
+				Message: fmt.Sprintf("no ## %s heading", want),
+			})
+		}
+	}
+
+	for _, it := range m.backlog.Items {
+		if it.rawBox == 'x' {
+			vs = append(vs, Violation{
+				Invariant: "I3", At: it.Source,
+				Message: fmt.Sprintf("%s is closed but sits in backlog.md", it.ID),
+			})
+		}
+		switch it.Section {
+		case SectionNone:
+			vs = append(vs, Violation{
+				Invariant: "I5", At: it.Source,
+				Message: fmt.Sprintf("%s is not under Ready, Blocked or Someday", it.ID),
+			})
+		case SectionBlocked:
+			if it.Blocked == "" {
+				vs = append(vs, Violation{
+					Invariant: "I5", At: it.Source,
+					Message: fmt.Sprintf("%s is under Blocked with no blocked: field", it.ID),
+				})
+			}
+		default:
+			if it.Blocked != "" {
+				vs = append(vs, Violation{
+					Invariant: "I5", At: it.Source,
+					Message: fmt.Sprintf("%s has a blocked: field but is under %s", it.ID, it.Section),
+				})
+			}
+		}
+	}
+	return vs
+}
+
+// checkDone covers I3 (closed boxes only) and I6 (dated, filed under the right
+// month).
+func (m *dirModel) checkDone() []Violation {
+	if m.done == nil {
+		return nil
+	}
+	var vs []Violation
+	for _, it := range m.done.Items {
+		if it.rawBox != 'x' {
+			vs = append(vs, Violation{
+				Invariant: "I3", At: it.Source,
+				Message: fmt.Sprintf("%s is open but sits in done.md", it.ID),
+			})
+		}
+		if it.Done.IsZero() {
+			vs = append(vs, Violation{
+				Invariant: "I6", At: it.Source,
+				Message: fmt.Sprintf("%s has no done: field", it.ID),
+			})
+		}
+		if it.Outcome == OutcomeNone {
+			vs = append(vs, Violation{
+				Invariant: "I6", At: it.Source,
+				Message: fmt.Sprintf("%s has no outcome: field", it.ID),
+			})
+		}
+		group := m.done.monthOf(it)
+		switch {
+		case group == nil || group.Month == "":
+			vs = append(vs, Violation{
+				Invariant: "I6", At: it.Source,
+				Message: fmt.Sprintf("%s is not under a YYYY-MM heading", it.ID),
+			})
+		case !it.Done.IsZero() && it.Done.Month7() != group.Month:
+			vs = append(vs, Violation{
+				Invariant: "I6", At: it.Source,
+				Message: fmt.Sprintf("%s has done:%s under heading %s", it.ID, it.Done, group.Month),
+			})
+		}
+	}
+	return vs
+}
+
+// checkProject covers the part of I7 that is not already enforced at parse time:
+// a non-empty project name in backlog.md.
+//
+// The value forms - dates, prio, tags, no pipes - are checked by the parsers,
+// which is why a malformed one arrives here as a parse violation rather than
+// being re-derived.
+func (m *dirModel) checkProject() []Violation {
+	if m.backlog == nil {
+		return nil
+	}
+	if v := m.backlog.FM.Get("project"); v == "" || v == "null" {
+		return []Violation{{
+			Invariant: "I7", At: Location{File: "backlog.md", Line: 1},
+			Message: "frontmatter has no project name",
+		}}
+	}
+	return nil
+}
+
+// checkDetails covers I8 (every detail: path resolves and is named for its item)
+// and I9 (every detail file is claimed by exactly one item, with matching id and
+// title).
+func (m *dirModel) checkDetails() []Violation {
+	var vs []Violation
+	claims := map[string][]*Item{}
+
+	for _, it := range m.items() {
+		if it.Detail == "" {
+			continue
+		}
+		want := it.DetailPath()
+		if it.Detail != want {
+			vs = append(vs, Violation{
+				Invariant: "I8", At: it.Source,
+				Message: fmt.Sprintf("%s points at %s (expected %s)", it.ID, it.Detail, want),
+			})
+			continue
+		}
+		df, ok := m.details[it.Detail]
+		if !ok {
+			vs = append(vs, Violation{
+				Invariant: "I8", At: it.Source,
+				Message: fmt.Sprintf("detail file does not exist: %s", it.Detail),
+			})
+			continue
+		}
+		claims[it.Detail] = append(claims[it.Detail], it)
+
+		// The id/title duplication exists solely so drift is detectable; these
+		// two comparisons are the entire reason for it.
+		if got := df.FM.Get("id"); got != string(it.ID) {
+			vs = append(vs, Violation{
+				Invariant: "I9", At: Location{File: df.Name, Line: df.FM.Line("id")},
+				Message: fmt.Sprintf("frontmatter id is %q, expected %q", got, it.ID),
+			})
+		}
+		if got := df.FM.Get("title"); got != it.Title {
+			vs = append(vs, Violation{
+				Invariant: "I9", At: Location{File: df.Name, Line: df.FM.Line("title")},
+				Message: fmt.Sprintf("frontmatter title is %q, expected %q", got, it.Title),
+			})
+		}
+	}
+
+	for name := range m.details {
+		switch n := len(claims[name]); {
+		case n == 0:
+			vs = append(vs, Violation{
+				Invariant: "I9", At: Location{File: name},
+				Message: "orphan — no item references it",
+			})
+		case n > 1:
+			vs = append(vs, Violation{
+				Invariant: "I9", At: Location{File: name},
+				Message: fmt.Sprintf("referenced by %d items (expected exactly 1)", n),
+			})
+		}
+	}
+	return vs
+}
+
+// sortViolations orders findings by file, then by NUMERIC line.
+//
+// Lexicographic ordering would put line 10 before line 5, which reads as though
+// the tool cannot count.
+func sortViolations(vs []Violation) {
+	sort.SliceStable(vs, func(i, j int) bool {
+		if vs[i].At.File != vs[j].At.File {
+			return vs[i].At.File < vs[j].At.File
+		}
+		return vs[i].At.Line < vs[j].At.Line
+	})
+}

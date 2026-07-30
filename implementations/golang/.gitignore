@@ -1,0 +1,9 @@
+# Built binaries.
+#
+# There is no `/mm` entry: that path is the library package directory, so the
+# rule excluded the whole library, and a binary cannot be built there anyway —
+# the name is taken. Build the CLI somewhere else, e.g. `go build -o bin/mm ./cmd/mm`.
+/bin/
+/mm-ui
+/mm-tui
+*.test

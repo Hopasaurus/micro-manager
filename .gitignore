@@ -1,0 +1,54 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors / tools
+# (.idea/ ships its own .gitignore for the machine-local bits, so it stays tracked)
+*.swp
+*~
+.vscode/
+.claude/settings.local.json
+
+# Go
+# Built binaries are ignored per-implementation, not here: an unanchored `mm`
+# would match implementations/golang/mm/, which is the library.
+*.test
+*.out
+coverage.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# TypeScript / Node
+node_modules/
+*.tsbuildinfo
+.npm/
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# Erlang
+_build/
+*.beam
+rebar3.crashdump
+.rebar3/
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# Scratch
+tmp/
+*.log
