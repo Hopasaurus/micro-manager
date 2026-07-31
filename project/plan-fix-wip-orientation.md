@@ -5,7 +5,9 @@
     Scope:  project/spec-gui.md, project/spec-tui.md,
             implementations/golang/ (the web UI),
             implementations/typescript/ (the plan only — no UI code exists)
-    Items:  none yet — §8 proposes the tracking entries
+    Items:  T-0072 (in implementations/golang/micro-manager/)
+    Revised: 2026-07-31 after a review against the specs and the Go code;
+             what changed and why is in the Appendix.
 
 Show every working item in **one board column** instead of one column per
 working file. Today `spec-gui.md` §5.5 fixes the board as ready, blocked,
@@ -33,9 +35,10 @@ these is load-bearing:
   `--start ID [--slot NN]`; without `--slot` the lowest-numbered idle slot is
   used; a full house still fails `WipLimitReached`. `--pause`, `--finish`,
   `--wip` unchanged.
-- **The HTTP API.** `POST …/items/:itemId/start` keeps accepting a slot in its
-  body (`spec-gui.md` §4.2). Scripting clients may still name a slot; the
-  board simply never does.
+- **The HTTP API.** `spec-gui.md` §4.2 maps `POST …/items/:itemId/start` to
+  `--start` and enumerates no request bodies at all beyond the blanket
+  `dryRun` rule, so nothing in it changes. A slot stays nameable wherever the
+  operation is: scripting clients may still pass one; the board never does.
 - **Item identity and state.** Working items still carry `data-slot` on their
   cards (§4, D5), and `data-wip-used` / `data-wip-limit` stay on the board.
 - **The WIP dialog.** `dialog-wip-limit` still lists occupants as
@@ -76,14 +79,19 @@ from the DOM entirely — WIP fullness already lives on the board element as
 | ready/someday | blocked | `--block` | MUST prompt for a reason; cancelling aborts |
 | blocked | ready/someday | `--unblock` | drops `blocked:` |
 | ready/blocked/someday | ready/blocked/someday | `--move --section` | |
-| backlog column | working column | `--start` | server picks the lowest idle slot; fails `WipLimitReached` when full |
-| working column | backlog column | `--pause` | position from drop index |
+| backlog column | working column | `--start` | server picks the lowest idle slot; fails `WipLimitReached` when full (§4, D11) |
+| working column | ready/someday | `--pause` | position from drop index |
+| working column | blocked | `--pause --section blocked` | MUST prompt for a reason; cancelling aborts (§4, D12) |
 | working column | working column | — | **illegal**; there is no working order to rearrange (§4, D3) |
 | backlog or working | done | `--finish` | MUST prompt for outcome, default `shipped` |
 | done | anywhere | — | **illegal** in v1; reopening is not a specified operation |
 
 The drop→operation payload changes in exactly one place: a drop on the working
-column no longer carries a slot number, only the intent to start.
+column no longer carries a slot number, only the intent to start. One §7.3
+attribute changes value without changing meaning: `data-drag-source` is "the
+testid of the origin column", so dragging a working card now reports
+`board-column-working` rather than `board-column-slot-01`. Slot identity is
+carried by the card's `data-slot`, not by the drag.
 
 **Everything else** — the §7.3 drag attribute set, the §7.4 keyboard move
 mode (with one fewer target column), §7.5 failure handling including
@@ -144,17 +152,50 @@ item panel with its subtasks, the status bar — is unchanged.
 - **D8 — spec version stays 1.** All four specs are `Status: draft`, and no
   conformant implementation or external suite exists to break. The change
   lands as a draft revision: `Date` bumped, this plan recording the reason.
-  A version-bump policy becomes necessary when v1 freezes, not before.
+  A version-bump policy becomes necessary when v1 freezes, not before. Note
+  what is being changed, though: §12 items 2 and 5 make the `data-testid` and
+  `data-*` surface *the* conformance surface, so this is a conformance-surface
+  change — cheap today because no suite exists, expensive the day one does.
 - **D9 — the TUI spec changes in lockstep.** spec-tui.md §5.1 fixes the same
   per-slot column list "matching the GUI", so it is edited in the same
   session; the two UI specs must never describe different boards. The TUI is
   unimplemented everywhere, so this costs a paragraph, not code.
-- **D10 — the working column has no add button.** `--add` creates backlog
-  items; an add affordance on the working column would either lie or invent a
-  start-and-add hybrid. The appendix's generic `board-column-<key>-add`
-  wording gets scoped to backlog columns explicitly. Noticed along the way
-  and out of scope: the Go templates render an add link on the *done* column
-  too — worth its own item, not folded into this one.
+- **D10 — the working column has no add button; the done column is left
+  alone.** `--add` creates backlog items, so an add affordance on the working
+  column would either lie or invent a start-and-add hybrid:
+  `board-column-working-add` does not exist. The testid-index note of §5
+  item 5 is scoped to the working column **only**, and deliberately says
+  nothing about done:
+  `templates/partials/board.html:34` renders `board-column-<key>-add`
+  unconditionally on every column, so appendix wording that also denied done
+  an add button would make the Go template non-conformant the day it landed
+  and fail the T-0070 audit for a change this plan is not making. The done
+  column's add link is a real oddity and gets its own item.
+- **D11 — hover stays optimistic when WIP is full; the server rejects.**
+  Dropping a backlog card on a full working column is a *legal transition
+  that fails at runtime*, not an illegal target — which is how the old table
+  read it too ("fails if occupied or WIP full"). So the column hovers
+  `data-drop-allowed="true"`, the drop issues its request, the server answers
+  `WipLimitReached`, and §7.5 opens `dialog-wip-limit` with the three
+  remedies. This preserves today's behaviour exactly: `static/mm.js` has no
+  WIP awareness and never read the `data-occupied` it is now losing.
+  Alternative considered — compare `data-wip-used` with `data-wip-limit`
+  client-side and hover `data-drop-allowed="false"` with
+  `data-drop-reason="WipLimitReached"`, which is §7.3's own example.
+  Rejected here because §7.2 then requires the drop to issue no request, and
+  the remedy dialog §7.5 promises would never open unless the client learned
+  to open it itself. Whoever wants honest hover MUST do both halves and add a
+  clause to §7.5 naming a client-side refusal; that is a separate change.
+- **D12 — a drag from working into Blocked prompts for a reason.** I5 ties
+  `blocked:` to the section and the library enforces it: `PauseRequest`
+  documents the requirement and `mm/op_pause_test.go:210` asserts
+  `InvalidArgument` when the reason is missing. Today the browser posts a
+  reason-less pause — `legality()` maps working→blocked to `pause` while only
+  `block` and `finish` prompt (`static/mm.js:421`) — so that drag fails with
+  an error toast. §7.2 is being rewritten anyway, so the row is split and the
+  requirement stated. The server half already works: the pause handler reads
+  a `reason` form value (`internal/web/item.go`). A bug fix carried by the
+  rewrite, not new scope.
 
 ## 5. Spec edits
 
@@ -173,11 +214,14 @@ Made first, in one commit; both UI specs in the same session (D9).
 3. **§6.1 coverage table** — the `--start` and `--pause` rows name "the
    working column" instead of "a slot column".
 4. **§7.2 transition table** — replaced with the table of §2 above: backlog→
-   working is `--start` (no slot named), working→working illegal, the
-   slot↔slot row gone.
-5. **Appendix A testid index** — `board-column-slot-<NN>` →
+   working is `--start` (no slot named), working→ready/someday is `--pause`,
+   working→blocked is `--pause --section blocked` and MUST prompt for a
+   reason (D12), working→working illegal, the slot↔slot row gone.
+5. **Appendix A of the spec, the testid index** — `board-column-slot-<NN>` →
    `board-column-working`; the `board-column-<key>-*` suffix line notes that
-   backlog columns carry `-add` and the working and done columns do not (D10).
+   the working column carries no `-add` (D10). It says nothing about the done
+   column — denying done an add button in the index would make the existing
+   Go template non-conformant on landing, and that is a separate item.
 6. **§5.10 dialogs** — no text change, but confirm the `dialog-wip-limit`
    wording still reads correctly against the new board (it does — D6).
 
@@ -219,12 +263,18 @@ each other:
    caught by the new `from === 'working' && to === 'working'` rejection,
    NOT by the backlog `from === to` move rule — the one place the naive
    table would get it wrong); backlog→working is `start`, working→backlog
-   is `pause`. The drop payload loses the `values.slot` block. This file
-   holds the one permitted client-side copy of the transition table
-   (§2.1); the tests must keep it agreeing with the server.
+   is `pause`. The drop payload loses the `values.slot` block. Two further
+   changes fall out of the decisions: working→blocked joins the prompt set at
+   line 421, currently `op === 'block' || op === 'finish'`, and posts its
+   reason with the pause (D12); no WIP comparison is added, because hover
+   stays optimistic and the server rejects (D11). This file holds the one
+   permitted client-side copy of the transition table (§2.1); the tests must
+   keep it agreeing with the server.
 5. **`item.go`** — the start handler keeps reading an optional `slot` form
    value (D7: the API keeps the parameter, and the menu POST is the same
-   code path); only the drag caller stops sending it. No logic change.
+   code path); only the drag caller stops sending it. The pause handler
+   already reads a `reason` form value, so D12 needs nothing here. No logic
+   change in either.
 6. **`templates/partials/dialogs.html`, `dialogs.go`** — untouched (D6).
 7. **Tests** — the web suite's slot-column expectations rewrite:
    `board_test.go` (column order list becomes
@@ -232,13 +282,18 @@ each other:
    column assertions become card-level `data-slot` and `data-count`
    assertions; add an empty-working-column case), `dragdrop_test.go`
    (slot-to-slot rejection becomes working-to-working; the start drop no
-   longer posts `slot`; add WIP-full rejection coverage against the working
-   column), plus whatever `item_test.go`, `render_test.go`, `shell_test.go`
+   longer posts `slot`; a full-WIP start drop still issues its request and
+   is rejected by the server, per D11; a working→blocked drag prompts and
+   posts a reason, per D12 — a regression test, since it fails today), plus
+   whatever `item_test.go`, `render_test.go`, `shell_test.go`
    and `errors_test.go` pin about slot columns — an audit of every
    `board-column-slot` and `data-occupied` mention in the package is part
    of the work, not a follow-up.
-8. **Docs** — `project/architecture-echo-v5.md` and `project/plan-gui.md`
-   describe the board; update any per-slot-column wording they carry.
+8. **Docs** — verified, not assumed: grepping
+   `implementations/golang/project/` for `slot column`, `per working slot`
+   and `board-column-slot` returns nothing, so `architecture.md`,
+   `architecture-echo-v5.md` and `plan-gui.md` need no edit. Recorded here so
+   the next reader does not go looking.
 
 Verification: `go test ./...` green; the server run against the
 repository's real `micro-manager/` directories and eyeballed at limits 1
@@ -258,10 +313,14 @@ edited so the plan never describes the old board:
 2. **Tracking annotations** — when next edited, the detail files for
    **T-0047** (board) and **T-0050** (drag and drop) should note the single
    working column so nobody implements the pre-change spec from a stale
-   memory of it. **T-0059** (the appendix audit) inherits the new Appendix A
-   automatically — its whole point is parsing the spec, so no text change.
-3. Nothing in `packages/`, `testdata/`, or `AGENTS.md` references the board
-   layout; confirmed by grep, not by memory.
+   memory of it. **T-0059** (the appendix audit) inherits the spec's revised
+   Appendix A automatically — its whole point is parsing the spec, so no text
+   change.
+3. Nothing in `packages/`, `testdata/` or `AGENTS.md` references the board
+   layout; confirmed by grep, not by memory. `AGENTS.md` does cite "the
+   spec-gui.md §7.2 drag-transition table" as the one permitted duplication
+   in the client — that reference stays correct, because the table's content
+   changes and its identity does not. No edit; do not "fix" it.
 
 ## 8. Sequencing and tracking
 
@@ -271,7 +330,9 @@ the data never changes, so there is no migration window to manage.
 1. Land §5's spec edits (one commit, both UI specs).
 2. Create a Go tracking item — suggested title "Render working items in a
    single board column", tags `ui,view` — and do §6 under it. It slots into
-   the Go GUI's Phase 2/3 boundary without disturbing the phase plan.
+   the Go GUI's Phase 2/3 boundary without disturbing the phase plan. Put its
+   ID in this document's `Items:` header when it exists; every sibling plan
+   in `project/` carries real IDs and this one still says `none yet`.
 3. Annotate the TypeScript plan per §7 (no item needed; if one is wanted,
    a note on T-0047 at scheduling time suffices).
 4. Record the change in the next session file under `project/`.
@@ -287,13 +348,17 @@ entries are proposals, made when the work is scheduled.
 | The Go client-side legality table drifts from the server's | The drag tests assert both ends of every row of §7.2; the working→working row is called out in §6.4 because the naive `from === to` rule gets it wrong. |
 | The two UI specs diverge during the edit | One commit, both files (D9); the TUI has no code to desync. |
 | Test churn masks a real regression | The Go rewrite edits expectations test-by-test against §2's table; no blanket find-and-replace of testids. |
+| The D12 bug fix is lost in the noise of the rewrite | It gets its own regression test named for the transition, not folded into a drag-table sweep — it is the one behaviour here that is broken *today*. |
 | A future implementation reads a stale plan | §7 exists precisely for that; the TS plan points here instead of restating the board. |
 
 ## 10. Definition of done
 
-1. `spec-gui.md` and `spec-tui.md` describe the §2 board and nothing else;
-   `grep -n "slot" project/spec-gui.md` shows only card-level `data-slot`,
-   the WIP dialog, and the API body.
+1. `spec-gui.md` and `spec-tui.md` describe the §2 board and nothing else.
+   `grep -n "slot" project/spec-gui.md` returns exactly four survivors and no
+   others: the `data-slot` row in §5.1, "an item in a working slot" in §5.6,
+   `dialog-wip-limit-slot-NN` in §5.10, and "the same precedence slot" in
+   §9.2 — the last an unrelated sense of the word, which is why this is
+   asserted by reading the four, not by grepping for zero.
 2. `go -C implementations/golang test ./...` passes with the rewritten
    expectations, and the working column is verified live against the
    repository's own directories at WIP limits 1 and 3+.
@@ -304,3 +369,41 @@ entries are proposals, made when the work is scheduled.
    files are touched.
 5. This plan's §2 table and `spec-gui.md` §7.2 are identical — compare, do
    not trust.
+6. A drag from the working column into Blocked prompts for a reason and
+   succeeds (D12), and a full-WIP start drop still reaches the server and
+   opens `dialog-wip-limit` (D11).
+
+## Appendix — revision notes, 2026-07-31
+
+(This document has one appendix; "Appendix A", "B" and "C" elsewhere in it
+always mean `spec-gui.md`'s.)
+
+The first draft was reviewed against the specs and the Go code before any
+work was scheduled against it. Nine changes came out of that review; the
+three marked **contradiction** would have produced a wrong spec edit or a
+failing audit, and are the reason this appendix exists rather than a quiet
+rewrite.
+
+| # | Change | Why |
+|---|---|---|
+| 1 | **contradiction** — D10 rewritten; §5 item 5 now scopes the testid-index note to the working column only | The draft said the index should record that "the working and done columns" carry no `-add`, while D10 declared the done column out of scope. `templates/partials/board.html:34` renders `board-column-<key>-add` on *every* column, so the index wording would have made the Go done column non-conformant the moment it landed — failing the T-0070 audit for a change this plan explicitly is not making. |
+| 2 | **contradiction** — DoD 1's grep assertion replaced with the four named survivors | The draft claimed a post-change `grep -n "slot" project/spec-gui.md` would show only `data-slot`, the WIP dialog and "the API body". It would also show §5.6's "an item in a working slot" and §9.2's "the same precedence slot" — an unrelated sense of the word. As written the check fails on a literal run and teaches the reader to ignore it. |
+| 3 | **contradiction** — §1's HTTP API bullet reworded | It cited `spec-gui.md` §4.2 as keeping a slot "in its body". §4.2 is an endpoint table plus one blanket `dryRun` rule; it enumerates no request bodies at all. The guarantee was real (the operation maps to `--start`, whose `--slot` is untouched) but the citation was not. |
+| 4 | **new D11** — hover stays optimistic when WIP is full | The draft asked for "WIP-full rejection coverage" in the tests without saying who decides fullness, which makes the test unwritable. Removing `data-occupied` (D4) leaves the client only the board-level counts. Verified that `static/mm.js` has no WIP awareness today, so keeping the server authoritative preserves behaviour exactly; the honest-hover alternative is recorded with the §7.5 wrinkle that makes it a separate change. |
+| 5 | **new D12, §2 table row split** — working→blocked prompts for a reason | The draft copied the old row "slot column → backlog column = `--pause`" verbatim. Blocked *is* a backlog column, and I5 requires a reason: `mm/op_pause_test.go:210` asserts `InvalidArgument` without one, while `static/mm.js:421` prompts only for `block` and `finish`. That drag is broken today, and copying the row would have enshrined it. Rewriting §7.2 is the cheapest moment to fix it. |
+| 6 | §2 gains a `data-drag-source` sentence | §7.3 defines it as the origin column's testid, so a working card's drag source silently changes from `board-column-slot-01` to `board-column-working`. It is part of the drag contract and a test surface; leaving it unsaid invites an implementer to preserve slot identity there. |
+| 7 | §6 item 8 replaced with a verified negative | It sent the implementer to update per-slot wording in `plan-gui.md` and `architecture-echo-v5.md`. There is none. A file list that does not pay out teaches distrust of the lists that do, so the grep result is recorded instead. |
+| 8 | §7 item 3 notes the TypeScript `AGENTS.md` §7.2 reference | The claim that nothing in `implementations/typescript/` describes the board is true, but `AGENTS.md` does name the §7.2 table as the client's one permitted duplication. The reference stays valid — content changes, identity does not — and saying so stops a future reader "fixing" a citation that is not broken. |
+| 9 | D8 cites §12; §8 step 2 records the item ID; DoD gains item 6; §9 gains a row | Small consistency repairs. §12 items 2 and 5 make the testid and `data-*` surface the conformance surface, which is the strongest support D8 has and it was missing. The header still reads `Items: none yet` with nothing telling anyone to update it. D11 and D12 needed a done-condition and a risk row, or they would live only in the decision list. |
+
+What the review did **not** change, having checked it: every section number
+cited here (§5.1's table, §5.5, §5.6, §5.10, §6.1, §7.2–§7.5, Appendix A, and
+spec-tui.md §5.1); the `--mm-color-state-working` token that D1 relies on,
+which already exists in Appendix B and `mm.css:293`; the `from === to` trap
+called out in §6.4, which is real — `static/mm.js:293` returns an allowed
+`move` before any slot test, so a naive port would permit working→working;
+and the Go file inventory in §6, which matches the code.
+
+Line numbers in this document are pointers as of 2026-07-31, not contracts:
+`internal/web/` is under active edit for the report view, and `mm.js` in
+particular has already shifted once. Grep for the quoted code, not the line.

@@ -1,7 +1,7 @@
 # micro-manager — terminal user interface specification
 
     Spec version: 1
-    Date:         2026-07-29
+    Date:         2026-07-31
     Status:       draft
     Depends on:   spec-file-format.md (v1), spec-tools.md (v1), spec-gui.md (v1)
 
@@ -230,7 +230,7 @@ The primary view. Columns in this order, matching the GUI:
 1. Ready
 2. Blocked
 3. Someday
-4. one column per working slot, in slot order
+4. one Working column for all working items, ordered by slot number
 5. Done
 
 Each column shows a title, a count, and its items. The focused column MUST be
@@ -238,8 +238,7 @@ visually distinct in every colour tier, including monochrome (§11).
 
 An item row shows, in a fixed order: priority marker, ID, title, tag list,
 detail indicator, and blocked marker where applicable. Title is truncated last,
-after tags. Working-slot columns additionally show the slot number and, when
-occupied, `started`.
+after tags. Working item rows additionally show the slot number and `started`.
 
 Columns scroll independently. The focused item MUST remain visible, with at
 least one row of context above and below where the column is long enough.

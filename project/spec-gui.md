@@ -1,7 +1,7 @@
 # micro-manager — user interface specification
 
     Spec version: 1
-    Date:         2026-07-29
+    Date:         2026-07-31
     Status:       draft
     Depends on:   spec-file-format.md (v1), spec-tools.md (v1)
     Covers:       web GUI (normative); the TUI is specified in spec-tui.md
@@ -267,8 +267,7 @@ class names alone, so tests never depend on styling decisions.
 | `data-section` | `ready` \| `blocked` \| `someday` | items and backlog columns |
 | `data-prio` | `high` \| `med` \| `low` \| `none` | item cards |
 | `data-tags` | comma-separated `TAGLIST`, empty if none | item cards |
-| `data-slot` | zero-padded slot number | working columns and cards |
-| `data-occupied` | `true` \| `false` | working columns |
+| `data-slot` | zero-padded slot number | working item cards |
 | `data-outcome` | `shipped` \| `cancelled` \| `obsolete` | done items |
 | `data-blocked` | `true` \| `false` | item cards |
 | `data-has-detail` | `true` \| `false` | item cards |
@@ -383,7 +382,7 @@ Columns, in this DOM order:
 1. `board-column-ready`
 2. `board-column-blocked`
 3. `board-column-someday`
-4. one `board-column-slot-NN` per working file, in slot order
+4. `board-column-working` — one column for all working items, ordered by slot number
 5. `board-column-done`
 
 ```html
@@ -403,8 +402,8 @@ Columns, in this DOM order:
     </div>
   </section>
 
-  <section data-testid="board-column-slot-01" class="mm-column mm-column--slot"
-           data-slot="01" data-occupied="true" data-count="1" role="list">…</section>
+  <section data-testid="board-column-working" class="mm-column mm-column--working"
+           data-count="1" role="list">…</section>
 
   <section data-testid="board-column-done" data-count="12" role="list">…</section>
 </section>
@@ -431,6 +430,8 @@ Item card, identical in every column:
 
 `data-position` is the 1-based index within its column and MUST be kept accurate
 after every reorder — it is how a test asserts ordering without reading text.
+Within `board-column-working`, cards are ordered by slot number. `board-column-working`
+MUST be rendered even when empty (`data-count="0"`).
 
 The item menu (§6.2) MUST contain one entry per legal operation, each with
 testid `item-T-0042-action-<operation>`, e.g. `item-T-0042-action-start`.
@@ -597,8 +598,8 @@ provide every recommended one in §5.2.
 | `--edit` | `item-form` |
 | `--remove` | `item-action-remove` → `dialog-confirm-remove` |
 | `--move` | Drag (§7), or `item-*-action-move` |
-| `--start` | Drag to a slot column, or `item-action-start` |
-| `--pause` | Drag from a slot to a backlog column, or `item-action-pause` |
+| `--start` | Drag to the working column, or `item-action-start` |
+| `--pause` | Drag from the working column to a backlog column, or `item-action-pause` |
 | `--finish` | Drag to the done column, or `item-action-finish` |
 | `--report` | `/p/:id/report` |
 | `--check` | `/p/:id/check`, plus `status-check` |
@@ -637,10 +638,11 @@ including `data-position` on every affected card, and surface the error.
 | ready/someday | blocked | `--block` | MUST prompt for a reason; cancelling aborts |
 | blocked | ready/someday | `--unblock` | drops `blocked:` |
 | ready/blocked/someday | ready/blocked/someday | `--move --section` | |
-| backlog column | slot column | `--start --slot NN` | fails if occupied or WIP full |
-| slot column | backlog column | `--pause` | position from drop index |
-| slot column | slot column | — | **illegal**; slots are interchangeable |
-| backlog or slot | done | `--finish` | MUST prompt for outcome, default `shipped` |
+| backlog column | working column | `--start` | server picks the lowest idle slot; fails `WipLimitReached` when full |
+| working column | ready/someday | `--pause` | position from drop index |
+| working column | blocked | `--pause --section blocked` | MUST prompt for a reason; cancelling aborts |
+| working column | working column | — | **illegal**; there is no working order to rearrange |
+| backlog or working | done | `--finish` | MUST prompt for outcome, default `shipped` |
 | done | anywhere | — | **illegal** in v1; reopening is not a specified operation |
 
 An illegal target MUST be marked `data-drop-allowed="false"` on hover and MUST
@@ -1201,8 +1203,8 @@ project-card-<projectId>  project-card-name  project-card-path
 project-card-wip  project-card-favorite-toggle
 
 board  board-column-ready  board-column-blocked  board-column-someday
-board-column-slot-<NN>  board-column-done
-board-column-<key>-header  -title  -count  -add  -body
+board-column-working  board-column-done
+board-column-<key>-header  -title  -count  -add  -body  (backlog columns carry -add; board-column-working does not)
 item-<ID>  item-<ID>-title  item-<ID>-id  item-<ID>-prio
 item-<ID>-tags  item-<ID>-tag-<tag>  item-<ID>-detail-indicator
 item-<ID>-menu  item-<ID>-action-<operation>

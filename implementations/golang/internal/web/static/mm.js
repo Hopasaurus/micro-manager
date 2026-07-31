@@ -288,14 +288,13 @@
   */
   function legality(from, to) {
     const backlog = (k) => k === 'ready' || k === 'blocked' || k === 'someday';
-    const slot = (k) => k.startsWith('slot-');
 
+    if (from === 'working' && to === 'working') return { allowed: false, reason: 'Conflict' };
     if (from === to) return { allowed: true, op: 'move' };
     if (to === 'done') return { allowed: true, op: 'finish' };
     if (from === 'done') return { allowed: false, reason: 'Conflict' };
-    if (slot(from) && slot(to)) return { allowed: false, reason: 'Conflict' };
-    if (backlog(from) && slot(to)) return { allowed: true, op: 'start' };
-    if (slot(from) && backlog(to)) return { allowed: true, op: 'pause' };
+    if (backlog(from) && to === 'working') return { allowed: true, op: 'start' };
+    if (from === 'working' && backlog(to)) return { allowed: true, op: 'pause' };
     if (backlog(from) && to === 'blocked') return { allowed: true, op: 'block' };
     if (from === 'blocked' && backlog(to)) return { allowed: true, op: 'unblock' };
     if (backlog(from) && backlog(to)) return { allowed: true, op: 'move' };
@@ -417,10 +416,11 @@
 
     endMove();
 
-    /* Two operations must prompt before they run (§7.2). Cancelling aborts. */
-    if (op === 'block' || op === 'finish') {
+    /* Operations that must prompt before they run (§7.2). Cancelling aborts. */
+    if (op === 'block' || op === 'finish' || (op === 'pause' && to === 'blocked')) {
       dialogOpener = card;
-      htmx.ajax('GET', `/p/${project}/dialog/${op}?item=${id}`, {
+      const dialogName = (op === 'pause' && to === 'blocked') ? 'block' : op;
+      htmx.ajax('GET', `/p/${project}/dialog/${dialogName}?item=${id}`, {
         target: "[data-testid='dialog-root']",
       });
       return;
@@ -432,9 +432,6 @@
          position from the drop index; a move within the backlog names it
          because the section may have changed. */
       values.section = to;
-    }
-    if (op === 'start' && to.startsWith('slot-')) {
-      values.slot = String(parseInt(to.slice('slot-'.length), 10));
     }
 
     htmx.ajax('POST', `/p/${project}/items/${id}/${op}`, {

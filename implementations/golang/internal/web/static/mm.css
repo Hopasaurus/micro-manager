@@ -290,9 +290,9 @@ body {
 [data-testid="board-column-blocked"] { border-top: var(--mm-border-width-thick) solid var(--mm-color-state-blocked); }
 [data-testid="board-column-someday"] { border-top: var(--mm-border-width-thick) solid var(--mm-color-state-someday); }
 [data-testid="board-column-done"]    { border-top: var(--mm-border-width-thick) solid var(--mm-color-state-done); }
-.mm-column--slot                     { border-top: var(--mm-border-width-thick) solid var(--mm-color-state-working); }
+.mm-column--working                     { border-top: var(--mm-border-width-thick) solid var(--mm-color-state-working); }
 
-.mm-column--slot[data-occupied="false"] { opacity: 0.75; border-style: dashed; }
+.mm-column--working[data-count="0"] { opacity: 0.75; border-style: dashed; }
 
 /* ------------------------------------------------------------- item cards */
 

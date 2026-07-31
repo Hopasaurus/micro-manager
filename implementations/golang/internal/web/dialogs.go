@@ -36,12 +36,16 @@ func (s *Server) dialog(c *echo.Context) error {
 	if _, err := mm.ParseID(itemID); err != nil {
 		return err
 	}
-	if _, err := store.Get(mm.ID(itemID)); err != nil {
+	it, err := store.Get(mm.ID(itemID))
+	if err != nil {
 		return err
 	}
 
 	v := s.newView(c, "", store)
-	v.Data = map[string]any{"ItemID": itemID}
+	v.Data = map[string]any{
+		"ItemID":    itemID,
+		"IsWorking": it.State == mm.StateWorking,
+	}
 
 	// A dialog is always a fragment: it is swapped into dialog-root over
 	// whatever view is already there.

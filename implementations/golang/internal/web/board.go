@@ -29,16 +29,17 @@ type boardData struct {
 // columnData is one column. Testid is the contract name; Key is what a filter
 // or a drop target refers to.
 type columnData struct {
-	Testid   string
-	Key      string
-	Title    string
-	Section  string // ready | blocked | someday, empty for slot and done columns
-	Slot     string // zero-padded slot number, empty for the others
-	Occupied bool
-	IsSlot   bool
-	IsDone   bool
-	Count    int
-	Items    []itemData
+	Testid    string
+	Key       string
+	Title     string
+	Section   string // ready | blocked | someday, empty for working and done columns
+	Slot      string // zero-padded slot number, empty for the others
+	Occupied  bool
+	IsSlot    bool
+	IsWorking bool
+	IsDone    bool
+	Count     int
+	Items     []itemData
 }
 
 // itemData is one card. Every field here corresponds to an attribute §5.5 fixes.
@@ -171,7 +172,7 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		Filters:  filters,
 	}
 
-	// The three backlog columns, then one per slot, then done: the DOM order of
+	// The three backlog columns, then working, then done: the DOM order of
 	// §5.5, which a test reads positionally.
 	for _, section := range []mm.Section{mm.SectionReady, mm.SectionBlocked, mm.SectionSomeday} {
 		// The library's Section values are capitalised because they name the
@@ -194,26 +195,23 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		data.Columns = append(data.Columns, col)
 	}
 
+	working := columnData{
+		Testid:    "board-column-working",
+		Key:       "working",
+		Title:     "Working",
+		IsWorking: true,
+	}
 	for _, slot := range dir.Slots {
-		key := fmt.Sprintf("slot-%0*d", slotWidth(slot), slot.Number)
-		col := columnData{
-			Testid:   "board-column-" + key,
-			Key:      key,
-			Title:    fmt.Sprintf("Slot %0*d", slotWidth(slot), slot.Number),
-			Slot:     fmt.Sprintf("%0*d", slotWidth(slot), slot.Number),
-			IsSlot:   true,
-			Occupied: slot.Occupied(),
-		}
 		if slot.Item != nil {
 			for _, it := range items {
 				if it.ID == slot.Item.ID {
-					col.Items = append(col.Items, s.itemView(it, dir, 1))
+					working.Items = append(working.Items, s.itemView(it, dir, len(working.Items)+1))
 				}
 			}
 		}
-		col.Count = len(col.Items)
-		data.Columns = append(data.Columns, col)
 	}
+	working.Count = len(working.Items)
+	data.Columns = append(data.Columns, working)
 
 	done := columnData{Testid: "board-column-done", Key: "done", Title: "Done", IsDone: true}
 	limit := s.opts.Config.UI.Board.DoneLimit

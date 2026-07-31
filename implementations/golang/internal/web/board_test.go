@@ -29,12 +29,11 @@ func TestBoardColumnsAndOrder(t *testing.T) {
 
 	want := []string{
 		"board-column-ready", "board-column-blocked", "board-column-someday",
-		"board-column-slot-01", "board-column-slot-02", "board-column-slot-03",
-		"board-column-done",
+		"board-column-working", "board-column-done",
 	}
 	// The alternation is exact: every column's children repeat its testid as a
 	// prefix, so a looser pattern matches board-column-ready-header too.
-	columnRE := regexp.MustCompile(`data-testid="(board-column-(?:ready|blocked|someday|done|slot-\d+))"`)
+	columnRE := regexp.MustCompile(`data-testid="(board-column-(?:ready|blocked|someday|working|done))"`)
 	var got []string
 	for _, m := range columnRE.FindAllStringSubmatch(body, -1) {
 		got = append(got, m[1])
@@ -43,19 +42,26 @@ func TestBoardColumnsAndOrder(t *testing.T) {
 		t.Errorf("columns are\n  %v\nwant\n  %v", got, want)
 	}
 
-	// Every column carries its header, title, count, add control and body.
+	// Every column carries its header, title, count and body; backlog and done carry -add.
 	for _, col := range want {
-		for _, suffix := range []string{"-header", "-title", "-count", "-add", "-body"} {
+		suffixes := []string{"-header", "-title", "-count", "-body"}
+		if col != "board-column-working" {
+			suffixes = append(suffixes, "-add")
+		}
+		for _, suffix := range suffixes {
 			if !hasTestid(body, col+suffix) {
 				t.Errorf("%s is missing", col+suffix)
 			}
 		}
+		if col == "board-column-working" && hasTestid(body, col+"-add") {
+			t.Errorf("board-column-working-add MUST NOT exist (§4, D10)")
+		}
 	}
 }
 
-// §5.1: the board carries data-wip-used and data-wip-limit; a slot column
-// carries data-slot and data-occupied.
-func TestBoardAndSlotAttributes(t *testing.T) {
+// §5.1: the board carries data-wip-used and data-wip-limit; working cards carry
+// data-slot.
+func TestBoardAndWorkingAttributes(t *testing.T) {
 	ts, id := boardServer(t, "clean-full")
 	body := ts.get("/p/" + id + "/board").Body
 
@@ -67,15 +73,14 @@ func TestBoardAndSlotAttributes(t *testing.T) {
 		t.Errorf("data-state = %q", got)
 	}
 
-	slot := testid(t, body, "board-column-slot-01")
-	if got := attrOf(t, slot, "data-slot"); got != "01" {
-		t.Errorf("data-slot = %q, want the zero-padded form", got)
+	col := testid(t, body, "board-column-working")
+	if got := attrOf(t, col, "role"); got != "list" {
+		t.Errorf("working column role is %q, want list (§11 rule 3)", got)
 	}
-	if got := attrOf(t, slot, "data-occupied"); got != "true" && got != "false" {
-		t.Errorf("data-occupied = %q", got)
-	}
-	if got := attrOf(t, slot, "role"); got != "list" {
-		t.Errorf("a column's role is %q, want list (§11 rule 3)", got)
+
+	card := testid(t, body, "item-T-0003")
+	if got := attrOf(t, card, "data-slot"); got != "01" {
+		t.Errorf("card data-slot = %q, want zero-padded form", got)
 	}
 }
 

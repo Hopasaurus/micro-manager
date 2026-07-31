@@ -31,12 +31,13 @@
   I5 requires the reason too, so this is the format's rule surfacing as a prompt.
 */}}
 {{define "dialog-block" -}}
-{{$p := .App.Project}}{{$id := .Data.ItemID}}
+{{$p := .App.Project}}{{$id := .Data.ItemID}}{{$working := .Data.IsWorking}}
 <div data-testid="dialog-block" class="mm-dialog" role="dialog" aria-modal="true"
      aria-labelledby="dialog-block-title" data-item-id="{{$id}}">
   <h2 data-testid="dialog-block-title" id="dialog-block-title">Block {{$id}}</h2>
-  <form hx-post="/p/{{$p.ID}}/items/{{$id}}/block"
+  <form hx-post="/p/{{$p.ID}}/items/{{$id}}/{{if $working}}pause{{else}}block{{end}}"
         hx-target="[data-testid='board']" hx-swap="outerHTML">
+    {{if $working}}<input type="hidden" name="section" value="blocked">{{end}}
     <label class="mm-field">
       <span>What is it waiting on?</span>
       <input data-testid="dialog-block-reason" name="reason" type="text" required autofocus>

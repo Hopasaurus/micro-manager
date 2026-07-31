@@ -22,11 +22,11 @@ import (
 // data-drop-allowed="false" and issues no request, but the server is the
 // authority and has to refuse it too (§2.1).
 func TestIllegalTransitionsAreRefused(t *testing.T) {
-	t.Run("slot to slot", func(t *testing.T) {
+	t.Run("working to working", func(t *testing.T) {
 		ts, id := boardServer(t, "clean-multi-slot")
 
-		// clean-multi-slot has an item in slot 1. Starting it again is the
-		// server-side shape of dragging it to another slot.
+		// clean-multi-slot has an item in slot 1. Starting it again or moving it to
+		// working is the server-side shape of an intra-working drag.
 		store, err := mm.Open(ts.Dirs[0])
 		if err != nil {
 			t.Fatal(err)
@@ -46,9 +46,15 @@ func TestIllegalTransitionsAreRefused(t *testing.T) {
 		}
 
 		r := ts.form(http.MethodPost, "/p/"+id+"/items/"+string(working)+"/start",
-			url.Values{"slot": {"2"}})
+			url.Values{})
 		if r.Status == http.StatusOK {
-			t.Error("the server allowed a slot-to-slot move; slots are interchangeable (§7.2)")
+			t.Error("the server allowed starting an already working item; working->working is illegal (§7.2)")
+		}
+
+		r2 := ts.form(http.MethodPost, "/p/"+id+"/items/"+string(working)+"/move",
+			url.Values{"section": {"working"}})
+		if r2.Status == http.StatusOK {
+			t.Error("the server allowed moving a working item; working->working is illegal (§7.2)")
 		}
 	})
 
@@ -200,3 +206,37 @@ func TestDropPositionIsHonoured(t *testing.T) {
 		t.Errorf("data-position was not recomputed: %v", first)
 	}
 }
+
+// §7.2 / D12: pausing a working item into Blocked MUST prompt for a reason
+// and post it with section=blocked.
+func TestWorkingToBlockedPromptsAndPauses(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+
+	// clean-full has T-0003 in working slot 1.
+	dialogBody := ts.get("/p/" + id + "/dialog/block?item=T-0003").expectStatus(http.StatusOK).Body
+	if !hasTestid(dialogBody, "dialog-block") {
+		t.Errorf("dialog-block not rendered for working item: %s", dialogBody)
+	}
+	if !strings.Contains(dialogBody, `action="/p/`+id+`/items/T-0003/pause"`) &&
+		!strings.Contains(dialogBody, `hx-post="/p/`+id+`/items/T-0003/pause"`) {
+		t.Errorf("dialog-block form does not post to /pause for working item: %s", dialogBody)
+	}
+
+	// Pausing into blocked with a reason succeeds.
+	r := ts.form(http.MethodPost, "/p/"+id+"/items/T-0003/pause",
+		url.Values{"section": {"blocked"}, "reason": {"waiting on ops"}})
+	r.expectStatus(http.StatusOK)
+
+	store, err := mm.Open(ts.Dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, err := store.Get("T-0003")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it.Section != mm.SectionBlocked || it.Blocked != "waiting on ops" {
+		t.Errorf("item not paused into blocked with reason: %+v", it)
+	}
+}
+

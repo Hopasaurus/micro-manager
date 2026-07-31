@@ -223,7 +223,7 @@ func templateFuncs() template.FuncMap {
 			return "false"
 		},
 		// pad renders a slot number as the zero-padded form the DOM contract
-		// uses: board-column-slot-01, data-slot="01" (§5.1).
+		// uses: data-slot="01", dialog-wip-limit-slot-01 (§5.1).
 		"pad": func(n, width int) string {
 			if width < 2 {
 				width = 2
