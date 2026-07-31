@@ -1,0 +1,152 @@
+{{define "layout" -}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.App.Title}}</title>
+<link rel="stylesheet" href="/static/mm.css">
+<style>{{.App.Theme.Style}}</style>
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/htmx-ext-sse.js" defer></script>
+<script src="/static/mm.js" defer></script>
+</head>
+<body>
+{{template "app" .}}
+</body>
+</html>
+{{- end}}
+
+{{/*
+  The app shell of spec-gui.md §5.2, present on every route.
+
+  Every data-testid here is contract: they may not be renamed, omitted or
+  conditionally dropped, and an implementation may only ADD testids prefixed x-.
+*/}}
+{{define "app" -}}
+<div data-testid="app" class="mm-app"
+     data-busy="{{yesno .App.Busy}}"
+     data-theme-name="{{.App.Theme.Name}}"
+     data-theme-source="{{.App.Theme.Source}}"
+     {{if .App.TestMode}}data-test-mode="true"{{end}}
+     {{with .App.Project}}data-project-id="{{.ID}}" data-project-name="{{.Name}}"{{end}}>
+
+  <header data-testid="app-header" class="mm-header">
+    <a data-testid="brand" class="mm-brand" href="/">
+      {{/* §8.6: alt is empty when brand-name is displayed alongside it. */}}
+      <img data-testid="brand-logo" class="mm-brand__logo" alt="" src="/static/brand.svg">
+      <span data-testid="brand-name" class="mm-brand__name">{{template "brandName" .}}</span>
+    </a>
+
+    <button data-testid="project-switcher" class="mm-project-switcher"
+            type="button" aria-haspopup="listbox" aria-expanded="false"
+            aria-controls="project-switcher-menu">
+      {{with .App.Project}}{{.Name}}{{else}}Choose a project{{end}}
+    </button>
+    <div data-testid="project-switcher-menu" id="project-switcher-menu" role="listbox" hidden>
+      <div data-testid="project-switcher-favorites" role="group" aria-label="Favorites"
+           data-count="{{len .App.Favorites}}">
+        {{range .App.Favorites}}{{template "switcherEntry" .}}{{end}}
+      </div>
+      <div data-testid="project-switcher-recent" role="group" aria-label="Recent"
+           data-count="{{len .App.Recent}}">
+        {{range .App.Recent}}{{template "switcherEntry" .}}{{end}}
+      </div>
+      <a data-testid="project-switcher-all" href="/projects">All projects</a>
+    </div>
+
+    <form data-testid="search-form" class="mm-search-form" role="search"
+          action="{{with .App.Project}}/p/{{.ID}}/board{{else}}/projects{{end}}" method="get">
+      <label class="mm-visually-hidden" for="search-input">Search</label>
+      <input data-testid="search-input" id="search-input" class="mm-search"
+             type="search" name="q" value="{{.App.Query}}"
+             placeholder="Search titles, tags and details">
+    </form>
+
+    <nav data-testid="app-nav" class="mm-nav" aria-label="Views">
+      {{template "navLink" navItem . "board" "Board"}}
+      {{template "navLink" navItem . "report" "Report"}}
+      {{template "navLink" navItem . "check" "Check"}}
+      {{template "navLink" navItem . "settings" "Settings"}}
+    </nav>
+  </header>
+
+  <main data-testid="app-main" class="mm-main" data-state="ready">
+    {{template "content" .}}
+  </main>
+
+  {{template "app-status" .}}
+
+  <div data-testid="toast-region" class="mm-toasts" role="status" aria-live="polite">
+    {{with .App.Toast}}{{template "toast-body" .}}{{end}}
+  </div>
+  <div data-testid="dialog-root" class="mm-dialogs"></div>
+</div>
+{{- end}}
+
+{{/*
+  The status bar. status-check carries data-violations with the count, so a
+  suite can assert cleanliness without opening the check view (§5.2).
+
+  It is its own template because every mutating response swaps it out of band: a
+  change to one item invalidates the WIP count, the section counts and the
+  validation result at once.
+*/}}
+{{define "app-status" -}}
+<footer data-testid="app-status" class="mm-status">
+  {{with .App.Status}}
+  <span data-testid="status-wip" class="mm-status__wip"
+        data-wip-used="{{.WipUsed}}" data-wip-limit="{{.WipLimit}}">WIP {{.WipUsed}}/{{.WipLimit}}</span>
+  <span data-testid="status-counts" class="mm-status__counts"
+        data-ready="{{.Ready}}" data-blocked="{{.Blocked}}" data-someday="{{.Someday}}" data-done="{{.Done}}">
+    {{.Ready}} ready, {{.Blocked}} blocked, {{.Someday}} someday, {{.Done}} done
+  </span>
+  <span data-testid="status-check" class="mm-status__check"
+        data-violations="{{.Violations}}"
+        data-state="{{if not .Checked}}unknown{{else if .Violations}}error{{else}}ok{{end}}">
+    {{if not .Checked}}not checked{{else if .Violations}}{{.Violations}} violations{{else}}clean{{end}}
+  </span>
+  {{else}}
+  <span data-testid="status-wip" class="mm-status__wip" data-wip-used="0" data-wip-limit="0">no project</span>
+  <span data-testid="status-counts" class="mm-status__counts"
+        data-ready="0" data-blocked="0" data-someday="0" data-done="0"></span>
+  <span data-testid="status-check" class="mm-status__check" data-violations="0" data-state="unknown"></span>
+  {{end}}
+</footer>
+{{- end}}
+
+{{/*
+  One toast (§5.10). data-severity is what a client branches on, and
+  data-dry-run marks a change that was computed and not written (§4.2).
+*/}}
+{{define "toast-body" -}}
+<div data-testid="toast-1" class="mm-toast" data-severity="{{.Severity}}"
+     {{if .Code}}data-code="{{.Code}}"{{end}}
+     {{if .DryRun}}data-dry-run="true"{{end}}>
+  <span class="mm-toast__message">{{if .DryRun}}Dry run: {{end}}{{.Message}}</span>
+  <button data-testid="toast-1-dismiss" class="mm-toast__dismiss" type="button"
+          aria-label="Dismiss" data-dismiss>&times;</button>
+</div>
+{{- end}}
+
+{{define "brandName" -}}
+{{if .App.Theme.Brand.name}}{{.App.Theme.Brand.name}}{{else if .App.Project}}{{.App.Project.Name}}{{else}}micro-manager{{end}}
+{{- end}}
+
+{{/*
+  A nav link. With no project open the links point at /projects rather than
+  vanishing: §5.1 forbids dropping a required testid conditionally, so nav-board
+  exists on every route whether or not there is a board to go to.
+*/}}
+{{define "navLink" -}}
+<a data-testid="nav-{{.Key}}" class="mm-nav__link" href="{{.Href}}"
+   {{if .Current}}aria-current="page"{{end}}>{{.Label}}</a>
+{{- end}}
+
+{{define "switcherEntry" -}}
+<a data-testid="project-switcher-entry-{{.ProjectID}}" role="option"
+   href="/p/{{.ProjectID}}/board"
+   data-project-id="{{.ProjectID}}"
+   data-missing="{{yesno .Missing}}"
+   data-favorite="{{yesno .Favorite}}">{{.Name}}</a>
+{{- end}}

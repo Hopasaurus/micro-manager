@@ -1253,6 +1253,7 @@ projects-root-<n>
 --mm-border-width-{thin,thick}  --mm-shadow-{none,sm,md,lg}
 --mm-motion-duration-{fast,normal,slow}
 --mm-motion-easing-{standard,enter,exit}
+--mm-density-{compact,normal,comfortable}
 ```
 
 ## Appendix C: route index

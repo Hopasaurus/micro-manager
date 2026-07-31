@@ -1,0 +1,48 @@
+{{define "content" -}}
+{{template "board" .}}
+{{- end}}
+
+{{/*
+  What a mutation returns: the board, plus everything the change invalidated -
+  the status bar and a toast - swapped out of band.
+
+  A mutation invalidates more than the fragment it returns (§5.5): column counts,
+  the WIP indicator, the validation count and every card whose data-position
+  moved. Out-of-band swaps are how those stay truthful without a reload.
+*/}}
+{{define "board-swap" -}}
+{{template "board" .}}
+{{template "app-status-oob" .}}
+{{template "toast-oob" .}}
+{{- end}}
+
+{{define "app-status-oob" -}}
+<footer data-testid="app-status" class="mm-status" hx-swap-oob="true">
+  {{with .App.Status}}
+  <span data-testid="status-wip" class="mm-status__wip"
+        data-wip-used="{{.WipUsed}}" data-wip-limit="{{.WipLimit}}">WIP {{.WipUsed}}/{{.WipLimit}}</span>
+  <span data-testid="status-counts" class="mm-status__counts"
+        data-ready="{{.Ready}}" data-blocked="{{.Blocked}}" data-someday="{{.Someday}}" data-done="{{.Done}}">
+    {{.Ready}} ready, {{.Blocked}} blocked, {{.Someday}} someday, {{.Done}} done
+  </span>
+  <span data-testid="status-check" class="mm-status__check"
+        data-violations="{{.Violations}}"
+        data-state="{{if not .Checked}}unknown{{else if .Violations}}error{{else}}ok{{end}}">
+    {{if not .Checked}}not checked{{else if .Violations}}{{.Violations}} violations{{else}}clean{{end}}
+  </span>
+  {{end}}
+</footer>
+{{- end}}
+
+{{/*
+  The toast, swapped into the region out of band. It renders the SAME
+  toast-body the whole page does, so the two forms cannot drift.
+*/}}
+{{define "toast-oob" -}}
+{{with .App.Toast}}
+<div data-testid="toast-region" class="mm-toasts" role="status" aria-live="polite"
+     hx-swap-oob="beforeend">
+  {{template "toast-body" .}}
+</div>
+{{end}}
+{{- end}}

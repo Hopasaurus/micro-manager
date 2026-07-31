@@ -92,8 +92,8 @@ permissive licence — BSD, MIT, Apache-2.0.
 | `golang.org/x/text/unicode/norm` | BSD-3-Clause | `mm` | NFC normalisation for `projectId` (§3.1 of `spec-gui.md`); the stdlib has no normaliser and hand-rolling one is a correctness risk in a shared cross-implementation identifier |
 | `github.com/labstack/echo/v5` | MIT | `internal/web` | HTTP routing, middleware, error handling |
 | `github.com/labstack/echo/v5/middleware` | MIT | `internal/web` | Recover, request ID, gzip (see §4.5) |
-| htmx (vendored JS) | BSD-2-Clause (0BSD from 2.0) | `internal/web/static` | Server-driven interactivity without a SPA |
-| `htmx-ext-sse` (vendored JS) | BSD-2-Clause | `internal/web/static` | SSE extension; a separate file from htmx core |
+| htmx 2.0.7 (vendored JS) | 0BSD | `internal/web/static/htmx.min.js` | Server-driven interactivity without a SPA |
+| `htmx-ext-sse` 2.2.4 (vendored JS) | BSD-2-Clause | `internal/web/static/htmx-ext-sse.js` | SSE extension; a separate file, loaded after htmx core |
 
 `mm/` is held to a higher bar than the front ends, because it is compiled into
 all three: a dependency there is one the CLI and the TUI pay for too. It is a

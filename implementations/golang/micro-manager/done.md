@@ -11,6 +11,17 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-07
 
+- [x] [T-0059] Implement drag and drop and the keyboard move mode | prio:high | tags:ui,dnd,phase-2 | detail:details/T-0059.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0058] Wire every mutating operation with its dialogs and toasts | prio:high | tags:ui,ops,phase-2 | detail:details/T-0058.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0057] Render the item panel, the item form and the add-item panel | prio:high | tags:ui,view,phase-2 | detail:details/T-0057.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0056] Render the board with columns, item cards and query filters | prio:high | tags:ui,view,phase-2 | detail:details/T-0056.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0055] Render the app shell, nav, project switcher and status bar | prio:high | tags:ui,view,phase-2 | detail:details/T-0055.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0053] Map library errors to HTTP status, JSON and HTML fragments | prio:high | tags:ui,errors,phase-1 | detail:details/T-0053.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0052] Build the project registry and the discovery cache | prio:high | tags:ui,phase-1 | detail:details/T-0052.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0051] Build the template renderer with page and fragment parity | prio:high | tags:ui,render,phase-1 | detail:details/T-0051.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0054] Build the httptest harness for the web layer | prio:high | tags:ui,test,phase-1 | detail:details/T-0054.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0050] Enforce loopback binding with Host, Origin and CSP guards | prio:high | tags:ui,security,phase-1 | detail:details/T-0050.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0049] Scaffold cmd/mm-ui, internal/web and the Echo v5 dependency | prio:high | tags:ui,setup,phase-1 | detail:details/T-0049.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
 - [x] [T-0042] Implement status, next and search in the library | prio:med | tags:library,ops,phase-0 | detail:details/T-0042.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
 - [x] [T-0048] Implement the recent and favorites list files | prio:med | tags:library,ui,phase-0 | detail:details/T-0048.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
 - [x] [T-0041] Implement theme and config loading for the UI service | prio:high | tags:library,ui,phase-0 | detail:details/T-0041.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped

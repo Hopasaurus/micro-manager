@@ -1,0 +1,133 @@
+{{/*
+  The dialogs of spec-gui.md §5.10.
+
+  All four render into dialog-root with role="dialog" and aria-modal="true", and
+  trap focus (mm.js). Two of them exist because §7.2 requires an operation to
+  PROMPT before it runs: blocking needs a reason, finishing needs an outcome, and
+  cancelling either one aborts without issuing a request.
+*/}}
+
+{{/*
+  dialog-confirm-remove. §5.6: item-action-remove MUST NOT be satisfiable by a
+  single click, and the route behind this form additionally requires force=true.
+*/}}
+{{define "dialog-confirm-remove" -}}
+{{$p := .App.Project}}{{$id := .Data.ItemID}}
+<div data-testid="dialog-confirm-remove" class="mm-dialog" role="dialog" aria-modal="true"
+     aria-labelledby="dialog-confirm-remove-title" data-item-id="{{$id}}">
+  <h2 data-testid="dialog-confirm-remove-title" id="dialog-confirm-remove-title">Remove {{$id}}?</h2>
+  <p>This deletes the item. Its ID is retired and never reused, and a detail file
+     it points at stays where it is.</p>
+  <form hx-delete="/p/{{$p.ID}}/items/{{$id}}?force=true"
+        hx-target="[data-testid='board']" hx-swap="outerHTML">
+    <button data-testid="dialog-confirm-remove-confirm" class="mm-button mm-button--danger" type="submit">Remove</button>
+    <button data-testid="dialog-confirm-remove-cancel" class="mm-button" type="button" data-dismiss>Cancel</button>
+  </form>
+</div>
+{{- end}}
+
+{{/*
+  §7.2: moving into blocked MUST prompt for a reason, and cancelling aborts.
+  I5 requires the reason too, so this is the format's rule surfacing as a prompt.
+*/}}
+{{define "dialog-block" -}}
+{{$p := .App.Project}}{{$id := .Data.ItemID}}
+<div data-testid="dialog-block" class="mm-dialog" role="dialog" aria-modal="true"
+     aria-labelledby="dialog-block-title" data-item-id="{{$id}}">
+  <h2 data-testid="dialog-block-title" id="dialog-block-title">Block {{$id}}</h2>
+  <form hx-post="/p/{{$p.ID}}/items/{{$id}}/block"
+        hx-target="[data-testid='board']" hx-swap="outerHTML">
+    <label class="mm-field">
+      <span>What is it waiting on?</span>
+      <input data-testid="dialog-block-reason" name="reason" type="text" required autofocus>
+    </label>
+    <button data-testid="dialog-block-confirm" class="mm-button mm-button--primary" type="submit">Block</button>
+    <button data-testid="dialog-block-cancel" class="mm-button" type="button" data-dismiss>Cancel</button>
+  </form>
+</div>
+{{- end}}
+
+{{/* §7.2: finishing MUST prompt for an outcome, defaulting to shipped. */}}
+{{define "dialog-finish" -}}
+{{$p := .App.Project}}{{$id := .Data.ItemID}}
+<div data-testid="dialog-finish" class="mm-dialog" role="dialog" aria-modal="true"
+     aria-labelledby="dialog-finish-title" data-item-id="{{$id}}">
+  <h2 data-testid="dialog-finish-title" id="dialog-finish-title">Finish {{$id}}</h2>
+  <form hx-post="/p/{{$p.ID}}/items/{{$id}}/finish"
+        hx-target="[data-testid='board']" hx-swap="outerHTML">
+    <label class="mm-field">
+      <span>Outcome</span>
+      <select data-testid="dialog-finish-outcome" name="outcome">
+        <option value="shipped" selected>shipped</option>
+        <option value="cancelled">cancelled</option>
+        <option value="obsolete">obsolete</option>
+      </select>
+    </label>
+    <label class="mm-field">
+      <span>Closing note</span>
+      <input data-testid="dialog-finish-note" name="note" type="text"
+             placeholder="kept in the detail file">
+    </label>
+    <button data-testid="dialog-finish-confirm" class="mm-button mm-button--primary" type="submit">Finish</button>
+    <button data-testid="dialog-finish-cancel" class="mm-button" type="button" data-dismiss>Cancel</button>
+  </form>
+</div>
+{{- end}}
+
+{{/*
+  dialog-wip-limit. §5.10: it MUST list the current occupants with testid
+  dialog-wip-limit-slot-NN and offer finish, pause and raise-limit — the same
+  three remedies the CLI names.
+*/}}
+{{define "dialog-wip-limit" -}}
+{{$p := .App.Project}}{{$env := .Data.Envelope}}
+<div data-testid="dialog-wip-limit" class="mm-dialog" role="dialog" aria-modal="true"
+     aria-labelledby="dialog-wip-limit-title"
+     data-wip-used="{{$env.WipUsed}}" data-wip-limit="{{$env.WipLimit}}"
+     data-code="{{.Data.Code}}"
+     hx-swap-oob="innerHTML:[data-testid='dialog-root']">
+  <h2 data-testid="dialog-wip-limit-title" id="dialog-wip-limit-title">
+    Every slot is busy ({{$env.WipUsed}}/{{$env.WipLimit}})
+  </h2>
+  <p>Finish something, pause something, or raise the limit deliberately.</p>
+  <ul class="mm-dialog__slots">
+    {{range $env.Occupants}}
+    <li data-testid="dialog-wip-limit-slot-{{pad .Slot 2}}" data-item-id="{{.ID}}">
+      <span class="mm-dialog__slot-id">{{.ID}}</span>
+      <span class="mm-dialog__slot-title">{{.Title}}</span>
+      {{with $p}}
+      <button data-testid="dialog-wip-limit-finish-{{.ID}}" class="mm-button" type="button"
+              hx-get="/p/{{.ID}}/dialog/finish?item={{.ID}}"
+              hx-target="[data-testid='dialog-root']">Finish</button>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+  <div class="mm-dialog__buttons">
+    {{with $p}}
+    <a data-testid="dialog-wip-limit-raise" class="mm-button" href="/p/{{.ID}}/settings">Raise the limit</a>
+    {{end}}
+    <button data-testid="dialog-wip-limit-cancel" class="mm-button" type="button" data-dismiss>Cancel</button>
+  </div>
+</div>
+{{- end}}
+
+{{/*
+  dialog-conflict. §5.10: it appears on Concurrent and MUST offer reload; it
+  MUST NOT offer a blind overwrite. Something else wrote the file, and the only
+  honest next step is to look at what it wrote.
+*/}}
+{{define "dialog-conflict" -}}
+<div data-testid="dialog-conflict" class="mm-dialog" role="dialog" aria-modal="true"
+     aria-labelledby="dialog-conflict-title" data-code="{{.Data.Code}}"
+     hx-swap-oob="innerHTML:[data-testid='dialog-root']">
+  <h2 data-testid="dialog-conflict-title" id="dialog-conflict-title">The directory changed underneath</h2>
+  <p>{{.Data.Message}}</p>
+  <p>The CLI, an editor or another window wrote to these files while this view
+     was open. Reload to see what is there now.</p>
+  <div class="mm-dialog__buttons">
+    <button data-testid="dialog-conflict-reload" class="mm-button mm-button--primary" type="button"
+            onclick="window.location.reload()">Reload</button>
+  </div>
+</div>
+{{- end}}

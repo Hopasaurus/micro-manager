@@ -1,0 +1,33 @@
+{{define "content" -}}
+{{template "error" .}}
+{{- end}}
+
+{{/*
+  The not-found and error view.
+
+  §4.1 rule 4: an unknown projectId MUST render this with HTTP 404, never a
+  redirect to /. A redirect would tell a bookmark that the project moved rather
+  than that it is not here.
+*/}}
+{{define "error" -}}
+<section data-testid="error" class="mm-error" data-state="error" data-code="{{.Data.Code}}">
+  <h1 data-testid="error-title" class="mm-error__title">{{if eq .Data.Code "NotFound"}}Not found{{else}}Something went wrong{{end}}</h1>
+  <p data-testid="error-message" class="mm-error__message">{{.Data.Message}}</p>
+  <a data-testid="error-home" class="mm-error__home" href="/">Home</a>
+  <a data-testid="error-projects" class="mm-error__projects" href="/projects">All projects</a>
+</section>
+{{- end}}
+
+{{/*
+  The htmx form of an error: a toast the client swaps into toast-region.
+  data-severity and the error code are what §5.10 and §7.5 require a client to
+  branch on.
+*/}}
+{{define "toast" -}}
+<div data-testid="toast-1" class="mm-toast" role="alert"
+     data-severity="{{.Data.Severity}}" data-code="{{.Data.Code}}"
+     hx-swap-oob="beforeend:[data-testid='toast-region']">
+  <span class="mm-toast__message">{{.Data.Message}}</span>
+  <button data-testid="toast-1-dismiss" class="mm-toast__dismiss" type="button" aria-label="Dismiss">&times;</button>
+</div>
+{{- end}}

@@ -1,0 +1,66 @@
+{{/*
+  One item card (spec-gui.md §5.5), identical in every column.
+
+  This is the ONLY place a card's markup exists - the board, search results, an
+  htmx swap after a mutation and the report all reach this definition - which is
+  what makes the DOM contract holdable rather than a thing to remember.
+
+  data-position is the 1-based index within its column and MUST be kept accurate
+  after every reorder: it is how a test asserts ordering without reading text.
+*/}}
+{{define "item-card" -}}
+{{$i := .Item}}{{$p := .Project}}
+<article data-testid="item-{{$i.ID}}" class="mm-item"
+         role="listitem" tabindex="0" draggable="true"
+         data-item-id="{{$i.ID}}"
+         data-item-state="{{$i.State}}"
+         {{if $i.Section}}data-section="{{$i.Section}}"{{end}}
+         data-prio="{{$i.Prio}}"
+         data-tags="{{$i.TagList}}"
+         data-blocked="{{yesno $i.Blocked}}"
+         data-has-detail="{{yesno $i.HasDetail}}"
+         data-position="{{$i.Position}}"
+         {{if $i.Slot}}data-slot="{{$i.Slot}}"{{end}}
+         {{if $i.Outcome}}data-outcome="{{$i.Outcome}}"{{end}}>
+
+  <h3 data-testid="item-{{$i.ID}}-title" class="mm-item__title">
+    <a href="{{with $p}}/p/{{.ID}}/item/{{$i.ID}}{{end}}"
+       {{with $p}}hx-get="/p/{{.ID}}/item/{{$i.ID}}" hx-target="[data-testid='item-panel-root']"
+       hx-push-url="true"{{end}}>{{$i.Title}}</a>
+  </h3>
+  <span data-testid="item-{{$i.ID}}-id" class="mm-item__id">{{$i.ID}}</span>
+
+  {{/* §11 rule 2: colour is never the sole carrier of meaning, so priority,
+       state and outcome each carry text or an aria-label. */}}
+  <span data-testid="item-{{$i.ID}}-prio" class="mm-item__prio"
+        aria-label="Priority {{$i.Prio}}">{{$i.Prio}}</span>
+
+  <ul data-testid="item-{{$i.ID}}-tags" class="mm-item__tags">
+    {{range $i.Tags}}<li data-testid="item-{{$i.ID}}-tag-{{.}}" class="mm-item__tag">{{.}}</li>{{end}}
+  </ul>
+
+  <span data-testid="item-{{$i.ID}}-detail-indicator" class="mm-item__detail"
+        {{if not $i.HasDetail}}hidden{{end}} aria-label="Has a detail file">&#9998;</span>
+
+  {{if $i.Blocked}}
+  <span data-testid="item-{{$i.ID}}-blocked-reason" class="mm-item__blocked">{{$i.Reason}}</span>
+  {{end}}
+
+  <button data-testid="item-{{$i.ID}}-menu" class="mm-item__menu" type="button"
+          aria-haspopup="menu" aria-expanded="false"
+          aria-label="Actions for {{$i.ID}}">&hellip;</button>
+
+  {{/* §5.5: one entry per legal operation. Illegal ones are PRESENT and
+       disabled with data-reason naming the error code, rather than hidden, so a
+       test can assert why an action is unavailable. */}}
+  <div data-testid="item-{{$i.ID}}-menu-items" class="mm-item__actions" role="menu" hidden>
+    {{range $i.Actions}}
+    <button data-testid="item-{{$i.ID}}-action-{{.Op}}" class="mm-item__action" role="menuitem"
+            type="button"
+            {{if not .Enabled}}disabled data-reason="{{.Reason}}"{{end}}
+            data-op="{{.Op}}"
+            data-item="{{$i.ID}}">{{.Label}}</button>
+    {{end}}
+  </div>
+</article>
+{{- end}}

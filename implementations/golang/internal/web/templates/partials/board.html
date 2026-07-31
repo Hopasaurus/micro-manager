@@ -1,0 +1,43 @@
+{{/*
+  The board and its columns.
+
+  These live in partials/ rather than in board.html because more than one page
+  renders them: the item panel is drawn OVER the board (§5.6), so a direct load
+  of /p/:id/item/:itemId has to render the board too, and a page can only reach
+  a template its own set carries.
+*/}}
+{{/*
+  The board of spec-gui.md §5.5.
+
+  Columns are in a FIXED DOM order - ready, blocked, someday, one per working
+  slot in slot order, then done - because a suite reads them positionally.
+*/}}
+{{define "board" -}}
+<section data-testid="board" class="mm-board" data-state="{{if .Data.Empty}}empty{{else}}ready{{end}}"
+         data-wip-used="{{.Data.WipUsed}}" data-wip-limit="{{.Data.WipLimit}}"
+         aria-live="polite">
+  {{$project := .App.Project}}
+  {{range .Data.Columns}}{{template "column" dict "Column" . "Project" $project}}{{end}}
+</section>
+{{- end}}
+
+{{define "column" -}}
+{{$c := .Column}}{{$p := .Project}}
+<section data-testid="{{$c.Testid}}" class="mm-column{{if $c.IsSlot}} mm-column--slot{{end}}{{if $c.IsDone}} mm-column--done{{end}}"
+         {{if $c.Section}}data-section="{{$c.Section}}"{{end}}
+         {{if $c.IsSlot}}data-slot="{{$c.Slot}}" data-occupied="{{yesno $c.Occupied}}"{{end}}
+         data-count="{{$c.Count}}"
+         role="list" aria-label="{{$c.Title}}">
+  <header data-testid="{{$c.Testid}}-header" class="mm-column__header">
+    <h2 data-testid="{{$c.Testid}}-title" class="mm-column__title">{{$c.Title}}</h2>
+    <span data-testid="{{$c.Testid}}-count" class="mm-column__count">{{$c.Count}}</span>
+    <a data-testid="{{$c.Testid}}-add" class="mm-column__add"
+       href="{{with $p}}/p/{{.ID}}/new{{if $c.Section}}?section={{$c.Section}}{{end}}{{end}}"
+       aria-label="Add an item to {{$c.Title}}">+</a>
+  </header>
+  <div data-testid="{{$c.Testid}}-body" class="mm-column__body" data-column="{{$c.Key}}">
+    {{range $c.Items}}{{template "item-card" dict "Item" . "Project" $p}}{{end}}
+  </div>
+</section>
+{{- end}}
+
