@@ -9,7 +9,7 @@
 {{/*
   The board of spec-gui.md §5.5.
 
-  Columns are in a FIXED DOM order - ready, blocked, someday, working, then
+  Columns are in a FIXED DOM order - someday, ready, blocked, working, then
   done - because a suite reads them positionally.
 */}}
 {{define "board" -}}
@@ -28,6 +28,10 @@
          data-count="{{$c.Count}}"
          role="list" aria-label="{{$c.Title}}">
   <header data-testid="{{$c.Testid}}-header" class="mm-column__header">
+    {{if eq $c.Key "someday"}}
+    <button data-testid="board-column-someday-toggle" class="mm-column__toggle"
+            type="button" aria-label="Toggle Someday column">&gt;</button>
+    {{end}}
     <h2 data-testid="{{$c.Testid}}-title" class="mm-column__title">{{$c.Title}}</h2>
     <span data-testid="{{$c.Testid}}-count" class="mm-column__count">{{$c.Count}}</span>
     {{if not $c.IsWorking}}

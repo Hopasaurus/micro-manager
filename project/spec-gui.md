@@ -268,6 +268,7 @@ class names alone, so tests never depend on styling decisions.
 | `data-prio` | `high` \| `med` \| `low` \| `none` | item cards |
 | `data-tags` | comma-separated `TAGLIST`, empty if none | item cards |
 | `data-slot` | zero-padded slot number | working item cards |
+| `data-collapsed` | `true` \| `false` | `board-column-someday` |
 | `data-outcome` | `shipped` \| `cancelled` \| `obsolete` | done items |
 | `data-blocked` | `true` \| `false` | item cards |
 | `data-has-detail` | `true` \| `false` | item cards |
@@ -379,9 +380,9 @@ Empty lists MUST render the container with `data-count="0"` and
 
 Columns, in this DOM order:
 
-1. `board-column-ready`
-2. `board-column-blocked`
-3. `board-column-someday`
+1. `board-column-someday` — leftmost column; carries `board-column-someday-toggle`
+2. `board-column-ready`
+3. `board-column-blocked`
 4. `board-column-working` — one column for all working items, ordered by slot number
 5. `board-column-done`
 
@@ -389,18 +390,24 @@ Columns, in this DOM order:
 <section data-testid="board" class="mm-board"
          data-wip-used="1" data-wip-limit="3" data-state="ready">
 
-  <section data-testid="board-column-ready" class="mm-column"
-           data-section="ready" data-count="7"
-           role="list" aria-label="Ready">
-    <header data-testid="board-column-ready-header" class="mm-column__header">
-      <h2 data-testid="board-column-ready-title">Ready</h2>
-      <span data-testid="board-column-ready-count">7</span>
-      <button data-testid="board-column-ready-add">…</button>
+  <section data-testid="board-column-someday" class="mm-column"
+           data-section="someday" data-count="3" data-collapsed="false"
+           role="list" aria-label="Someday">
+    <header data-testid="board-column-someday-header" class="mm-column__header">
+      <button data-testid="board-column-someday-toggle" class="mm-column__toggle"
+              type="button" aria-label="Toggle Someday column">&gt;</button>
+      <h2 data-testid="board-column-someday-title" class="mm-column__title">Someday</h2>
+      <span data-testid="board-column-someday-count">3</span>
+      <button data-testid="board-column-someday-add">…</button>
     </header>
-    <div data-testid="board-column-ready-body" class="mm-column__body">
+    <div data-testid="board-column-someday-body" class="mm-column__body">
       <!-- item cards -->
     </div>
   </section>
+
+  <section data-testid="board-column-ready" class="mm-column"
+           data-section="ready" data-count="7"
+           role="list" aria-label="Ready">…</section>
 
   <section data-testid="board-column-working" class="mm-column mm-column--working"
            data-count="1" role="list">…</section>
@@ -432,6 +439,12 @@ Item card, identical in every column:
 after every reorder — it is how a test asserts ordering without reading text.
 Within `board-column-working`, cards are ordered by slot number. `board-column-working`
 MUST be rendered even when empty (`data-count="0"`).
+
+`board-column-someday` is the leftmost column. Its header MUST contain a toggle button
+`board-column-someday-toggle` in its upper-left corner. When expanded (`data-collapsed="false"`
+or absent), the toggle displays `>` and the column body displays its items. When collapsed
+(`data-collapsed="true"`), the toggle displays `v`, the column body is hidden, the column title
+"Someday" is rotated 90 degrees, and the column shrinks to show only the rotated header.
 
 The item menu (§6.2) MUST contain one entry per legal operation, each with
 testid `item-T-0042-action-<operation>`, e.g. `item-T-0042-action-start`.
@@ -1202,7 +1215,7 @@ home  favorites-list  recent-list  project-open  project-init
 project-card-<projectId>  project-card-name  project-card-path
 project-card-wip  project-card-favorite-toggle
 
-board  board-column-ready  board-column-blocked  board-column-someday
+board  board-column-someday  board-column-someday-toggle  board-column-ready  board-column-blocked
 board-column-working  board-column-done
 board-column-<key>-header  -title  -count  -add  -body  (backlog columns carry -add; board-column-working does not)
 item-<ID>  item-<ID>-title  item-<ID>-id  item-<ID>-prio

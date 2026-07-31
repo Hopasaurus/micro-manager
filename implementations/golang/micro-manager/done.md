@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-07
 
+- [x] [T-0073] Move someday column to left with collapsible toggle | tags:ui,view | detail:details/T-0073.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
 - [x] [T-0072] Render working items in a single board column | tags:ui,view | detail:details/T-0072.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
 - [x] [T-0062] Render home and the projects list with favorites | prio:med | tags:ui,view,phase-3 | detail:details/T-0062.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
 - [x] [T-0061] Render the check view and the status bar violation count | prio:med | tags:ui,view,phase-3 | detail:details/T-0061.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped

@@ -227,9 +227,9 @@ Every screen shows:
 
 The primary view. Columns in this order, matching the GUI:
 
-1. Ready
-2. Blocked
-3. Someday
+1. Someday
+2. Ready
+3. Blocked
 4. one Working column for all working items, ordered by slot number
 5. Done
 

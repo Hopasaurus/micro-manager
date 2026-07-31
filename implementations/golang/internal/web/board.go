@@ -172,9 +172,9 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		Filters:  filters,
 	}
 
-	// The three backlog columns, then working, then done: the DOM order of
-	// §5.5, which a test reads positionally.
-	for _, section := range []mm.Section{mm.SectionReady, mm.SectionBlocked, mm.SectionSomeday} {
+	// The backlog columns (someday, ready, blocked), then working, then done:
+	// the DOM order of §5.5, which a test reads positionally.
+	for _, section := range []mm.Section{mm.SectionSomeday, mm.SectionReady, mm.SectionBlocked} {
 		// The library's Section values are capitalised because they name the
 		// "## Ready" headings in the file. The DOM contract fixes them
 		// LOWERCASE - data-section="ready", board-column-ready - so the two

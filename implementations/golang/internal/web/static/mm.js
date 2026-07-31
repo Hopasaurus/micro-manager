@@ -541,5 +541,37 @@
     }
   });
 
+  /* Collapsible Someday column toggle (§5.5). */
+  function restoreSomedayState() {
+    const col = document.querySelector('[data-testid="board-column-someday"]');
+    const toggle = document.querySelector('[data-testid="board-column-someday-toggle"]');
+    if (!col || !toggle) return;
+    try {
+      const project = root()?.getAttribute('data-project-id');
+      if (project && localStorage.getItem(`mm:someday-collapsed:${project}`) === 'true') {
+        col.setAttribute('data-collapsed', 'true');
+        toggle.textContent = 'v';
+      }
+    } catch (_) {}
+  }
+
+  document.body.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-testid="board-column-someday-toggle"]');
+    if (!toggle) return;
+    const col = document.querySelector('[data-testid="board-column-someday"]');
+    if (!col) return;
+    const isCollapsed = col.getAttribute('data-collapsed') === 'true';
+    const nextState = !isCollapsed;
+    col.setAttribute('data-collapsed', nextState ? 'true' : 'false');
+    toggle.textContent = nextState ? 'v' : '>';
+    try {
+      const project = root()?.getAttribute('data-project-id');
+      if (project) localStorage.setItem(`mm:someday-collapsed:${project}`, nextState ? 'true' : 'false');
+    } catch (_) {}
+  });
+
+  document.body.addEventListener('htmx:afterSettle', restoreSomedayState);
+  document.addEventListener('DOMContentLoaded', restoreSomedayState);
+
   setBusy();
 })();

@@ -21,14 +21,14 @@ func boardServer(t *testing.T, fixture string) (*testServer, string) {
 	return ts, id
 }
 
-// §5.5 fixes the columns and their DOM ORDER: ready, blocked, someday, one per
-// working file in slot order, then done. A suite reads them positionally.
+// §5.5 fixes the columns and their DOM ORDER: someday, ready, blocked, working,
+// then done. A suite reads them positionally.
 func TestBoardColumnsAndOrder(t *testing.T) {
 	ts, id := boardServer(t, "clean-multi-slot")
 	body := ts.get("/p/" + id + "/board").expectStatus(http.StatusOK).Body
 
 	want := []string{
-		"board-column-ready", "board-column-blocked", "board-column-someday",
+		"board-column-someday", "board-column-ready", "board-column-blocked",
 		"board-column-working", "board-column-done",
 	}
 	// The alternation is exact: every column's children repeat its testid as a
@@ -56,6 +56,10 @@ func TestBoardColumnsAndOrder(t *testing.T) {
 		if col == "board-column-working" && hasTestid(body, col+"-add") {
 			t.Errorf("board-column-working-add MUST NOT exist (§4, D10)")
 		}
+	}
+
+	if !hasTestid(body, "board-column-someday-toggle") {
+		t.Errorf("board-column-someday-toggle is missing")
 	}
 }
 
