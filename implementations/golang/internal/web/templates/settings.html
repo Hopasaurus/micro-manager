@@ -1,0 +1,121 @@
+{{/*
+  The settings view of spec-gui.md §5.9.
+  Used by both /settings (system scope) and /p/:projectId/settings (project scope).
+*/}}
+{{define "content" -}}
+{{template "settings" .}}
+{{- end}}
+
+{{define "settings" -}}
+{{$p := .App.Project}}{{$d := .Data}}{{$isSystem := eq $d.Scope "system"}}
+<div data-testid="settings" class="mm-settings" data-scope="{{$d.Scope}}" data-state="ready">
+  <h1 class="mm-settings__title">{{if $isSystem}}System Settings{{else}}Project Settings{{end}}</h1>
+
+  <form action="{{if $isSystem}}/settings{{else}}/p/{{$p.ID}}/settings{{end}}" method="post">
+
+    {{/* Theme section */}}
+    <section data-testid="settings-theme" class="mm-settings__section">
+      <h2>Theme</h2>
+      <div class="mm-field">
+        <label for="theme-select">Theme</label>
+        <select data-testid="settings-theme-select" id="theme-select" name="theme">
+          {{range $d.Theme.Themes}}
+          <option value="{{.ID}}" {{if .Selected}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+        <span data-testid="settings-theme-source" class="mm-badge">{{$d.Theme.Source}}</span>
+      </div>
+      <div class="mm-settings__actions">
+        <a data-testid="settings-theme-edit" class="mm-button" href="/settings/theme">Edit theme</a>
+        <a data-testid="settings-theme-export" class="mm-button" href="/settings/themes/{{$d.Theme.Current}}/export">Export</a>
+        <label class="mm-button">
+          Import
+          <input data-testid="settings-theme-import" type="file" name="theme_file" style="display:none">
+        </label>
+        {{if not $isSystem}}
+        <button data-testid="settings-theme-clear" class="mm-button mm-button--danger" type="submit" name="action" value="clear_theme">Clear project theme</button>
+        {{end}}
+      </div>
+    </section>
+
+    {{if $isSystem}}
+    {{/* Lists section (system scope only) */}}
+    <section data-testid="settings-lists" class="mm-settings__section">
+      <h2>Lists</h2>
+      <div class="mm-field">
+        <label for="recent-count">Recent projects to display</label>
+        <input data-testid="settings-recent-count" id="recent-count" name="recentCount" type="number" min="0" max="50" value="{{$d.Lists.RecentCount}}">
+      </div>
+      <div class="mm-field">
+        <label for="favorites-count">Favorite projects to display</label>
+        <input data-testid="settings-favorites-count" id="favorites-count" name="favoritesCount" type="number" min="0" max="50" value="{{$d.Lists.FavoritesCount}}">
+      </div>
+    </section>
+
+    {{/* Scan section (system scope only) */}}
+    <section data-testid="settings-scan" class="mm-settings__section" data-root-count="{{$d.Scan.RootCount}}" data-partial="{{yesno $d.Scan.Partial}}">
+      <h2>Discovery & Scanning</h2>
+      <ul data-testid="settings-scan-roots" class="mm-settings__roots">
+        {{range $d.Scan.Roots}}
+        <li data-testid="settings-scan-root-{{.N}}" data-path="{{.Path}}" data-missing="{{yesno .Missing}}">
+          <span>{{.Path}}</span>
+          {{if .Missing}}<span class="mm-badge mm-badge--warning">missing</span>{{end}}
+          <button data-testid="settings-scan-root-{{.N}}-remove" class="mm-button mm-button--sm" type="submit" name="removeRoot" value="{{.Path}}">Remove</button>
+        </li>
+        {{end}}
+      </ul>
+
+      <div class="mm-field">
+        <label for="scan-root-add">Add scan root</label>
+        <input data-testid="settings-scan-root-add" id="scan-root-add" name="addRoot" type="text" placeholder="/path/to/projects">
+      </div>
+
+      <div class="mm-field">
+        <label for="scan-max-depth">Max search depth</label>
+        <input data-testid="settings-scan-max-depth" id="scan-max-depth" name="maxDepth" type="number" min="0" value="{{$d.Scan.MaxDepth}}">
+      </div>
+
+      <div class="mm-field mm-field--checkbox">
+        <label>
+          <input data-testid="settings-scan-follow-symlinks" name="followSymlinks" type="checkbox" value="true" {{if $d.Scan.FollowSymlinks}}checked{{end}}>
+          Follow symlinks
+        </label>
+      </div>
+
+      <div class="mm-field mm-field--checkbox">
+        <label>
+          <input data-testid="settings-scan-hidden" name="includeHidden" type="checkbox" value="true" {{if $d.Scan.IncludeHidden}}checked{{end}}>
+          Include hidden directories (.micro-manager)
+        </label>
+      </div>
+
+      <div class="mm-field">
+        <label for="scan-excludes">Excluded directory names</label>
+        <input data-testid="settings-scan-excludes" id="scan-excludes" name="excludes" type="text" value="{{$d.Scan.Excludes}}">
+      </div>
+
+      <div class="mm-settings__actions">
+        <button data-testid="settings-scan-rescan" class="mm-button" type="submit" name="action" value="rescan">Rescan now</button>
+        <span data-testid="settings-scan-status" data-scanned-at="{{$d.Scan.ScannedAt}}">Last scanned {{$d.Scan.ScannedAt}}</span>
+      </div>
+    </section>
+    {{end}}
+
+    {{if not $isSystem}}
+    {{/* WIP section (project scope) */}}
+    <section data-testid="settings-wip" class="mm-settings__section">
+      <h2>Work In Progress Limit</h2>
+      <div class="mm-field">
+        <label for="wip-limit">WIP Limit</label>
+        <input data-testid="settings-wip-limit" id="wip-limit" name="wipLimit" type="number" min="1" value="{{$d.Wip.Limit}}">
+      </div>
+    </section>
+    {{end}}
+
+    <div class="mm-settings__submit">
+      <button data-testid="settings-save" class="mm-button mm-button--primary" type="submit">Save</button>
+    </div>
+
+  </form>
+</div>
+{{- end}}

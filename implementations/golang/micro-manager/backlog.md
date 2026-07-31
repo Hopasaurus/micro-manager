@@ -20,8 +20,6 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0063] Render the settings views for the system and project scopes | prio:med | tags:ui,view,phase-3 | created:2026-07-30
-- [ ] [T-0064] Build the theme editor, library, import and export | prio:med | tags:ui,theme,phase-3 | detail:details/T-0064.md | created:2026-07-30
 - [ ] [T-0065] Implement the JSON API under /api/v1 with dryRun on every mutation | prio:high | tags:ui,api,phase-4 | created:2026-07-30
 - [ ] [T-0066] Implement the SSE broker, the event stream and the polling backstop | prio:med | tags:ui,events,phase-4 | created:2026-07-30
 - [ ] [T-0067] Implement test mode for MM_UI_TEST and the mm-test parameter | prio:med | tags:ui,test,phase-4 | created:2026-07-30

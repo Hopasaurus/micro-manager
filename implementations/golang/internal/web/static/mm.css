@@ -286,7 +286,6 @@ body {
 
 .mm-column[data-collapsed="true"] .mm-column__title {
   writing-mode: vertical-rl;
-  transform: rotate(180deg);
   margin-top: var(--mm-space-2);
   letter-spacing: 0.1em;
 }

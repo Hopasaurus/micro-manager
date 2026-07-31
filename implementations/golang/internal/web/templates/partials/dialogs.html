@@ -132,3 +132,22 @@
   </div>
 </div>
 {{- end}}
+
+{{/*
+  dialog-import-theme. §8.8 / §5.10: appears when an imported theme collides with an
+  existing theme ID and offers overwrite.
+*/}}
+{{define "dialog-import-theme" -}}
+<div data-testid="dialog-import-theme" class="mm-dialog" role="dialog" aria-modal="true"
+     aria-labelledby="dialog-import-theme-title" data-theme-id="{{.Data.ThemeID}}"
+     hx-swap-oob="innerHTML:[data-testid='dialog-root']">
+  <h2 data-testid="dialog-import-theme-title" id="dialog-import-theme-title">Theme already exists</h2>
+  <p>A theme with ID <code>{{.Data.ThemeID}}</code> already exists in the library.</p>
+  <form hx-post="/settings/themes/import" hx-target="[data-testid='app-main']">
+    <input type="hidden" name="theme_id" value="{{.Data.ThemeID}}">
+    <input type="hidden" name="overwrite" value="true">
+    <button data-testid="dialog-import-theme-overwrite" class="mm-button mm-button--danger" type="submit">Overwrite</button>
+    <button data-testid="dialog-import-theme-cancel" class="mm-button" type="button" data-dismiss>Cancel</button>
+  </form>
+</div>
+{{- end}}

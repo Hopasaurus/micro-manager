@@ -1,0 +1,98 @@
+{{/*
+  Theme editor, library and detail views (spec-gui.md §8, T-0064).
+*/}}
+{{define "content" -}}
+{{if eq .App.Nav "theme-library"}}
+  {{template "theme-library" .}}
+{{else if eq .App.Nav "theme-detail"}}
+  {{template "theme-detail" .}}
+{{else}}
+  {{template "theme-editor" .}}
+{{end}}
+{{- end}}
+
+{{define "theme-editor" -}}
+{{$d := .Data}}
+<div data-testid="theme-editor" class="mm-theme-editor" data-state="ready">
+  <h1>Theme Editor</h1>
+  <p>Edit theme tokens live. Changes update the current view preview.</p>
+
+  {{range $d.Warnings}}
+  <p class="mm-error__message">{{.}}</p>
+  {{end}}
+
+  <form action="/settings/theme" method="post">
+    <div class="mm-field">
+      <label for="theme-id">Theme ID</label>
+      <input id="theme-id" name="id" type="text" value="{{$d.ThemeID}}" required>
+    </div>
+    <div class="mm-field">
+      <label for="theme-name">Theme Name</label>
+      <input id="theme-name" name="name" type="text" value="{{$d.ThemeName}}">
+    </div>
+    <div class="mm-field">
+      <label for="theme-author">Author</label>
+      <input id="theme-author" name="author" type="text" value="{{$d.Author}}">
+    </div>
+    <div class="mm-field">
+      <label for="theme-appearance">Appearance</label>
+      <select id="theme-appearance" name="appearance">
+        <option value="auto" {{if eq $d.Appearance "auto"}}selected{{end}}>auto</option>
+        <option value="light" {{if eq $d.Appearance "light"}}selected{{end}}>light</option>
+        <option value="dark" {{if eq $d.Appearance "dark"}}selected{{end}}>dark</option>
+      </select>
+    </div>
+
+    <h2>Colors</h2>
+    <div class="mm-theme-editor__colors">
+      {{range $d.Colors}}
+      <div class="mm-field">
+        <label for="token-{{.Path}}">{{.Name}} (<code>{{.Path}}</code>)</label>
+        <input id="token-{{.Path}}" name="token_{{.Path}}" type="text" value="{{.Value}}">
+      </div>
+      {{end}}
+    </div>
+
+    <div class="mm-theme-editor__submit">
+      <button class="mm-button mm-button--primary" type="submit">Save theme</button>
+      <a class="mm-button" href="/settings/themes">View Theme Library</a>
+    </div>
+  </form>
+</div>
+{{- end}}
+
+{{define "theme-library" -}}
+{{$d := .Data}}
+<div data-testid="theme-library" class="mm-theme-library" data-state="ready">
+  <h1>Theme Library</h1>
+  <div class="mm-theme-library__list">
+    {{range $d.Themes}}
+    <div class="mm-theme-card" data-theme-id="{{.ID}}">
+      <h2>{{.Name}} <span class="mm-badge">{{.Source}}</span></h2>
+      <p>ID: <code>{{.ID}}</code> | Appearance: {{.Appearance}} | Author: {{.Author}}</p>
+      <div class="mm-theme-card__actions">
+        <a class="mm-button" href="/settings/themes/{{.ID}}">View details</a>
+        <a class="mm-button" href="/settings/themes/{{.ID}}/export">Export</a>
+      </div>
+    </div>
+    {{end}}
+  </div>
+  <div class="mm-theme-library__actions">
+    <a class="mm-button" href="/settings/theme">Create new theme</a>
+  </div>
+</div>
+{{- end}}
+
+{{define "theme-detail" -}}
+{{$d := .Data}}
+<div data-testid="theme-detail" class="mm-theme-detail" data-state="ready">
+  <h1>Theme: {{$d.Name}}</h1>
+  <p>ID: <code>{{$d.ID}}</code></p>
+  <p>Author: {{$d.Author}}</p>
+  <p>Appearance: {{$d.Appearance}}</p>
+  <div class="mm-theme-detail__actions">
+    <a class="mm-button" href="/settings/themes/{{$d.ID}}/export">Export theme</a>
+    <a class="mm-button" href="/settings/themes">Back to library</a>
+  </div>
+</div>
+{{- end}}

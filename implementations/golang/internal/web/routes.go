@@ -25,6 +25,14 @@ func (s *Server) routes() {
 	s.echo.GET("/projects", s.projects)
 	s.echo.POST("/projects/rescan", s.rescan)
 	s.echo.POST("/p/:projectId/favorite", s.favoriteToggle)
+	s.echo.GET("/settings", s.settingsSystem)
+	s.echo.POST("/settings", s.saveSettingsSystem)
+	s.echo.GET("/settings/theme", s.themeEditor)
+	s.echo.POST("/settings/theme", s.saveThemeEditor)
+	s.echo.GET("/settings/themes", s.themeLibrary)
+	s.echo.GET("/settings/themes/:themeId", s.themeDetail)
+	s.echo.GET("/settings/themes/:themeId/export", s.themeExport)
+	s.echo.POST("/settings/themes/import", s.themeImport)
 
 	// /p/:projectId redirects to the board with a 302.
 	s.echo.GET("/p/:projectId", s.boardRedirect)
@@ -33,6 +41,8 @@ func (s *Server) routes() {
 	s.echo.GET("/p/:projectId/new", s.newItemPanel)
 	s.echo.GET("/p/:projectId/report", s.report)
 	s.echo.GET("/p/:projectId/check", s.check)
+	s.echo.GET("/p/:projectId/settings", s.settingsProject)
+	s.echo.POST("/p/:projectId/settings", s.saveSettingsProject)
 	s.echo.GET("/p/:projectId/dialog/:name", s.dialog)
 
 	// The mutating operations of §6.1. Each is one library call; the response is

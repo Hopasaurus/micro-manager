@@ -11,6 +11,8 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-07
 
+- [x] [T-0064] Build the theme editor, library, import and export | prio:med | tags:ui,theme,phase-3 | detail:details/T-0064.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0063] Render the settings views for the system and project scopes | prio:med | tags:ui,view,phase-3 | detail:details/T-0063.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
 - [x] [T-0073] Move someday column to left with collapsible toggle | tags:ui,view | detail:details/T-0073.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
 - [x] [T-0072] Render working items in a single board column | tags:ui,view | detail:details/T-0072.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
 - [x] [T-0062] Render home and the projects list with favorites | prio:med | tags:ui,view,phase-3 | detail:details/T-0062.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
