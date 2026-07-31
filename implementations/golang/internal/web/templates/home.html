@@ -1,0 +1,50 @@
+{{define "content" -}}
+{{template "home" .}}
+{{- end}}
+
+{{/*
+  Home (spec-gui.md §5.4): recent and favorites.
+
+  Empty lists MUST render the container with data-count="0" and
+  data-state="empty" rather than being omitted - a suite has to be able to tell
+  "no favorites" from "the view forgot to render favorites".
+*/}}
+{{define "home" -}}
+{{$d := .Data}}
+<section data-testid="home" class="mm-home" data-state="ready">
+
+  {{if $d.NeedsRoots}}
+  {{/* §9.5: with no scan.roots the front end falls back to the directory it was
+       started in and MUST surface a prompt to configure roots. */}}
+  <p data-testid="home-needs-roots" class="mm-home__prompt">
+    No scan roots are configured, so only <code>{{$d.StartDir}}</code> is being
+    searched. <a href="/settings">Configure them in settings</a>.
+  </p>
+  {{end}}
+
+  <section data-testid="favorites-list" class="mm-home__list"
+           data-count="{{len $d.Favorites}}"
+           data-state="{{if $d.Favorites}}ready{{else}}empty{{end}}">
+    <h2 class="mm-home__list-title">Favorites</h2>
+    {{if not $d.Favorites}}
+    <p class="mm-home__empty">Star a project to keep it here.</p>
+    {{end}}
+    {{range $d.Favorites}}{{template "project-card" .}}{{end}}
+  </section>
+
+  <section data-testid="recent-list" class="mm-home__list"
+           data-count="{{len $d.Recent}}"
+           data-state="{{if $d.Recent}}ready{{else}}empty{{end}}">
+    <h2 class="mm-home__list-title">Recent</h2>
+    {{if not $d.Recent}}
+    <p class="mm-home__empty">Projects you open appear here.</p>
+    {{end}}
+    {{range $d.Recent}}{{template "project-card" .}}{{end}}
+  </section>
+
+  <div class="mm-home__actions">
+    <a data-testid="project-open" class="mm-button" href="/projects">Open a project</a>
+    <a data-testid="project-init" class="mm-button" href="/projects#init">New project</a>
+  </div>
+</section>
+{{- end}}

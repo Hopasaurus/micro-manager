@@ -1,0 +1,61 @@
+{{define "content" -}}
+{{template "projects" .}}
+{{- end}}
+
+{{/*
+  The projects list (spec-gui.md §5.3): everything discovery finds, grouped by
+  scan root.
+*/}}
+{{define "projects" -}}
+{{$d := .Data}}
+<section data-testid="projects" class="mm-projects"
+         data-state="{{if $d.Count}}ready{{else}}empty{{end}}"
+         data-count="{{$d.Count}}" data-partial="{{yesno $d.Partial}}"
+         data-scanned-at="{{$d.ScannedAt}}">
+
+  <header class="mm-projects__header">
+    <h1 class="mm-projects__title">Projects</h1>
+    <span data-testid="projects-scanned-at" class="mm-projects__scanned">
+      scanned {{if $d.ScannedAt}}{{$d.ScannedAt}}{{else}}never{{end}}
+    </span>
+    <button data-testid="projects-rescan" class="mm-button" type="button"
+            hx-post="/projects/rescan" hx-target="[data-testid='projects']" hx-swap="outerHTML">
+      Rescan
+    </button>
+  </header>
+
+  {{if $d.Partial}}
+  {{/* §5.3: the view MUST say so visibly. A truncated scan is indistinguishable
+       from a missing project otherwise. */}}
+  <p data-testid="projects-partial" class="mm-projects__partial">
+    This scan hit a limit, so the list is incomplete. Some projects are missing
+    from it — raise <code>scan.maxResults</code> or <code>scan.timeoutMs</code>,
+    or narrow <code>scan.roots</code>.
+  </p>
+  {{end}}
+
+  {{if $d.Skipped}}
+  <p data-testid="projects-skipped" class="mm-projects__partial">
+    {{$d.Skipped}} unreadable director{{if eq $d.Skipped 1}}y was{{else}}ies were{{end}} skipped.
+  </p>
+  {{end}}
+
+  {{if not $d.Count}}
+  <p data-testid="projects-empty" class="mm-projects__empty">
+    Nothing found. Check the scan roots in <a href="/settings">settings</a>.
+  </p>
+  {{end}}
+
+  {{range $d.Groups}}
+  <section data-testid="projects-root-{{.N}}" class="mm-projects__group"
+           data-path="{{.Root}}" data-count="{{len .Cards}}"
+           data-missing="{{yesno .Missing}}">
+    <h2 class="mm-projects__group-title">
+      {{if .Root}}{{.Root}}{{else}}Outside every scan root{{end}}
+      {{if .Missing}}<span class="mm-projects__missing">unreachable</span>{{end}}
+    </h2>
+    {{range .Cards}}{{template "project-card" .}}{{end}}
+  </section>
+  {{end}}
+</section>
+{{- end}}

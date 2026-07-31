@@ -20,11 +20,19 @@ func (s *Server) routes() {
 	api := s.echo.Group("/api/v1")
 	api.GET("/health", s.health)
 
-	// View routes (§4.1). /p/:projectId redirects to the board with a 302.
+	// View routes (§4.1).
+	s.echo.GET("/", s.home)
+	s.echo.GET("/projects", s.projects)
+	s.echo.POST("/projects/rescan", s.rescan)
+	s.echo.POST("/p/:projectId/favorite", s.favoriteToggle)
+
+	// /p/:projectId redirects to the board with a 302.
 	s.echo.GET("/p/:projectId", s.boardRedirect)
 	s.echo.GET("/p/:projectId/board", s.board)
 	s.echo.GET("/p/:projectId/item/:itemId", s.itemPanel)
 	s.echo.GET("/p/:projectId/new", s.newItemPanel)
+	s.echo.GET("/p/:projectId/report", s.report)
+	s.echo.GET("/p/:projectId/check", s.check)
 	s.echo.GET("/p/:projectId/dialog/:name", s.dialog)
 
 	// The mutating operations of §6.1. Each is one library call; the response is

@@ -92,6 +92,14 @@ func (s *Server) board(c *echo.Context) error {
 	v := s.newView(c, "Board", store)
 	v.App.Nav = "board"
 
+	// §10 rule 1: opening a project moves it to the front of recent. The board
+	// is where "opening" happens - every other project route is reached from
+	// here - and a full page load is the open, not an htmx fragment refresh or a
+	// poll, which would rewrite the list constantly for a window left sitting.
+	if !wantsFragment(c.Request()) {
+		s.recordOpen(store, v.App.Theme.Name)
+	}
+
 	data, err := s.buildBoard(c, store)
 	if err != nil {
 		return err
@@ -109,6 +117,20 @@ func (s *Server) boardRedirect(c *echo.Context) error {
 		return s.notFound(c, fmt.Sprintf("There is no project %s here.", id))
 	}
 	return c.Redirect(http.StatusFound, "/p/"+id+"/board")
+}
+
+// recordOpen adds the project to the recent list (§10 rule 1).
+//
+// A failure here is logged and swallowed: not being able to write a convenience
+// list is not a reason to refuse to show somebody their board.
+func (s *Server) recordOpen(store *mm.Store, themeName string) {
+	d, err := store.Directory()
+	if err != nil {
+		return
+	}
+	if err := s.registry.touch(d, themeName, s.opts.Config.UI.RecentMaxStored); err != nil {
+		s.log.Warn("recent", "project", d.ProjectID, "error", err)
+	}
 }
 
 // project resolves the project a route names, or renders the not-found view.

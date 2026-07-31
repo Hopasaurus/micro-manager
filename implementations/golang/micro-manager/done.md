@@ -1,7 +1,7 @@
 ---
 doc: done
 version: 1
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Done
@@ -11,6 +11,9 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-07
 
+- [x] [T-0062] Render home and the projects list with favorites | prio:med | tags:ui,view,phase-3 | detail:details/T-0062.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0061] Render the check view and the status bar violation count | prio:med | tags:ui,view,phase-3 | detail:details/T-0061.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0060] Render the report view with period controls and copy as markdown | prio:med | tags:ui,view,phase-3 | detail:details/T-0060.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
 - [x] [T-0059] Implement drag and drop and the keyboard move mode | prio:high | tags:ui,dnd,phase-2 | detail:details/T-0059.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
 - [x] [T-0058] Wire every mutating operation with its dialogs and toasts | prio:high | tags:ui,ops,phase-2 | detail:details/T-0058.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
 - [x] [T-0057] Render the item panel, the item form and the add-item panel | prio:high | tags:ui,view,phase-2 | detail:details/T-0057.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped

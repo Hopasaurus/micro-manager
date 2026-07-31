@@ -29,7 +29,9 @@ func checkBindAddress(opts Options) error {
 		// calls it the most restrictive option.
 		return nil
 	}
-	if opts.Port < 1 || opts.Port > 65535 {
+	// 0 is the ephemeral port: the OS picks one. Everything else must be a real
+	// port number.
+	if opts.Port < 0 || opts.Port > 65535 {
 		return fmt.Errorf("port %d is out of range", opts.Port)
 	}
 

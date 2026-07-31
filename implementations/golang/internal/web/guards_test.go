@@ -39,7 +39,8 @@ func TestBindGuard(t *testing.T) {
 		{name: "allowRemote permits a routable address", bind: "192.168.1.10", port: 7717, allowRemote: true},
 
 		{name: "a socket is not on the network", socket: "/tmp/mm-ui.sock"},
-		{name: "port zero is not a port", bind: "127.0.0.1", port: -1, wantErr: true, wantIn: "-1"},
+		{name: "port zero asks the OS to choose", bind: "127.0.0.1", port: 0},
+		{name: "a negative port is not a port", bind: "127.0.0.1", port: -1, wantErr: true, wantIn: "-1"},
 		{name: "port out of range", bind: "127.0.0.1", port: 70000, wantErr: true, wantIn: "70000"},
 	}
 

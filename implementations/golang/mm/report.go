@@ -3,13 +3,15 @@ package mm
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // Report building (spec-tools.md §5.1.11).
 //
 // The report is the artifact people paste elsewhere, so this produces the
-// STRUCTURE and leaves rendering to the front end. What must not be left to the
-// front end is the period and its source: every output mode has to state them,
+// structure AND the one rendering both front ends must agree on byte for byte
+// (Markdown, below). What must not be left to a front end is the period and its
+// source: every output mode has to state them,
 // and a report that carried only its items could not.
 
 // GroupBy selects how a report's completed items are grouped.
@@ -248,4 +250,73 @@ func groupItems(items []Item, by GroupBy) []ReportGroup {
 		return out
 	}
 	return nil
+}
+
+// Markdown renders the report as the paste-ready text a person puts in a
+// standup note or a pull request.
+//
+// It lives in the library rather than in a front end because BOTH front ends
+// have to produce it identically: spec-gui.md §5.7 requires the GUI's
+// report-copy button to place "the same paste-ready markdown the CLI produces"
+// on the clipboard. Two renderers cannot be held to that; one can.
+//
+// This is formatting, not printing. The library still writes to no stream
+// (spec-tools.md §2.2) - it returns a string and the caller decides where it
+// goes.
+func (r Report) Markdown() string {
+	var b strings.Builder
+
+	// The period and where it came from, always. A report whose period is
+	// invisible is a report you cannot check (spec-tools.md §5.1.11).
+	name := r.Project
+	if name == "" {
+		name = "(no project name)"
+	}
+	fmt.Fprintf(&b, "# %s — %s\n\n", name, r.Period.Label)
+	fmt.Fprintf(&b, "%s (from %s)\n", r.Period, r.Period.Source)
+
+	switch {
+	case len(r.Done) == 0:
+		b.WriteString("\nNothing closed in this period.\n")
+	case len(r.Groups) > 0:
+		for _, g := range r.Groups {
+			fmt.Fprintf(&b, "\n## %s\n\n", g.Key)
+			for _, item := range g.Items {
+				fmt.Fprintf(&b, "%s\n", reportLine(item))
+			}
+		}
+	default:
+		b.WriteString("\n## Done\n\n")
+		for _, item := range r.Done {
+			fmt.Fprintf(&b, "%s\n", reportLine(item))
+		}
+	}
+
+	if len(r.Wip) > 0 {
+		b.WriteString("\n## In progress\n\n")
+		for _, item := range r.Wip {
+			fmt.Fprintf(&b, "- %s %s (slot %d)\n", item.ID, item.Title, item.Slot)
+		}
+	}
+	if len(r.Next) > 0 {
+		b.WriteString("\n## Next\n\n")
+		for _, item := range r.Next {
+			fmt.Fprintf(&b, "- %s %s\n", item.ID, item.Title)
+		}
+	}
+	return b.String()
+}
+
+// reportLine labels every outcome, because a week's cancellations are part of
+// the week and an unlabelled list reads as though everything shipped.
+func reportLine(item Item) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "- %s %s", item.ID, item.Title)
+	if item.Outcome != OutcomeShipped && item.Outcome != "" {
+		fmt.Fprintf(&b, " (%s)", item.Outcome)
+	}
+	if item.Detail != "" {
+		fmt.Fprintf(&b, " — %s", item.Detail)
+	}
+	return b.String()
 }

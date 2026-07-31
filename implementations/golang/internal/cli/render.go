@@ -216,57 +216,13 @@ func renderShow(env Env, item mm.Item, detail *mm.Detail) {
 }
 
 func renderReport(env Env, rep mm.Report) {
-	// The period and where it came from, always. A report whose period is
-	// invisible is a report you cannot check (§5.1.11).
-	out(env, "# %s — %s\n\n", directoryName(mm.Directory{Project: rep.Project}), rep.Period.Label)
-	out(env, "%s (from %s)\n", rep.Period, rep.Period.Source)
-
+	// The markdown itself is the library's, because spec-gui.md §5.7 requires
+	// the GUI to put THE SAME text on the clipboard. Warnings stay here: they go
+	// to stderr, so they never contaminate what someone pastes.
+	out(env, "%s", rep.Markdown())
 	for _, w := range rep.Warnings {
 		fmt.Fprintf(env.Stderr, "mm: warning: %s\n", w)
 	}
-
-	if len(rep.Done) == 0 {
-		out(env, "\nNothing closed in this period.\n")
-	} else if len(rep.Groups) > 0 {
-		for _, g := range rep.Groups {
-			out(env, "\n## %s\n\n", g.Key)
-			for _, item := range g.Items {
-				out(env, "%s\n", reportLine(item))
-			}
-		}
-	} else {
-		out(env, "\n## Done\n\n")
-		for _, item := range rep.Done {
-			out(env, "%s\n", reportLine(item))
-		}
-	}
-
-	if len(rep.Wip) > 0 {
-		out(env, "\n## In progress\n\n")
-		for _, item := range rep.Wip {
-			out(env, "- %s %s (slot %d)\n", item.ID, item.Title, item.Slot)
-		}
-	}
-	if len(rep.Next) > 0 {
-		out(env, "\n## Next\n\n")
-		for _, item := range rep.Next {
-			out(env, "- %s %s\n", item.ID, item.Title)
-		}
-	}
-}
-
-// reportLine labels every outcome, because a week's cancellations are part of
-// the week and an unlabelled list reads as though everything shipped.
-func reportLine(item mm.Item) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "- %s %s", item.ID, item.Title)
-	if item.Outcome != mm.OutcomeShipped && item.Outcome != "" {
-		fmt.Fprintf(&b, " (%s)", item.Outcome)
-	}
-	if item.Detail != "" {
-		fmt.Fprintf(&b, " — %s", item.Detail)
-	}
-	return b.String()
 }
 
 func renderFind(env Env, res mm.DiscoveryResult) {

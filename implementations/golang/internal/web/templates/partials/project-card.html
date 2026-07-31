@@ -1,0 +1,37 @@
+{{/*
+  One project card (spec-gui.md §5.4).
+
+  Home and /projects both render this, so a project looks and locates the same
+  wherever it is listed.
+
+  §10 rule 5: an entry whose path no longer resolves carries data-missing="true"
+  and is NOT dropped. A project on an unmounted drive is not a deleted project,
+  so removal stays an explicit choice.
+*/}}
+{{define "project-card" -}}
+<article data-testid="project-card-{{.ProjectID}}" class="mm-project-card"
+         data-project-id="{{.ProjectID}}"
+         data-favorite="{{yesno .Favorite}}"
+         data-missing="{{yesno .Missing}}">
+  <h3 data-testid="project-card-name" class="mm-project-card__name">
+    <a href="/p/{{.ProjectID}}/board">{{.Name}}</a>
+  </h3>
+  <span data-testid="project-card-path" class="mm-project-card__path">{{.Path}}</span>
+  <span data-testid="project-card-wip" class="mm-project-card__wip"
+        data-wip-used="{{.WipUsed}}" data-wip-limit="{{.WipLimit}}">
+    {{if .WipLimit}}WIP {{.WipUsed}}/{{.WipLimit}}{{else}}—{{end}}
+  </span>
+  {{if .Missing}}
+  <span data-testid="project-card-missing" class="mm-project-card__missing">not reachable</span>
+  {{end}}
+  {{/* aria-pressed exposes the state, which is what §10 requires and what lets a
+       test read it without inferring anything from styling. */}}
+  <button data-testid="project-card-favorite-toggle" class="mm-project-card__favorite"
+          type="button" aria-pressed="{{yesno .Favorite}}"
+          aria-label="{{if .Favorite}}Remove {{.Name}} from favorites{{else}}Add {{.Name}} to favorites{{end}}"
+          hx-post="/p/{{.ProjectID}}/favorite"
+          hx-target="closest [data-state]" hx-swap="outerHTML">
+    {{if .Favorite}}★{{else}}☆{{end}}
+  </button>
+</article>
+{{- end}}

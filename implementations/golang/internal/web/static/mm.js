@@ -213,6 +213,49 @@
     });
   });
 
+  /* ---------------------------------------------------------------- copy */
+
+  /*
+    §5.7: report-copy puts the paste-ready markdown on the clipboard. The text
+    comes from the DOM rather than from a second render, so what is copied is
+    what the server produced - and what the CLI produces, since both call the
+    library's one renderer.
+  */
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-clipboard]');
+    if (!button) return;
+
+    const text = button.getAttribute('data-clipboard');
+    const done = () => {
+      button.setAttribute('data-copied', 'true');
+      setTimeout(() => button.removeAttribute('data-copied'), 2000);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+      return;
+    }
+    fallbackCopy(text, done);
+  });
+
+  /* Clipboard access can be refused, and a copy button that silently does
+     nothing is worse than one that uses the old API. */
+  function fallbackCopy(text, done) {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'absolute';
+    area.style.left = '-9999px';
+    document.body.appendChild(area);
+    area.select();
+    try {
+      document.execCommand('copy');
+      done();
+    } finally {
+      area.remove();
+    }
+  }
+
   /* Toasts persist in test mode until dismissed (§4.4 rule 2). */
   document.body.addEventListener('htmx:afterSettle', () => {
     const app = root();

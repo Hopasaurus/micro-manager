@@ -1,0 +1,43 @@
+{{define "content" -}}
+{{template "check" .}}
+{{- end}}
+
+{{/*
+  The check view (spec-gui.md §5.8).
+
+  data-invariant carries the I1-I10 identifier from the format spec, so a suite
+  can assert WHICH rule was broken rather than matching on message text - which
+  the spec deliberately leaves free to vary between implementations.
+*/}}
+{{define "check" -}}
+{{$p := .App.Project}}{{$d := .Data}}
+<section data-testid="check" class="mm-check" data-state="ready" data-violations="{{$d.Count}}">
+  <header class="mm-check__header">
+    <h1 class="mm-check__title">
+      {{if $d.Count}}{{$d.Count}} violation{{if ne $d.Count 1}}s{{end}}{{else}}Clean{{end}}
+    </h1>
+    <button data-testid="check-run" class="mm-button mm-button--primary" type="button"
+            hx-get="/p/{{$p.ID}}/check" hx-target="[data-testid='check']" hx-swap="outerHTML">
+      Run again
+    </button>
+  </header>
+
+  <p class="mm-check__path">{{$d.Path}}</p>
+
+  <ul data-testid="check-results" class="mm-check__results">
+    {{if not $d.Violations}}
+    <li data-testid="check-clean" class="mm-check__clean">
+      Every invariant holds. Nothing to fix.
+    </li>
+    {{end}}
+    {{range $d.Violations}}
+    <li data-testid="check-violation-{{.N}}" class="mm-check__violation"
+        data-invariant="{{.Invariant}}" data-file="{{.File}}" data-line="{{.Line}}">
+      <span class="mm-check__invariant">{{.Invariant}}</span>
+      <span class="mm-check__where">{{.File}}{{if .Line}}:{{.Line}}{{end}}</span>
+      <span class="mm-check__message">{{.Message}}</span>
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{- end}}

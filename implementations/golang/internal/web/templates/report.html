@@ -1,0 +1,108 @@
+{{define "content" -}}
+{{template "report" .}}
+{{- end}}
+
+{{/*
+  The report view (spec-gui.md §5.7).
+
+  data-period-source is one of switch, config or default, mirroring the
+  precedence of spec-tools.md §5.1.11: the RESOLVED period must be visible,
+  because a report whose period is invisible is a report you cannot check.
+*/}}
+{{define "report" -}}
+{{$p := .App.Project}}{{$d := .Data}}
+<section data-testid="report" class="mm-report" data-state="{{if $d.Count}}ready{{else}}empty{{end}}"
+         data-period="{{$d.Period}}" data-period-source="{{$d.PeriodSource}}"
+         data-from="{{$d.From}}" data-to="{{$d.To}}" data-count="{{$d.Count}}">
+
+  <form data-testid="report-controls" class="mm-report__controls" method="get"
+        action="/p/{{$p.ID}}/report">
+    <label class="mm-field">
+      <span>Period</span>
+      <select data-testid="report-period" name="period">
+        <option value="">{{$d.PeriodLabel}} (resolved)</option>
+        {{range $d.Controls.Periods}}
+        <option value="{{.}}" {{if eq . $d.Controls.Period}}selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+    </label>
+
+    <label class="mm-field">
+      <span>Since</span>
+      <input data-testid="report-since" name="since" type="date" value="{{$d.Controls.Since}}">
+    </label>
+    <label class="mm-field">
+      <span>Until</span>
+      <input data-testid="report-until" name="until" type="date" value="{{$d.Controls.Until}}">
+    </label>
+
+    <label class="mm-field">
+      <span>Group by</span>
+      <select data-testid="report-group-by" name="group-by">
+        {{range $d.Controls.GroupBys}}
+        <option value="{{.}}" {{if eq . $d.Controls.GroupBy}}selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+    </label>
+
+    <label class="mm-field mm-field--inline">
+      <input data-testid="report-include-wip" name="include-wip" type="checkbox"
+             value="true" {{if $d.Controls.IncludeWip}}checked{{end}}>
+      <span>Include work in progress</span>
+    </label>
+
+    <button data-testid="report-apply" class="mm-button mm-button--primary" type="submit">Apply</button>
+  </form>
+
+  {{range $d.Warnings}}
+  <p data-testid="report-warning" class="mm-report__warning">{{.}}</p>
+  {{end}}
+
+  <p class="mm-report__period">
+    <strong>{{$d.PeriodLabel}}</strong> — {{$d.From}} to {{$d.To}},
+    resolved from <span data-testid="report-period-source">{{$d.PeriodSource}}</span>.
+  </p>
+
+  <div data-testid="report-body" class="mm-report__body">
+    {{if not $d.Groups}}
+    <p data-testid="report-empty" class="mm-report__empty">Nothing closed in this period.</p>
+    {{end}}
+    {{range $d.Groups}}
+    <section data-testid="report-group-{{.Key}}" class="mm-report__group" data-count="{{.Count}}">
+      <h2 class="mm-report__group-title">{{.Key}} <span class="mm-report__group-count">{{.Count}}</span></h2>
+      {{range .Items}}
+      <div data-testid="report-item-{{.ID}}" class="mm-report__item"
+           data-outcome="{{.Outcome}}" data-done="{{.Done}}">
+        <span class="mm-report__item-id">{{.ID}}</span>
+        <span class="mm-report__item-title">{{.Title}}</span>
+        {{/* §11 rule 2: the outcome is text, never colour alone. */}}
+        <span class="mm-report__item-outcome">{{.Outcome}}</span>
+        <time class="mm-report__item-done">{{.Done}}</time>
+      </div>
+      {{end}}
+    </section>
+    {{end}}
+
+    {{if $d.Wip}}
+    <section data-testid="report-group-in-progress" class="mm-report__group" data-count="{{len $d.Wip}}">
+      <h2 class="mm-report__group-title">In progress</h2>
+      {{range $d.Wip}}
+      <div data-testid="report-item-{{.ID}}" class="mm-report__item" data-item-state="working">
+        <span class="mm-report__item-id">{{.ID}}</span>
+        <span class="mm-report__item-title">{{.Title}}</span>
+      </div>
+      {{end}}
+    </section>
+    {{end}}
+  </div>
+
+  {{/*
+    §5.7: report-copy MUST place the same paste-ready markdown the CLI produces
+    on the clipboard. The text is carried in the DOM so a test can read it
+    without a clipboard permission, and mm.js copies that value.
+  */}}
+  <button data-testid="report-copy" class="mm-button" type="button"
+          data-clipboard="{{$d.Markdown}}">Copy as markdown</button>
+  <pre data-testid="report-markdown" class="mm-report__markdown" hidden>{{$d.Markdown}}</pre>
+</section>
+{{- end}}

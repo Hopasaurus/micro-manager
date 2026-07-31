@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/labstack/echo/v5"
@@ -42,6 +43,13 @@ const DefaultBind = "127.0.0.1"
 type Options struct {
 	// Bind, Port and Socket come from the config file, then the command line.
 	// Socket wins over an address when set (spec-gui.md §9.6 rule 6).
+	//
+	// Port 0 means "let the operating system choose", which is what a test wants
+	// and what a user never does. Defaulting it to 7717 HERE would make that
+	// impossible to ask for, so the default lives in DefaultConfig and reaches
+	// this struct through the configuration - cmd/mm-ui therefore always passes
+	// a real port, and §9.6 rule 7's "never silently pick another port" is about
+	// a port already in use, which still fails loudly.
 	Bind   string
 	Port   int
 	Socket string
@@ -70,6 +78,13 @@ type Options struct {
 	Config   mm.Config
 	Warnings []mm.ConfigWarning
 
+	// SystemConfig is the system config FILE, kept alongside the merged view so
+	// the service can ask what a user actually wrote. The merged Config cannot
+	// answer that: its report.period is "last-week" whether the user chose it or
+	// the built-in default supplied it, and §5.7 requires data-period-source to
+	// tell "config" from "default". May be nil.
+	SystemConfig *mm.ConfigFile
+
 	// TestMode is MM_UI_TEST=1: no animations, no auto-dismissing toasts,
 	// data-test-mode="true" on the app root (spec-gui.md §4.4). It changes
 	// nothing else - not layout, not locators, not which operations are allowed.
@@ -93,7 +108,12 @@ type Server struct {
 
 	// addr is filled once a listener exists, which is the only point at which
 	// port 0 in a test resolves to a real port.
-	addr net.Addr
+	//
+	// It is written from the listener callback and read by whoever wants the
+	// address, so it is guarded: an unsynchronised field is a data race whether
+	// or not it happens to be observed, and this one intermittently was not.
+	addrMu sync.RWMutex
+	addr   net.Addr
 }
 
 // New builds the service. It does not listen; Start does.
@@ -104,9 +124,6 @@ type Server struct {
 func New(opts Options) (*Server, error) {
 	if opts.Bind == "" {
 		opts.Bind = DefaultBind
-	}
-	if opts.Port == 0 {
-		opts.Port = DefaultPort
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
@@ -151,7 +168,17 @@ func (s *Server) Address() string {
 }
 
 // Addr is the address actually listened on, available after Start has bound.
-func (s *Server) Addr() net.Addr { return s.addr }
+func (s *Server) Addr() net.Addr {
+	s.addrMu.RLock()
+	defer s.addrMu.RUnlock()
+	return s.addr
+}
+
+func (s *Server) setAddr(addr net.Addr) {
+	s.addrMu.Lock()
+	defer s.addrMu.Unlock()
+	s.addr = addr
+}
 
 // URL is where a browser should be pointed.
 func (s *Server) URL() string {
@@ -184,7 +211,7 @@ func (s *Server) Start(ctx context.Context) error {
 		HideBanner:       true,
 		HidePort:         true,
 		GracefulTimeout:  5 * time.Second,
-		ListenerAddrFunc: func(addr net.Addr) { s.addr = addr },
+		ListenerAddrFunc: s.setAddr,
 		BeforeServeFunc: func(srv *http.Server) error {
 			// WriteTimeout MUST be zero. The event stream of §2.3 is a
 			// long-lived response, and any write deadline eventually kills it -

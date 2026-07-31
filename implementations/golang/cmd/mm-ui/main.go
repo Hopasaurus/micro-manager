@@ -143,14 +143,16 @@ func options(bind string, port int, socket string, allowRemote bool,
 	}
 
 	var (
-		cfg      = mm.DefaultConfig()
-		warnings []mm.ConfigWarning
+		cfg        = mm.DefaultConfig()
+		warnings   []mm.ConfigWarning
+		configFile *mm.ConfigFile
 	)
 	if home != "" {
 		f, err := mm.LoadConfigFile(mm.NewSystemPaths(home).Config, mm.ScopeSystem)
 		if err != nil {
 			return web.Options{}, err
 		}
+		configFile = f
 		cfg, warnings = mm.MergeConfig(f, nil)
 	}
 
@@ -160,16 +162,17 @@ func options(bind string, port int, socket string, allowRemote bool,
 	}
 
 	opts := web.Options{
-		Bind:        cfg.Server.Bind,
-		Port:        cfg.Server.Port,
-		Socket:      cfg.Server.Socket,
-		AllowRemote: cfg.Server.AllowRemote,
-		Hosts:       hosts,
-		ConfigHome:  home,
-		StartDir:    startDir,
-		Config:      cfg,
-		Warnings:    warnings,
-		TestMode:    os.Getenv("MM_UI_TEST") == "1",
+		Bind:         cfg.Server.Bind,
+		Port:         cfg.Server.Port,
+		Socket:       cfg.Server.Socket,
+		AllowRemote:  cfg.Server.AllowRemote,
+		Hosts:        hosts,
+		ConfigHome:   home,
+		StartDir:     startDir,
+		Config:       cfg,
+		SystemConfig: configFile,
+		Warnings:     warnings,
+		TestMode:     os.Getenv("MM_UI_TEST") == "1",
 	}
 	if bind != "" {
 		opts.Bind = bind
