@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0117] GUI: non-default prefix and width end to end | tags:gui | detail:details/T-0117.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
 - [x] [T-0116] check.sh and the Go validator agree on the declared ID grammar (fixture corpus) | tags:check,format | detail:details/T-0116.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
 - [x] [T-0120] Spec: bound id_width at 15 in spec-file-format.md (§3.3.2) | tags:format,spec | detail:details/T-0120.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
 - [x] [T-0119] Spike: what id_width values each implementation can honor with native integers only (golang, typescript, clojure, java, python) | tags:format,spike | detail:details/T-0119.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped

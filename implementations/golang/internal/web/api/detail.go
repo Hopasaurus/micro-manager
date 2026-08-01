@@ -12,7 +12,7 @@ func (s *Server) getDetail(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	id, err := itemID(c)
+	id, err := s.itemID(c, store)
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func (s *Server) putDetail(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	id, err := itemID(c)
+	id, err := s.itemID(c, store)
 	if err != nil {
 		return err
 	}

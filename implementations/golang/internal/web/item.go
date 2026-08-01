@@ -53,6 +53,27 @@ type subtask struct {
 	Text string
 }
 
+// itemID parses the :itemId route parameter against the directory's declared
+// ID grammar (spec-file-format.md §3.3.2). The default grammar would reject
+// X-003 in a directory declaring id_prefix: X / id_width: 3; an ID is
+// interpreted in the grammar of the directory it names, never a fixed shape.
+// The ID is case-sensitive and verbatim (§3.2).
+func (s *Server) itemID(c *echo.Context, store *mm.Store) (mm.ID, error) {
+	return parseID(c.Param("itemId"), store)
+}
+
+// parseID parses s as an ID in the directory's declared grammar. Every ID
+// argument a front end accepts comes through here — the route parameter and
+// the dialog's ?item= — so a directory declaring id_prefix: X / id_width: 3
+// is addressed by X-003 everywhere, and by nothing else.
+func parseID(s string, store *mm.Store) (mm.ID, error) {
+	g, err := store.Grammar()
+	if err != nil {
+		return "", err
+	}
+	return g.ParseID(s)
+}
+
 // itemPanel serves /p/:projectId/item/:itemId.
 func (s *Server) itemPanel(c *echo.Context) error {
 	store, err := s.project(c)
@@ -60,7 +81,7 @@ func (s *Server) itemPanel(c *echo.Context) error {
 		return err
 	}
 
-	id, err := mm.ParseID(c.Param("itemId"))
+	id, err := s.itemID(c, store)
 	if err != nil {
 		return err
 	}
@@ -266,7 +287,7 @@ func (s *Server) operate(c *echo.Context, op string) error {
 		return err
 	}
 
-	id, err := mm.ParseID(c.Param("itemId"))
+	id, err := s.itemID(c, store)
 	if err != nil {
 		return err
 	}
@@ -395,7 +416,7 @@ func (s *Server) editItem(c *echo.Context) error {
 	if store == nil {
 		return err
 	}
-	id, err := mm.ParseID(c.Param("itemId"))
+	id, err := s.itemID(c, store)
 	if err != nil {
 		return err
 	}
@@ -517,7 +538,7 @@ func (s *Server) removeItem(c *echo.Context) error {
 	if store == nil {
 		return err
 	}
-	id, err := mm.ParseID(c.Param("itemId"))
+	id, err := s.itemID(c, store)
 	if err != nil {
 		return err
 	}

@@ -33,7 +33,7 @@ func (s *Server) dialog(c *echo.Context) error {
 	}
 
 	itemID := c.Request().URL.Query().Get("item")
-	if _, err := mm.ParseID(itemID); err != nil {
+	if _, err := parseID(itemID, store); err != nil {
 		return err
 	}
 	it, err := store.Get(mm.ID(itemID))

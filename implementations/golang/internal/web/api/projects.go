@@ -66,6 +66,8 @@ type initRequest struct {
 	Project     string `json:"project"`
 	Wip         int    `json:"wip"`
 	SlotWidth   int    `json:"slotWidth"`
+	IDPrefix    string `json:"idPrefix"`
+	IDWidth     int    `json:"idWidth"`
 	NoStructure bool   `json:"noStructure"`
 	DryRun      bool   `json:"dryRun"`
 }
@@ -85,6 +87,8 @@ func (s *Server) initProject(c *echo.Context) error {
 		Project:     req.Project,
 		Wip:         req.Wip,
 		SlotWidth:   req.SlotWidth,
+		IDPrefix:    req.IDPrefix,
+		IDWidth:     req.IDWidth,
 		NoStructure: req.NoStructure,
 		DryRun:      req.DryRun,
 	}, s.today())

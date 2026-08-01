@@ -99,7 +99,7 @@ func (s *Server) editItem(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	id, err := itemID(c)
+	id, err := s.itemID(c, store)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (s *Server) removeItem(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	id, err := itemID(c)
+	id, err := s.itemID(c, store)
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (s *Server) showItem(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	id, err := itemID(c)
+	id, err := s.itemID(c, store)
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (s *Server) operate(c *echo.Context, op string) error {
 	if err != nil {
 		return err
 	}
-	id, err := itemID(c)
+	id, err := s.itemID(c, store)
 	if err != nil {
 		return err
 	}
@@ -332,14 +332,22 @@ func (s *Server) operate(c *echo.Context, op string) error {
 		req.Top = boolv("top")
 		req.End = boolv("end")
 		if before := str("before"); before != "" {
-			bid, parseErr := mm.ParseID(before)
+			g, err := store.Grammar()
+			if err != nil {
+				return err
+			}
+			bid, parseErr := g.ParseID(before)
 			if parseErr != nil {
 				return parseErr
 			}
 			req.Before = bid
 		}
 		if after := str("after"); after != "" {
-			aid, parseErr := mm.ParseID(after)
+			g, err := store.Grammar()
+			if err != nil {
+				return err
+			}
+			aid, parseErr := g.ParseID(after)
 			if parseErr != nil {
 				return parseErr
 			}

@@ -215,8 +215,14 @@ func (s *Server) projectFor(c *echo.Context) (*mm.Store, error) {
 	return store, nil
 }
 
-// itemID parses the :itemId parameter. The ID is case-sensitive and verbatim
-// (§3.2).
-func itemID(c *echo.Context) (mm.ID, error) {
-	return mm.ParseID(c.Param("itemId"))
+// itemID parses the :itemId parameter against the directory's declared
+// grammar (§3.3.2). The ID is case-sensitive and verbatim (§3.2), and an ID
+// that does not match the grammar the directory declares belongs to a
+// different board.
+func (s *Server) itemID(c *echo.Context, store *mm.Store) (mm.ID, error) {
+	g, err := store.Grammar()
+	if err != nil {
+		return "", err
+	}
+	return g.ParseID(c.Param("itemId"))
 }

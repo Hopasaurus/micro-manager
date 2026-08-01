@@ -20,7 +20,6 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0117] GUI: non-default prefix and width end to end | tags:gui | detail:details/T-0117.md | created:2026-08-01
 - [ ] [T-0118] Per-task ID prefixes: per-prefix counters and I2 per counter (gated on the spec decision) | tags:format,spike | detail:details/T-0118.md | created:2026-08-01
 - [ ] [T-0101] Explore how micro-manager could interoperate with git, consider how merge conflicts with overlapping task IDs could be solved. | prio:med | tags:spike | detail:details/T-0101.md | created:2026-07-31
 - [ ] [T-0104] Explore how micro-manager could link between boards. | prio:med | tags:spike | detail:details/T-0104.md | created:2026-07-31

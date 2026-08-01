@@ -111,6 +111,37 @@ func TestDirectoryReportsDeclaredGrammar(t *testing.T) {
 	}
 }
 
+// Grammar is the typed accessor front ends parse ID arguments against. It is
+// the directory's declared grammar with the same defaults Directory reports.
+func TestStoreGrammar(t *testing.T) {
+	s := mustOpen(t, newDir(t, map[string]string{
+		"backlog.md": customBacklog, "done.md": customDone}))
+	g, err := s.Grammar()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g != (IDGrammar{Prefix: "MM", Width: 3}) {
+		t.Errorf("grammar = %+v, want MM/3", g)
+	}
+	// Parsing against the declared grammar is what a front end does with an ID
+	// argument: MM-001 resolves, T-0001 does not.
+	if id, err := g.ParseID("MM-001"); err != nil || id != "MM-001" {
+		t.Errorf("ParseID(MM-001) = %q, %v", id, err)
+	}
+	if _, err := g.ParseID("T-0001"); err == nil {
+		t.Error("ParseID(T-0001) should fail against the MM/3 grammar")
+	}
+
+	s2 := mustOpen(t, newDir(t, nil))
+	g2, err := s2.Grammar()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g2 != DefaultIDGrammar() {
+		t.Errorf("default grammar = %+v, want T/4", g2)
+	}
+}
+
 // Allocation zero-pads to the declared width and next_id increments in the
 // declared space.
 func TestAddAllocatesInDeclaredGrammar(t *testing.T) {

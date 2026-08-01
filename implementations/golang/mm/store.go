@@ -230,6 +230,23 @@ func (s *Store) Directory() (Directory, error) {
 	return m.directory(), nil
 }
 
+// Grammar returns the directory's declared ID grammar (spec-file-format.md
+// §3.3.2). A directory that declares nothing gets the default grammar, exactly
+// as if the keys were written.
+//
+// A front end parses ID arguments against this, never against a shape it
+// assumes: the grammar is a property of the directory the ID names, and an ID
+// that does not match it belongs to a different board.
+func (s *Store) Grammar() (IDGrammar, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, err := s.load()
+	if err != nil {
+		return IDGrammar{}, err
+	}
+	return m.grammar(), nil
+}
+
 func (m *dirModel) directory() Directory {
 	d := Directory{Path: m.path, Slots: m.slots(), WipLimit: len(m.working)}
 	// ProjectID fails only on an empty path, which a loaded model cannot have.

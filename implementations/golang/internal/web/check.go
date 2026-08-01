@@ -12,9 +12,10 @@ import (
 //
 // It runs Store.Validate and nothing else - the same call every mutation runs
 // before it commits, so the view and the tool's own guard cannot disagree
-// about what is wrong. (The CLI's --check also surfaces non-fatal warnings
-// through ValidateWithWarnings; surfacing them in the GUI is the T-0117
-// grammar work.)
+// about what is wrong. Non-fatal warnings (an id_width outside the RECOMMENDED
+// 3-6 range) are surfaced by the CLI's --check through ValidateWithWarnings
+// but not by this view; the directory's declared grammar still applies to
+// every finding, because the validator is grammar-aware (T-0116).
 
 // checkData is the check view model.
 type checkData struct {
