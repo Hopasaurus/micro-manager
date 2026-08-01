@@ -74,8 +74,10 @@ double-based readers (mawk, JS `number`) round.
 5. **Counter arithmetic stays plain-native.** `next_id` increments and the I2
    comparison (`Num(id) >= Num(next_id)`) are exact at ≤15 digits with `int` in
    Go/Java, `number` in JS, and native ints in Python/Clojure — no bigint
-   machinery anywhere. T-0118 (per-prefix counters) divides the same space per
-   prefix and stays within it.
+   machinery anywhere. Per-prefix counters (T-0118's would-be feature) would
+   divide the same space per prefix and stay within it; T-0118 closed as
+   NOT-in-v1 (T-0113 rule 1 keeps one grammar per directory), so the claim
+   stays a note about the possible future extension.
 
 ## 4. What lands as a result
 
@@ -87,8 +89,10 @@ double-based readers (mawk, JS `number`) round.
   cap (check.sh today accepts any digit count; Go today accepts up to int64).
   The pathological-width divergence disappears, and the fixture corpus can gain
   a width-16 broken fixture.
-- **T-0117 (GUI)** and **T-0118 (per-prefix counters)** inherit the cap without
-  change: the GUI only renders, and per-prefix counters fit under it.
+- **T-0117 (GUI)** inherits the cap without change: the GUI only renders.
+  **T-0118 (per-prefix counters)** closed as NOT-in-v1 — the cap note applies
+  unchanged to the one counter every directory has, and to the future
+  per-prefix extension if the spec ever takes it up.
 
 ## 5. Why not the alternatives
 

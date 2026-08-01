@@ -57,6 +57,11 @@ var brokenInvariants = map[string]string{
 	// An ID outside the declared grammar (spec-file-format.md §3.3.2): the
 	// parsers reject the line, which is a structural problem, not an I1-I10 one.
 	"broken-id-grammar": "format",
+	// T-0118: the per-task-prefix scenario - X-001 and Y-001 in one directory.
+	// Rule 1 chose ONE grammar per directory, so the foreign prefix is rejected
+	// the same way any ID outside the declared grammar is. This is that
+	// directory as its own fixture, with the foreign prefix as its only finding.
+	"broken-mixed-prefix": "format",
 	// A declared id_width above the shared 15-digit cap (§3.3.2 rule 3, T-0120)
 	// is a format violation: the default grammar stands in, so this is the
 	// directory's only finding.

@@ -581,3 +581,67 @@ func TestCustomGrammarRoundTripsBytes(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// T-0118 — per-task prefixes are NOT in v1.
+
+// The T-0112 request offered "or even on a per task basis": two prefixes in
+// one directory, each with its own counter. T-0113 decided against it for v1 —
+// §3.3.2 rule 1 keeps ONE grammar per directory, "a directory containing IDs
+// in more than one grammar is invalid" — so the per-prefix counter model, I2
+// per counter, and per-prefix check.sh validation are all out of scope. What
+// T-0118 closes out is the guard: the exact scenario the spike described,
+// X-001 and Y-001 in one directory, is a FORMAT VIOLATION everywhere, and the
+// write path cannot produce it.
+func TestMixedPrefixesAreOneGrammarViolation(t *testing.T) {
+	// The fixture is the verify scenario: an X/3 directory whose Someday holds
+	// Y-001 — a perfectly well-formed ID in its own Y/3 grammar. The directory
+	// is invalid, with the foreign prefix as its ONLY finding.
+	s := mustOpen(t, "../testdata/broken-mixed-prefix")
+	vs, err := s.Validate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vs) != 1 {
+		t.Fatalf("violations = %d, want exactly 1:\n%s", len(vs), violationMessages(vs))
+	}
+	if vs[0].At.File != "backlog.md" || vs[0].At.Line != 23 {
+		t.Errorf("finding = %s:%d, want backlog.md:23", vs[0].At.File, vs[0].At.Line)
+	}
+	if !strings.Contains(vs[0].Message, "Y-001") {
+		t.Errorf("finding should name the foreign ID: %s", vs[0].Message)
+	}
+}
+
+// The library cannot WRITE the scenario either: allocation formats in the
+// declared grammar only, and an operation whose subject does not parse in it
+// is refused before anything is touched.
+func TestMixedPrefixesCannotBeWritten(t *testing.T) {
+	s := mustOpen(t, newDir(t, map[string]string{
+		"backlog.md": customBacklog, "done.md": customDone})) // MM/3
+
+	// A Y-001 subject is not an MM/3 ID, so no operation accepts it.
+	g, err := s.Grammar()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.ParseID("Y-001"); err == nil {
+		t.Error("Y-001 should not parse in the MM/3 grammar")
+	}
+	if _, err := s.Get("Y-001"); err == nil {
+		t.Error("Get(Y-001) should not resolve in an MM/3 directory")
+	}
+
+	// Allocation stays inside the declared grammar forever: it never produces
+	// a second prefix, so the counter model does not need per-prefix state.
+	a, _, err := s.Add(AddRequest{Title: "Allocated"}, today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(a.ID), "MM-") {
+		t.Errorf("allocation = %s, want an MM- ID", a.ID)
+	}
+	if vs, _ := s.Validate(); len(vs) != 0 {
+		t.Errorf("violations after add:\n%s", violationMessages(vs))
+	}
+}
