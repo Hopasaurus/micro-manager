@@ -133,7 +133,7 @@ optional keys in `backlog.md` frontmatter (§5.1):
 | Key | Value | Default |
 |---|---|---|
 | `id_prefix` | one to four ASCII letters, all uppercase (`A-Z`) | `T` |
-| `id_width` | one or more ASCII digits | `4` |
+| `id_width` | one to fifteen ASCII digits | `4` |
 
 Rules:
 
@@ -147,15 +147,21 @@ Rules:
    `Tt` are invalid. Matching is exact: in a directory declaring `T`, the ID
    `t-0042` is invalid.
 3. **The declared prefix is one to four ASCII letters.** An ID is the prefix, a
-   hyphen, then exactly `id_width` ASCII digits, zero-padded. Width 3–6 is
-   RECOMMENDED; a checker SHOULD warn — not fail — on a width outside that
-   range.
+   hyphen, then exactly `id_width` ASCII digits, zero-padded. `id_width` is
+   one to fifteen ASCII digits. Width 3–6 is RECOMMENDED; a checker SHOULD
+   warn — not fail — on any other width within that bound. The ladder in
+   full: widths 1–2 warn, 3–6 are RECOMMENDED, 7–15 warn, and a width above
+   15 is **invalid** — a reader MUST refuse it loudly (rule 4), never
+   silently accept it. The cap is exactly where the simplest reader stops
+   being exact: at 16 digits the reference checker's mawk arithmetic silently
+   rounds, so the uniform refusal keeps every reader's comparison exact
+   (Appendix A).
 4. **Readers MUST read the declaration before interpreting any ID.** A reader
    that cannot honor a declared grammar MUST refuse loudly — report a version
    mismatch and exit — never silently misparse.
 5. **`next_id` stays one monotonic counter** (§7, I2), in the declared grammar.
-   Width `W` caps the counter space at `10^W − 1` items, generalizing the
-   default's 9999-item cap.
+   Width `W` caps the counter space at `10^W − 1` items for W ≤ 15,
+   generalizing the default's 9999-item cap.
 6. **Additive, not a version bump.** Directories without the keys behave
    byte-identically to spec version 1; `version: 1` is unchanged. A reader of
    the current spec MUST accept a default-grammar directory exactly as before.
@@ -259,7 +265,7 @@ Holds every item not yet started.
 | `project` | human name of what this directory tracks | yes |
 | `next_id` | `ID` — the ID to assign to the next new item | yes |
 | `id_prefix` | one to four uppercase letters — the ID prefix (§3.3.2); absent means `T` | no |
-| `id_width` | one or more ASCII digits — the ID digit width (§3.3.2); absent means `4` | no |
+| `id_width` | one to fifteen ASCII digits — the ID digit width (§3.3.2); absent means `4` | no |
 | `updated` | `DATE` | no |
 
 `project` MUST be non-empty and MUST NOT be `NULL`. It is otherwise free text on
@@ -272,8 +278,8 @@ of them SHOULD show `project` rather than, or alongside, the path.
 value, and nothing binds it to the directory name.
 
 `id_prefix` and `id_width`, when present, MUST each match §3.3.2 — `id_prefix`
-is one to four ASCII letters, all uppercase, `id_width` is one or more ASCII
-digits. `next_id`
+is one to four ASCII letters, all uppercase, `id_width` is one to fifteen
+ASCII digits. `next_id`
 MUST use the declared grammar (or the default when neither key is present).
 
 **Body**
@@ -643,9 +649,18 @@ width) to that many `[0-9]`, as the reference checker does.
 The regexes above instantiate the default grammar (prefix `T`, width 4). For a
 directory declaring `id_prefix`/`id_width` (§3.3.2), substitute the declared
 prefix for `T` and the declared width for `4` — `ID` becomes `^P-[0-9]{W}$`
-with the declared `P` (one to four letters) and `W`, and the same substitution
-applies to the item
+with the declared `P` (one to four letters) and `W` (one to fifteen digits),
+and the same substitution applies to the item
 line, item capture, and `DETAILPATH` patterns.
+
+The width bound is the reference checker's arithmetic. check.sh runs on mawk's
+double, which is exact for every integer of up to 15 digits
+(`10^15 − 1 = 999,999,999,999,999 < 2^53`) and silently rounds at 16
+(`"9999999999999999" + 0` evaluates to `1e16`) — the same limit as
+JavaScript's `number`. The I2 comparison (§7) runs in that arithmetic, so a
+width above 15 would be a comparison the reference checker cannot make
+exactly; that is why §3.3.2 rule 3 makes 16+ invalid everywhere, not merely
+unrecommended.
 
 **Note on `DATE`.** The pattern above accepts the lexical form only. Calendar
 validity — month `01`–`12`, the correct number of days for that month, and the

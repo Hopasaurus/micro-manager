@@ -42,7 +42,11 @@ func ValidIDPrefix(p string) bool {
 // for it so the rest of the file still parses: a directory that is already
 // wrong must still open, list and report (spec-tools.md §8). A width outside
 // the RECOMMENDED 3-6 range is a warning, never a violation - the grammar is
-// honorably expressed, just outside the sweet spot (rule 3).
+// honorably expressed, just outside the sweet spot (rule 3). A width above
+// 15 is the shared cap, and a violation everywhere: at 16 digits the
+// double-based readers the format must serve (check.sh's mawk, JavaScript
+// `number`) silently round, so every reader refuses uniformly rather than
+// disagreeing about which directories are valid (rule 3, T-0120).
 func ParseIDGrammar(fm *Frontmatter) (g IDGrammar, vs []Violation, warns []Violation) {
 	g = DefaultIDGrammar()
 	if fm == nil {
@@ -62,12 +66,15 @@ func ParseIDGrammar(fm *Frontmatter) (g IDGrammar, vs []Violation, warns []Viola
 	if fm.Has("id_width") {
 		w, err := strconv.Atoi(fm.Get("id_width"))
 		switch {
-		case err != nil || w < 1:
+		case err != nil || w < 1 || w > 15:
 			// "0" is an ASCII digit but cannot express a single ID: the counter
-			// space is 10^W - 1 (rule 5), which at W=0 is zero items.
+			// space is 10^W - 1 (rule 5), which at W=0 is zero items. A width
+			// above 15 is the cap of rule 3: at 16 digits the narrowest readers
+			// silently round, so the declaration is invalid rather than merely
+			// unrecommended. Both cases keep the default width standing in.
 			vs = append(vs, Violation{
 				Invariant: invFormat, At: Location{File: "backlog.md", Line: fm.Line("id_width")},
-				Message: "id_width must be one or more digits, at least 1: " + fm.Get("id_width"),
+				Message: "id_width must be one to fifteen digits: " + fm.Get("id_width"),
 			})
 		default:
 			g.Width = w

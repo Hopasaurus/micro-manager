@@ -29,9 +29,9 @@ type InitRequest struct {
 	// key, so a default init is byte-identical to spec version 1 (rule 6).
 	IDPrefix string
 
-	// IDWidth is the declared id_width: one or more digits. Zero means 4 and
-	// writes no id_width key. 3-6 is RECOMMENDED; other widths are warned
-	// about, never refused (rule 3).
+	// IDWidth is the declared id_width: 1 to 15. Zero means 4 and writes no
+	// id_width key. 3-6 is RECOMMENDED; other widths within 1-15 are warned
+	// about, never refused, and 16+ is invalid everywhere (§3.3.2 rule 3).
 	IDWidth int
 
 	// NoStructure skips structure.md. The spec only SHOULD-writes it, but a
@@ -99,9 +99,12 @@ func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
 		g.Prefix = req.IDPrefix
 	}
 	if req.IDWidth != 0 {
-		if req.IDWidth < 1 {
+		if req.IDWidth < 1 || req.IDWidth > 15 {
+			// The shared cap of §3.3.2 rule 3 (T-0120): at 16 digits the
+			// narrowest readers silently round, so no implementation honors
+			// it, and Init must not create a directory the checkers reject.
 			return nil, TxResult{}, fmt.Errorf(
-				"%w: id_width must be at least 1, got %d", ErrInvalidArgument, req.IDWidth)
+				"%w: id_width must be 1 to 15, got %d", ErrInvalidArgument, req.IDWidth)
 		}
 		g.Width = req.IDWidth
 	}

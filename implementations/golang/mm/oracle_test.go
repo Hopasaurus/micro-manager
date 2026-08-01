@@ -229,6 +229,7 @@ func TestValidatorAgreesWithCheckShOnTheRepository(t *testing.T) {
 	for _, dir := range []string{
 		"../../../sample-data/sample1/micro-manager",
 		"../../../sample-data/sample2/micro-manager",
+		"../../../sample-data/sample3/micro-manager",
 		"../../../sample-data/hidden/.micro-manager",
 		"../../../sample-data/symbol/µmanager",
 		"../../../sample-data/symbol-hidden/.µmanager",
@@ -299,6 +300,39 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 			t.Fatal(err)
 		}
 		compareValidators(t, "wip 1", dir)
+	})
+
+	// T-0116: the agreement must hold under a NON-DEFAULT ID grammar too - the
+	// X/3 corpus the fixtures declare. Init, add, start and finish all write
+	// X-### IDs (next_id included), and both validators have to read them.
+	t.Run("a non-default ID grammar", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "mm")
+		s, _, err := Init(dir, InitRequest{
+			Project: "Custom IDs", Wip: 2, IDPrefix: "X", IDWidth: 3,
+		}, today)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compareValidators(t, "init with X/3", dir)
+
+		a, _, err := s.Add(AddRequest{Title: "First", DetailBody: "Long form.\n"}, today)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(a.ID) != "X-001" {
+			t.Fatalf("first ID = %s, want X-001", a.ID)
+		}
+		compareValidators(t, "add under X/3", dir)
+
+		if _, _, err := s.Start(a.ID, StartRequest{}, today); err != nil {
+			t.Fatal(err)
+		}
+		compareValidators(t, "start under X/3", dir)
+
+		if _, _, err := s.Finish(a.ID, FinishRequest{Note: "shipped"}, today); err != nil {
+			t.Fatal(err)
+		}
+		compareValidators(t, "finish under X/3", dir)
 	})
 
 	// Every fixture breaks exactly one rule, which is what makes a regression

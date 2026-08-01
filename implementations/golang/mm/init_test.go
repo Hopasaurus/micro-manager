@@ -143,6 +143,7 @@ func TestInitValidatesGrammar(t *testing.T) {
 		{"mixed-case prefix", InitRequest{Project: "P", IDPrefix: "Tt"}},
 		{"five-letter prefix", InitRequest{Project: "P", IDPrefix: "ABCDE"}},
 		{"negative width", InitRequest{Project: "P", IDWidth: -1}},
+		{"width above the 15 cap", InitRequest{Project: "P", IDWidth: 16}},
 	}
 	for _, tc := range cases {
 		dir := filepath.Join(t.TempDir(), "micro-manager")

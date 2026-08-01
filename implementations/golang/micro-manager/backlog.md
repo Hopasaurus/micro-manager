@@ -2,7 +2,7 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0119
+next_id: T-0121
 updated: 2026-08-01
 ---
 
@@ -20,7 +20,6 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0116] check.sh and the Go validator agree on the declared ID grammar (fixture corpus) | tags:check,format | detail:details/T-0116.md | created:2026-08-01
 - [ ] [T-0117] GUI: non-default prefix and width end to end | tags:gui | detail:details/T-0117.md | created:2026-08-01
 - [ ] [T-0118] Per-task ID prefixes: per-prefix counters and I2 per counter (gated on the spec decision) | tags:format,spike | detail:details/T-0118.md | created:2026-08-01
 - [ ] [T-0101] Explore how micro-manager could interoperate with git, consider how merge conflicts with overlapping task IDs could be solved. | prio:med | tags:spike | detail:details/T-0101.md | created:2026-07-31

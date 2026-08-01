@@ -271,8 +271,8 @@ func TestDiscoverAgainstTheRepository(t *testing.T) {
 		t.Skipf("repository fixtures not present: %v", err)
 	}
 	res := Discover(DefaultDiscoveryOptions(mustAbs(t, root)))
-	if len(res.Directories) != 5 {
-		t.Errorf("found %d directories, want 5:\n%v", len(res.Directories), discoveredPaths(res))
+	if len(res.Directories) != 6 {
+		t.Errorf("found %d directories, want 6:\n%v", len(res.Directories), discoveredPaths(res))
 	}
 	for _, d := range res.Directories {
 		if d.Project == "" {

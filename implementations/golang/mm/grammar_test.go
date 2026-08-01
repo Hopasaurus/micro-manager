@@ -324,6 +324,152 @@ updated: 2026-07-29
 	}
 }
 
+// A width above the shared 15 cap (§3.3.2 rule 3, T-0120) is a format
+// violation, never a warning: at 16 digits the narrowest readers silently
+// round, so every implementation refuses uniformly. The default grammar
+// stands in, so the rest of the directory still parses and the declaration is
+// the only finding.
+func TestWidthAboveCapIsAViolation(t *testing.T) {
+	backlog16 := `---
+doc: backlog
+version: 1
+project: Wide
+next_id: T-0005
+id_width: 16
+updated: 2026-07-29
+---
+
+# Backlog
+
+## Ready
+
+- [ ] [T-0001] One | prio:med | created:2026-07-29
+
+## Blocked
+
+- [ ] [T-0002] Two | created:2026-07-29 | blocked:on a thing
+
+## Someday
+
+- [ ] [T-0003] Maybe | created:2026-07-29
+`
+	dir := newDir(t, map[string]string{
+		"backlog.md": backlog16,
+		"done.md": `---
+doc: done
+version: 1
+updated: 2026-07-29
+---
+
+# Done
+
+## 2026-07
+
+- [x] [T-0004] Closed | created:2026-06-01 | done:2026-07-02 | outcome:shipped
+`,
+	})
+	s := mustOpen(t, dir)
+
+	vs, err := s.Validate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vs) != 1 {
+		t.Fatalf("want exactly the width violation, got:\n%s", violationMessages(vs))
+	}
+	if vs[0].Invariant != invFormat || !strings.Contains(vs[0].Message, "one to fifteen") {
+		t.Errorf("want a format violation naming the cap, got: %s", vs[0])
+	}
+	if vs[0].At.File != "backlog.md" {
+		t.Errorf("violation should point at backlog.md, got %s", vs[0].At)
+	}
+
+	// A violation, not a warning: the width never reaches the warn stream.
+	_, warns, err := s.ValidateWithWarnings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range warns {
+		if strings.Contains(w.Message, "3-6") {
+			t.Errorf("width 16 is a violation, not a warning: %s", w)
+		}
+	}
+
+	// The default grammar stood in, so the broken directory still opens, lists
+	// and reads - rule 3's default-stands-in promise.
+	if _, err := s.List(Filter{State: StateAll}); err != nil {
+		t.Errorf("list: %v", err)
+	}
+	if _, err := s.Get("T-0001"); err != nil {
+		t.Errorf("get under the standing-in grammar: %v", err)
+	}
+}
+
+// 15 is the inclusive upper edge of the cap: the widest honorable width.
+// Every 15-digit ID fits under 2^53, so the directory validates cleanly and
+// the width is merely warned about, exactly like width 2.
+func TestWidthAtTheCapIsAccepted(t *testing.T) {
+	backlog15 := `---
+doc: backlog
+version: 1
+project: Wide
+next_id: T-000000000000005
+id_width: 15
+updated: 2026-07-29
+---
+
+# Backlog
+
+## Ready
+
+- [ ] [T-000000000000001] One | prio:med | created:2026-07-29
+
+## Blocked
+
+- [ ] [T-000000000000002] Two | created:2026-07-29 | blocked:on a thing
+
+## Someday
+
+- [ ] [T-000000000000003] Maybe | created:2026-07-29
+`
+	dir := newDir(t, map[string]string{
+		"backlog.md": backlog15,
+		"done.md": `---
+doc: done
+version: 1
+updated: 2026-07-29
+---
+
+# Done
+
+## 2026-07
+
+- [x] [T-000000000000004] Closed | created:2026-06-01 | done:2026-07-02 | outcome:shipped
+`,
+	})
+	s := mustOpen(t, dir)
+
+	vs, err := s.Validate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vs) != 0 {
+		t.Errorf("width 15 must not fail --check:\n%s", violationMessages(vs))
+	}
+	_, warns, err := s.ValidateWithWarnings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warns) != 1 || !strings.Contains(warns[0].Message, "3-6") {
+		t.Errorf("want one width warning, got %v", warns)
+	}
+	// The counter space at width 15 is 10^15 - 1, which fits an int exactly.
+	g := IDGrammar{Prefix: "T", Width: 15}
+	if g.Cap() != 999999999999999 {
+		t.Errorf("Cap() at width 15 = %d, want 999999999999999", g.Cap())
+	}
+}
+
 // Add reports Conflict when next_id reaches the declared cap, and the cap is
 // named in the message (spec-tools.md §5.1.2). Width 1 keeps the counter
 // space small enough to exhaust in a test.

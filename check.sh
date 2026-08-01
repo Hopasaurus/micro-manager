@@ -163,6 +163,71 @@ function ismonth(m,   mo) {
   return (mo >= 1 && mo <= 12)
 }
 
+# ---------------------------------------------------------------------------
+# The declared ID grammar (spec-file-format.md §3.3.2).
+#
+# id_prefix (one to four uppercase ASCII letters, default T) and id_width (one
+# or more digits, default 4) are declared in backlog.md frontmatter. Every ID
+# in the directory -- item lines, working-file ids, next_id -- is matched
+# against this grammar, never against a hardcoded T-NNNN shape. Resolved lazily
+# so an invalid declaration is reported exactly once, wherever the grammar is
+# first needed; the default stands in for an invalid part so the rest of the
+# file still parses, which is what the Go validator does too.
+# ---------------------------------------------------------------------------
+function resolve_grammar(   i) {
+  if (g_ready) return
+  g_ready = 1
+  idp = "T"; idw = 4
+  if (idp_raw != "") {
+    if (idp_raw ~ /^[A-Z]{1,4}$/) idp = idp_raw
+    else gvs[++ngvs] = "backlog.md:" idp_line ": id_prefix must be one to four uppercase letters (A-Z): " idp_raw
+  }
+  if (idw_raw != "") {
+    if (idw_raw ~ /^[0-9]+$/ && (idw_raw + 0) >= 1 && (idw_raw + 0) <= 15) {
+      idw = idw_raw + 0
+      if (idw < 3 || idw > 6)
+        gws[++ngws] = "backlog.md:" idw_line ": id_width " idw " is outside the RECOMMENDED 3-6 range (spec-file-format.md §3.3.2 rule 3)"
+    }
+    else if (idw_raw ~ /^[0-9]+$/ && (idw_raw + 0) > 15)
+      gvs[++ngvs] = "backlog.md:" idw_line ": id_width " idw_raw " is above the 15-digit cap (spec-file-format.md §3.3.2 rule 3)"
+    else gvs[++ngvs] = "backlog.md:" idw_line ": id_width must be one to fifteen digits, at least 1: " idw_raw
+  }
+  gshape = idp "-"
+  for (i = 0; i < idw; i++) gshape = gshape "#"
+}
+
+# validid reports whether s is an ID in the resolved grammar: the exact
+# prefix, a hyphen, and exactly idw digits.
+function validid(s,   i, c) {
+  if (length(s) != length(idp) + 1 + idw) return 0
+  if (substr(s, 1, length(idp)) != idp) return 0
+  if (substr(s, length(idp) + 1, 1) != "-") return 0
+  for (i = length(idp) + 2; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (c < "0" || c > "9") return 0
+  }
+  return 1
+}
+
+# numid is the numeric part of an ID in the resolved grammar (0 for "0000").
+function numid(s) { return substr(s, length(idp) + 2) + 0 }
+
+# matchitem matches $0 against `- [BOX] [ID] TITLE` where ID is in the
+# declared grammar (§4.2 rule 2) -- by TOKEN, never by fixed byte offsets,
+# because the prefix and width are now variable. Sets it_box, it_id and
+# it_rest; returns 1 on a match, 0 otherwise.
+function matchitem(   i, idlen) {
+  if (substr($0, 1, 7) != "- [ ] [" && substr($0, 1, 7) != "- [x] [") return 0
+  idlen = length(idp) + 1 + idw
+  if (substr($0, 8 + idlen, 2) != "] ") return 0
+  it_id = substr($0, 8, idlen)
+  if (!validid(it_id)) return 0
+  it_box = substr($0, 4, 1)
+  it_rest = substr($0, 8 + idlen + 2)
+  if (it_rest == "") return 0        # a bare `]` after the ID is not a title
+  return 1
+}
+
 FNR == 1 {
   base = FILENAME; sub(/^.*\//, "", base)
   section = ""; month = ""
@@ -184,6 +249,8 @@ infm {
   if (base == "backlog.md") {
     if (k == "next_id") next_id = v
     if (k == "project") project = v
+    if (k == "id_prefix") { idp_raw = v; idp_line = FNR }
+    if (k == "id_width")  { idw_raw = v; idw_line = FNR }
   }
   if (isw) { wf[base, k] = v; wl[base, k] = FNR }
   next
@@ -207,12 +274,13 @@ infm {
 # Item lines. Only backlog.md and done.md hold them; a "- [ ]" in a working file
 # is a subtask, which has no ID by design.
 (base == "backlog.md" || base == "done.md") && /^- \[/ {
-  if ($0 !~ /^- \[[ x]\] \[T-[0-9][0-9][0-9][0-9]\] ./) {
+  resolve_grammar()
+  if (!matchitem()) {
     err("malformed item line: " $0); next
   }
-  box  = substr($0, 4, 1)
-  id   = substr($0, 8, 6)
-  rest = substr($0, 16)
+  box  = it_box
+  id   = it_id
+  rest = it_rest
 
   n = split(rest, part, / \| /)
   title = trim(part[1])
@@ -275,6 +343,8 @@ infm {
 }
 
 END {
+  resolve_grammar()
+
   # invariant 4: every working file is coherent; each occupied one joins the
   # ID pool. The WIP limit is the file count, so nothing else enforces it.
   for (j = 1; j <= nw; j++) {
@@ -285,8 +355,8 @@ END {
       nwip++
       if (isnull(wv(f, "id")))
         werr(f, "id", "status is working but id is null")
-      else if (wv(f, "id") !~ /^T-[0-9][0-9][0-9][0-9]$/)
-        werr(f, "id", "id is not a T-NNNN id: " wv(f, "id"))
+      else if (!validid(wv(f, "id")))
+        werr(f, "id", "id is not a " gshape " id: " wv(f, "id"))
       else if (wv(f, "id") in idloc)
         werr(f, "id", wv(f, "id") " also appears at " idloc[wv(f, "id")])
       else {
@@ -326,21 +396,30 @@ END {
   # invariant 2: every ID is below next_id
   if (next_id == "")
     ferr("backlog.md: frontmatter has no next_id")
-  else if (next_id !~ /^T-[0-9][0-9][0-9][0-9]$/)
-    ferr("backlog.md: next_id is not a T-NNNN id: " next_id)
+  else if (!validid(next_id))
+    ferr("backlog.md: next_id is not a " gshape " id: " next_id)
   else
     for (id in idloc)
-      if (substr(id, 3) + 0 >= substr(next_id, 3) + 0)
+      if (numid(id) >= numid(next_id))
         ferr(idloc[id] ": " id " is at or above next_id (" next_id ")")
 
   if (!h_ready)   ferr("backlog.md: no ## Ready heading")
   if (!h_blocked) ferr("backlog.md: no ## Blocked heading")
   if (!h_someday) ferr("backlog.md: no ## Someday heading")
+
+  # problems with the declared grammar itself (§3.3.2): an invalid declaration
+  # is a violation; a width outside 3-6 is a warning, never a failure (rule 3).
+  for (i = 1; i <= ngvs; i++) print "ERR\t" pfx gvs[i]
+  for (i = 1; i <= ngws; i++) print "WARN\t" pfx gws[i]
 }
 ' "$dir/backlog.md" "${wfiles[@]}" "$dir/done.md" > "$tmp.raw"
 
   grep '^ERR' "$tmp.raw" | cut -f2- >> "$tmp.derr"
   grep '^REF' "$tmp.raw" > "$tmp.ref"
+  # §3.3.2 rule 3: an id_width outside 3-6 is a warning, never a failure.
+  # The two leading spaces keep it out of the finding stream, which is what
+  # the exit code and the cross-validator agreement both run on.
+  grep '^WARN' "$tmp.raw" | cut -f2- | sed 's/^/  /' >&2
 
   # --- invariant 8: detail: paths resolve to well-named, existing files -----
   while IFS=$'\t' read -r _tag id title detail loc; do
@@ -382,8 +461,15 @@ END {
     return 1
   fi
 
-  ready=$(grep -c '^- \[ \] \[T-' "$dir/backlog.md")
-  closed=$(grep -c '^- \[x\] \[T-' "$dir/done.md")
+  # The summary counts item lines under the directory's declared prefix; the
+  # default T applies when the declaration is absent or invalid.
+  gidp=$(fm_get "$dir/backlog.md" id_prefix)
+  case "$gidp" in
+    ''|[A-Z]|[A-Z][A-Z]|[A-Z][A-Z][A-Z]|[A-Z][A-Z][A-Z][A-Z]) gidp=${gidp:-T} ;;
+    *) gidp=T ;;
+  esac
+  ready=$(grep -c "^- \[ \] \[$gidp-" "$dir/backlog.md")
+  closed=$(grep -c "^- \[x\] \[$gidp-" "$dir/done.md")
   wip=$(awk -F'\t' '$1 == "WIP" { print $2 "/" $3 }' "$tmp.raw")
   project=$(fm_get "$dir/backlog.md" project)
   echo "  $dir: ok -- $project: $ready in backlog, wip $wip, $closed done"

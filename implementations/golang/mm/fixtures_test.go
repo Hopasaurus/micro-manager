@@ -54,6 +54,13 @@ var brokenInvariants = map[string]string{
 	"broken-i9-title-drift":            "I9",
 	"broken-i10-slot-gap":              "I10",
 	"broken-i10-mixed-widths":          "I10",
+	// An ID outside the declared grammar (spec-file-format.md §3.3.2): the
+	// parsers reject the line, which is a structural problem, not an I1-I10 one.
+	"broken-id-grammar": "format",
+	// A declared id_width above the shared 15-digit cap (§3.3.2 rule 3, T-0120)
+	// is a format violation: the default grammar stands in, so this is the
+	// directory's only finding.
+	"broken-id-width-16": "format",
 }
 
 func fixtures(t *testing.T) []fixture {
