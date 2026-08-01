@@ -11,6 +11,8 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0113] Spec: parameterize the ID token (prefix + width) in spec-file-format.md | tags:format,spec | detail:details/T-0113.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0112] Write tasks for adding the ability to change the task prefix and set the number of digits for the task number. | prio:med | tags:spike | detail:details/T-0112.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
 - [x] [T-0100] Make the drop zone for each column extend to the same vertical size as the biggest column | prio:med | tags:new-feature | detail:details/T-0100.md | created:2026-07-31 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
 - [x] [T-0110] Drag-and-drop doesn't seem to work for reordering tasks in Ready. | prio:med | tags:bug | detail:details/T-0110.md | created:2026-07-31 | started:2026-07-31 | done:2026-08-01 | outcome:shipped
 

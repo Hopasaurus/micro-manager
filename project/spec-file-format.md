@@ -3,7 +3,7 @@
     Spec version: 1
     Date:         2026-07-29
     Status:       stable
-    Applies to:   backlog.md, working.NN.md, done.md, details/T-NNNN.md
+    Applies to:   backlog.md, working.NN.md, done.md, details/<ID>.md
 
 This document specifies the on-disk formats a micro-manager directory uses. It
 is the normative reference for anyone writing a parser, a generator, or a second
@@ -30,7 +30,7 @@ A **micro-manager directory** contains:
 | `backlog.md` | yes | §5.1 |
 | `working.NN.md` | yes, one or more | §5.2 |
 | `done.md` | yes | §5.3 |
-| `details/T-NNNN.md` | no | §5.4 |
+| `details/<ID>.md` | no | §5.4 |
 | `details/_*.md` | no | §5.4.1 |
 | `structure.md` | no | §5.5 |
 
@@ -83,10 +83,8 @@ SHOULD be stripped by writers.
 | `SLOT` | one or more ASCII digits, zero-padded to the directory's width | `01`, `003` |
 | `NULL` | the literal four characters `null` | `null` |
 
-`ID` values are zero-padded to four digits. `T-42` is invalid; `T-0042` is
-correct. The four-digit width caps a directory at 9999 items; a future spec
-version may widen it, so readers SHOULD match `T-` followed by digits and treat
-a width other than four as a version mismatch rather than crashing.
+`ID` values are zero-padded to the directory's width. `T-42` is invalid;
+`T-0042` is correct.
 
 #### 3.3.1 Dates, times and timestamps are ISO 8601
 
@@ -125,6 +123,42 @@ by the four files of §5**. Those are deliberately date-granular: an item's
 in the data model needs a clock. A tool MUST NOT introduce a time-of-day field
 into these files without a spec revision — see §10 for what that granularity
 costs and why it is still the right trade.
+
+#### 3.3.2 The ID grammar is directory-configurable
+
+The default grammar is the prefix `T` and width 4 (§3.3); every directory that
+declares nothing else uses it. A directory MAY declare its own grammar with two
+optional keys in `backlog.md` frontmatter (§5.1):
+
+| Key | Value | Default |
+|---|---|---|
+| `id_prefix` | one to four ASCII letters, all uppercase (`A-Z`) | `T` |
+| `id_width` | one or more ASCII digits | `4` |
+
+Rules:
+
+1. **One grammar per directory.** The directory declares a single prefix and a
+   single width; every ID in the directory — item lines, working-file
+   frontmatter, `next_id`, and `details/` filenames — uses it. A directory
+   containing IDs in more than one grammar is invalid. (Per-task prefixes are a
+   possible future extension; they are NOT part of this spec version.)
+2. **Either key MAY appear alone**; the other then takes its default. The
+   prefix is one to four ASCII letters and MUST be all uppercase — `t` and
+   `Tt` are invalid. Matching is exact: in a directory declaring `T`, the ID
+   `t-0042` is invalid.
+3. **The declared prefix is one to four ASCII letters.** An ID is the prefix, a
+   hyphen, then exactly `id_width` ASCII digits, zero-padded. Width 3–6 is
+   RECOMMENDED; a checker SHOULD warn — not fail — on a width outside that
+   range.
+4. **Readers MUST read the declaration before interpreting any ID.** A reader
+   that cannot honor a declared grammar MUST refuse loudly — report a version
+   mismatch and exit — never silently misparse.
+5. **`next_id` stays one monotonic counter** (§7, I2), in the declared grammar.
+   Width `W` caps the counter space at `10^W − 1` items, generalizing the
+   default's 9999-item cap.
+6. **Additive, not a version bump.** Directories without the keys behave
+   byte-identically to spec version 1; `version: 1` is unchanged. A reader of
+   the current spec MUST accept a default-grammar directory exactly as before.
 
 ## 4. Common structures
 
@@ -180,15 +214,20 @@ value       = *( any character except "|", CR, LF )
 
 Parsing rules:
 
-1. A line is a candidate item line if it matches
-   `^- \[[ x]\] \[T-[0-9]{4}\] .` — note the trailing `.`, which requires a
-   non-empty title.
-2. The prefix `- [_] [T-NNNN] ` is fixed-width and pure ASCII: the box is at
-   character 4, the ID at characters 8–13, and the title begins at character 16.
-   Readers MAY rely on those offsets.
-3. Everything from character 16 to end of line is split on the three-character
-   sequence `" | "` (space, pipe, space). The first part is the title; each
-   remaining part is a field.
+1. A line is a candidate item line if it matches `^- \[[ x]\] \[ID\] .`
+   where `ID` is the directory's declared grammar (§3.3.2) — the default
+   instantiation is `^- \[[ x]\] \[T-[0-9]{4}\] .`. Note the trailing `.`,
+   which requires a non-empty title.
+2. For the default grammar the prefix `- [_] [T-NNNN] ` is fixed-width and
+   pure ASCII: the box is at character 4, the ID at characters 8–13, and the
+   title begins at character 16. Readers MAY rely on those offsets ONLY when
+   the directory declares no `id_prefix`/`id_width`; otherwise the ID is
+   located by token (rule 1) and the title is everything up to the first
+   `" | "`.
+3. Everything after the title's start — character 16 under the default
+   grammar, the first `" | "` otherwise (rule 2) — is split on the
+   three-character sequence `" | "` (space, pipe, space). The first part is
+   the title; each remaining part is a field.
 4. Each field is split at its **first** `:`. Key and value are trimmed.
 5. A field part with no `:` is an error.
 6. A repeated key within one item line is an error.
@@ -219,6 +258,8 @@ Holds every item not yet started.
 | `version` | spec version, currently `1` | yes |
 | `project` | human name of what this directory tracks | yes |
 | `next_id` | `ID` — the ID to assign to the next new item | yes |
+| `id_prefix` | one to four uppercase letters — the ID prefix (§3.3.2); absent means `T` | no |
+| `id_width` | one or more ASCII digits — the ID digit width (§3.3.2); absent means `4` | no |
 | `updated` | `DATE` | no |
 
 `project` MUST be non-empty and MUST NOT be `NULL`. It is otherwise free text on
@@ -229,6 +270,11 @@ of them SHOULD show `project` rather than, or alongside, the path.
 
 `project` is not an identifier. Two directories MAY carry the same `project`
 value, and nothing binds it to the directory name.
+
+`id_prefix` and `id_width`, when present, MUST each match §3.3.2 — `id_prefix`
+is one to four ASCII letters, all uppercase, `id_width` is one or more ASCII
+digits. `next_id`
+MUST use the declared grammar (or the default when neither key is present).
 
 **Body**
 
@@ -381,7 +427,7 @@ When the file grows unwieldy, trailing years MAY be moved to `done-YYYY.md` in
 the same directory. Those files are outside this specification and are not
 validated.
 
-### 5.4 `details/T-NNNN.md`
+### 5.4 `details/<ID>.md`
 
 Optional long-form description for exactly one item. The filename MUST be the
 item's `ID` plus `.md`.
@@ -458,7 +504,9 @@ ten; the identifiers match the numbering in `structure.md`.
   or its ID vanishes from the directory.
 - **I2 — ID ceiling.** Every ID in the directory is numerically less than
   `backlog.md`'s `next_id`. `next_id` increases monotonically and is never
-  decremented, so IDs are never reused.
+  decremented, so IDs are never reused. All IDs — including `next_id` — use
+  the directory's declared grammar (§3.3.2), and the comparison is over the
+  digit portion at the declared width.
 - **I3 — Box matches file.** `backlog.md` contains only `- [ ]` item lines;
   `done.md` contains only `- [x]` item lines.
 - **I4 — Working coherence.** *Every* working file has `status: working` with a
@@ -518,7 +566,7 @@ Forward compatibility rules:
   add a `wip_limit` key without also deciding which of the two wins; extensions
   MUST NOT introduce one.
 - Reserved for future use, MUST NOT be redefined by extensions: `id`, `status`,
-  `next_id`, `doc`, `version`.
+  `next_id`, `doc`, `version`, `id_prefix`, `id_width`.
 
 A reader encountering `version` greater than the version it implements SHOULD
 report a version mismatch rather than parse the file speculatively.
@@ -589,7 +637,15 @@ section heading ^##SP
 ```
 
 Implementations targeting awk variants without interval-expression support
-should expand `{4}` to `[0-9][0-9][0-9][0-9]`, as the reference checker does.
+should expand the width term (`{4}` for the default, `{W}` for a declared
+width) to that many `[0-9]`, as the reference checker does.
+
+The regexes above instantiate the default grammar (prefix `T`, width 4). For a
+directory declaring `id_prefix`/`id_width` (§3.3.2), substitute the declared
+prefix for `T` and the declared width for `4` — `ID` becomes `^P-[0-9]{W}$`
+with the declared `P` (one to four letters) and `W`, and the same substitution
+applies to the item
+line, item capture, and `DETAILPATH` patterns.
 
 **Note on `DATE`.** The pattern above accepts the lexical form only. Calendar
 validity — month `01`–`12`, the correct number of days for that month, and the

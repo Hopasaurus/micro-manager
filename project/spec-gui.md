@@ -100,8 +100,9 @@ open action.
 
 ### 3.2 `itemId`
 
-The item ID verbatim from the data spec: `T-0042`, case-sensitive, used
-unaltered in routes and testids.
+The item ID verbatim from the data spec: an ID in the directory's declared
+grammar — the default is `T-0042` (spec-file-format.md §3.3.2) —
+case-sensitive, used unaltered in routes and testids.
 
 ### 3.3 `themeId`
 

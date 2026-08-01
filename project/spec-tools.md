@@ -187,9 +187,11 @@ Each operation switch takes its primary subject as its value where one exists
    OPTIONAL; where present they MUST be listed in `--help`.
 2. `--switch VALUE` and `--switch=VALUE` MUST both be accepted.
 3. `--` ends switch parsing; everything after it is a positional value.
-4. An ID argument MUST accept the full form `T-0042`. An implementation SHOULD
-   also accept the bare number (`42`, `0042`) and resolve it, since typing the
-   prefix is friction the format imposes for machine reasons.
+4. An ID argument MUST accept the full form of an ID in the directory's
+   declared grammar — the default is `T-0042` (spec-file-format.md §3.3.2). An
+   implementation SHOULD also accept the bare number (`42`, `0042`) and
+   resolve it, since typing the prefix is friction the format imposes for
+   machine reasons.
 5. Repeated modifiers: last wins, except for those documented as accumulating
    (`--tag`).
 6. An unknown switch is a usage error. A tool MUST NOT silently ignore one.
@@ -349,7 +351,7 @@ every output mode — a caller that just created an item needs its handle.
 
 Errors: `InvalidArgument` (empty title, title containing `|`, malformed tag,
 bad date, `--section blocked` without a reason), `Conflict` (`next_id` exhausted
-at `T-9999`).
+at the declared width's cap — `T-9999` for the default grammar).
 
 ---
 
