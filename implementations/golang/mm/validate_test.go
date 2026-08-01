@@ -49,7 +49,7 @@ func TestValidateI2NextID(t *testing.T) {
 	// A malformed next_id.
 	vs = validateDir(t, map[string]string{
 		"backlog.md": strings.Replace(dirBacklog, "next_id: T-0011", "next_id: 42", 1)})
-	if !hasViolation(vs, "I2", "next_id is not a T-NNNN id") {
+	if !hasViolation(vs, "I2", "next_id is not a T-#### id") {
 		t.Errorf("got:\n%s", violationMessages(vs))
 	}
 }

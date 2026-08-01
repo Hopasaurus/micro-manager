@@ -52,17 +52,22 @@ func (s *Store) Add(req AddRequest, today Date) (Item, TxResult, error) {
 	}
 
 	// Allocate from next_id. The counter only ever moves forward: an ID is never
-	// reused, so a deleted item's number stays retired (I2).
+	// reused, so a deleted item's number stays retired (I2). The declared
+	// grammar (id_prefix/id_width) sizes both the ID and its counter space.
+	g := t.model.grammar()
 	next := ID(b.FM.Get("next_id"))
-	if !next.Valid() {
+	if !g.ValidID(string(next)) {
 		return zero, TxResult{}, fmt.Errorf(
 			"%w: backlog.md has no usable next_id (found %q)", ErrInvalidArgument, b.FM.Get("next_id"))
 	}
-	n := next.Num()
-	if n > 9999 {
+	n := g.Num(string(next))
+	if n >= g.Cap() {
+		// Exhausted AT the cap, not past it: the counter after the increment
+		// would be one digit too wide to be a valid ID, so the last usable
+		// next_id is the cap itself (spec-tools.md §5.1.2).
 		return zero, TxResult{}, fmt.Errorf(
-			"%w: next_id is exhausted at T-9999; the four-digit width caps a directory at 9999 items",
-			ErrConflict)
+			"%w: next_id is exhausted at %s; the %d-digit width caps a directory at %d items",
+			ErrConflict, g.NewID(g.Cap()), g.Width, g.Cap())
 	}
 	it.ID = next
 
@@ -72,7 +77,7 @@ func (s *Store) Add(req AddRequest, today Date) (Item, TxResult, error) {
 		index = 0
 	}
 	b.InsertItem(e, sec, index, it)
-	e.SetFM("next_id", string(NewID(n+1)))
+	e.SetFM("next_id", string(g.NewID(n+1)))
 	touchUpdated(e, today)
 
 	t.record(Change{Kind: ChangeCreated, ID: it.ID, File: "backlog.md",

@@ -26,14 +26,27 @@ func (m *dirModel) validate() []Violation {
 	return vs
 }
 
-// checkIDs covers I1 (one home per ID) and I2 (every ID below next_id).
+// checkIDs covers I1 (one home per ID) and I2 (every ID below next_id), plus
+// the §3.3.2 rule 1 requirement that every ID in the directory be in its
+// declared grammar - an ID from another grammar would be sharing a counter it
+// does not belong to.
 func (m *dirModel) checkIDs() []Violation {
 	var vs []Violation
 	seen := map[ID]Location{}
+	g := m.grammar()
 
 	for _, it := range m.items() {
 		if it.ID == "" {
 			continue // already reported by the parser
+		}
+		if !g.ValidID(string(it.ID)) {
+			// The parsers reject these as malformed lines; this is the same
+		// rule stated as an invariant, so a hand-built model cannot dodge it.
+			vs = append(vs, Violation{
+				Invariant: invFormat, At: it.Source,
+				Message: fmt.Sprintf("%s is not a %s id in the declared grammar", it.ID, g),
+			})
+			continue
 		}
 		if at, dup := seen[it.ID]; dup {
 			vs = append(vs, Violation{
@@ -58,14 +71,14 @@ func (m *dirModel) checkIDs() []Violation {
 			Invariant: "I2", At: Location{File: "backlog.md"},
 			Message: "frontmatter has no next_id",
 		})
-	case !next.Valid():
+	case !g.ValidID(string(next)):
 		vs = append(vs, Violation{
 			Invariant: "I2", At: Location{File: "backlog.md", Line: m.backlog.FM.Line("next_id")},
-			Message: "next_id is not a T-NNNN id: " + string(next),
+			Message: "next_id is not a " + g.String() + " id: " + string(next),
 		})
 	default:
 		for id, at := range seen {
-			if id.Num() >= next.Num() {
+			if g.Num(string(id)) >= g.Num(string(next)) {
 				vs = append(vs, Violation{
 					Invariant: "I2", At: at,
 					Message: fmt.Sprintf("%s is at or above next_id (%s)", id, next),

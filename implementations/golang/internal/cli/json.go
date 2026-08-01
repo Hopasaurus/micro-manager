@@ -351,11 +351,20 @@ func toJSONCheck(results []checkResult) any {
 				"message":   v.Message,
 			})
 		}
+		warnings := make([]map[string]any, 0, len(r.Warnings))
+		for _, w := range r.Warnings {
+			warnings = append(warnings, map[string]any{
+				"file":    w.At.File,
+				"line":    w.At.Line,
+				"message": w.Message,
+			})
+		}
 		out = append(out, map[string]any{
 			"path":       r.Path,
 			"project":    r.Project,
 			"ok":         len(r.Violations) == 0,
 			"violations": violations,
+			"warnings":   warnings,
 		})
 	}
 	return out

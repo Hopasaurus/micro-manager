@@ -203,18 +203,23 @@ func (t *tx) reparse() []Violation {
 		return []byte(joinLines(fallback))
 	}
 
+	// The grammar comes from the re-parsed backlog, never from the in-memory
+	// model: a transaction that edited the frontmatter must be validated under
+	// the grammar it is about to write.
+	g := DefaultIDGrammar()
 	if t.model.backlog != nil {
 		b, vs := parseBacklog("backlog.md", bytesFor("backlog.md", t.model.backlog.Lines))
 		m.backlog = b
 		m.parseVs = append(m.parseVs, vs...)
+		g = b.grammar
 	}
 	if t.model.done != nil {
-		d, vs := parseDone("done.md", bytesFor("done.md", t.model.done.Lines))
+		d, vs := parseDoneG("done.md", bytesFor("done.md", t.model.done.Lines), g)
 		m.done = d
 		m.parseVs = append(m.parseVs, vs...)
 	}
 	for _, w := range t.model.working {
-		nw, vs := parseWorking(w.Name, bytesFor(w.Name, w.Lines))
+		nw, vs := parseWorkingG(w.Name, bytesFor(w.Name, w.Lines), g)
 		m.working = append(m.working, nw)
 		m.parseVs = append(m.parseVs, vs...)
 	}

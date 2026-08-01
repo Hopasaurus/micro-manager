@@ -183,12 +183,19 @@ func discoverWorkingFiles(entries []string, dirLabel string) (names []string, nu
 	return
 }
 
-// parseWorking reads one working file.
+// parseWorking reads one working file under the default grammar.
+func parseWorking(name string, data []byte) (*workingFile, []Violation) {
+	return parseWorkingG(name, data, DefaultIDGrammar())
+}
+
+// parseWorkingG reads one working file. The ID grammar comes from the
+// directory's backlog.md (§3.3.2 rule 1); the working frontmatter carries no
+// declaration of its own.
 //
 // The item is carried in the FRONTMATTER, not as an item line. Every "- [" line
 // in the body is a subtask - unstructured by design, with no ID - and must never
 // be parsed as an item (spec-file-format.md §5.2.2).
-func parseWorking(name string, data []byte) (*workingFile, []Violation) {
+func parseWorkingG(name string, data []byte, g IDGrammar) (*workingFile, []Violation) {
 	num, width, _ := isWorkingFileName(name)
 	lines := splitLines(data)
 	fm, _, vs := readHeader(name, lines)
@@ -225,8 +232,8 @@ func parseWorking(name string, data []byte) (*workingFile, []Violation) {
 
 	if fm.IsNull("id") {
 		bad("id", "status is working but id is null")
-	} else if id := ID(fm.Get("id")); !id.Valid() {
-		bad("id", "id is not a T-NNNN id: "+fm.Get("id"))
+	} else if id := ID(fm.Get("id")); !g.ValidID(string(id)) {
+		bad("id", "id is not a "+g.String()+" id: "+fm.Get("id"))
 	} else {
 		it.ID = id
 	}

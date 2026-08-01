@@ -73,6 +73,85 @@ func TestInitCreatesAValidDirectory(t *testing.T) {
 	}
 }
 
+func TestInitDeclaredGrammar(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "micro-manager")
+	s, _, err := Init(dir, InitRequest{Project: "Custom", IDPrefix: "X", IDWidth: 3}, today)
+	if err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if vs, _ := s.Validate(); len(vs) != 0 {
+		t.Fatalf("a fresh custom directory should be clean:\n%s", violationMessages(vs))
+	}
+	d, err := s.Directory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.IDPrefix != "X" || d.IDWidth != 3 || d.NextID != "X-001" {
+		t.Errorf("grammar = %q/%d next %q, want X/3 next X-001", d.IDPrefix, d.IDWidth, d.NextID)
+	}
+	b := readFile(t, dir, "backlog.md")
+	for _, want := range []string{"next_id: X-001", "id_prefix: X", "id_width: 3"} {
+		if !strings.Contains(b, want) {
+			t.Errorf("backlog.md lacks %q:\n%s", want, b)
+		}
+	}
+	// The template stays generic: it is exempt from I9 and copied verbatim.
+	if tmpl := readFile(t, dir, "details/_template.md"); !strings.Contains(tmpl, "T-XXXX") {
+		t.Errorf("the detail template must stay grammar-free:\n%s", tmpl)
+	}
+
+	// The directory is immediately usable in its declared grammar.
+	if _, _, err := s.Add(AddRequest{Title: "First custom item"}, today); err != nil {
+		t.Errorf("add: %v", err)
+	}
+	if _, _, err := s.Add(AddRequest{Title: "Second"}, today); err != nil {
+		t.Errorf("add: %v", err)
+	}
+	if _, _, err := s.Start("X-001", StartRequest{}, today); err != nil {
+		t.Errorf("start X-001: %v", err)
+	}
+	if vs, _ := s.Validate(); len(vs) != 0 {
+		t.Errorf("violations after use:\n%s", violationMessages(vs))
+	}
+}
+
+func TestInitDefaultWritesNoGrammarKeys(t *testing.T) {
+	// Rule 6: absent keys = spec version 1, byte-identical.
+	dir := filepath.Join(t.TempDir(), "micro-manager")
+	if _, _, err := Init(dir, InitRequest{Project: "Plain"}, today); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	b := readFile(t, dir, "backlog.md")
+	if strings.Contains(b, "id_prefix") || strings.Contains(b, "id_width") {
+		t.Errorf("default init must not declare a grammar:\n%s", b)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := s.Directory(); d.NextID != "T-0001" {
+		t.Errorf("next_id = %q, want T-0001", d.NextID)
+	}
+}
+
+func TestInitValidatesGrammar(t *testing.T) {
+	cases := []struct {
+		name string
+		req  InitRequest
+	}{
+		{"lowercase prefix", InitRequest{Project: "P", IDPrefix: "x"}},
+		{"mixed-case prefix", InitRequest{Project: "P", IDPrefix: "Tt"}},
+		{"five-letter prefix", InitRequest{Project: "P", IDPrefix: "ABCDE"}},
+		{"negative width", InitRequest{Project: "P", IDWidth: -1}},
+	}
+	for _, tc := range cases {
+		dir := filepath.Join(t.TempDir(), "micro-manager")
+		if _, _, err := Init(dir, tc.req, today); !errors.Is(err, ErrInvalidArgument) {
+			t.Errorf("%s: want ErrInvalidArgument, got %v", tc.name, err)
+		}
+	}
+}
+
 func TestInitWipAndSlotWidth(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "mm")
 

@@ -217,7 +217,7 @@ func TestParseWorkingIdleWithLeftovers(t *testing.T) {
 func TestParseWorkingRequiredFields(t *testing.T) {
 	cases := []struct{ replace, with, want string }{
 		{"id: T-0042", "id: null", "status is working but id is null"},
-		{"id: T-0042", "id: T-42", "id is not a T-NNNN id"},
+		{"id: T-0042", "id: T-42", "id is not a T-#### id"},
 		{"title: Fix the deploy script", "title: null", "status is working but title is null"},
 		{"started: 2026-07-30", "started: null", "started:null"},
 		{"started: 2026-07-30", "started: soon", "started:soon"},

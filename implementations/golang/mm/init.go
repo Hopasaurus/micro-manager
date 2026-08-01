@@ -24,6 +24,16 @@ type InitRequest struct {
 	// it is fixed once here rather than per file.
 	SlotWidth int
 
+	// IDPrefix is the declared id_prefix (spec-file-format.md §3.3.2): one to
+	// four uppercase ASCII letters. Empty means "T" and writes no id_prefix
+	// key, so a default init is byte-identical to spec version 1 (rule 6).
+	IDPrefix string
+
+	// IDWidth is the declared id_width: one or more digits. Zero means 4 and
+	// writes no id_width key. 3-6 is RECOMMENDED; other widths are warned
+	// about, never refused (rule 3).
+	IDWidth int
+
 	// NoStructure skips structure.md. The spec only SHOULD-writes it, but a
 	// directory without it is a format nobody can read without a tool, which is
 	// the opposite of the point.
@@ -76,15 +86,35 @@ func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
 			ErrInvalidArgument, wip, n, width)
 	}
 
+	// The ID grammar (§3.3.2). Both keys are optional and default independently;
+	// what Init writes is a directory that declares its own grammar, validated
+	// here the same way the parsers validate a hand-written one.
+	g := DefaultIDGrammar()
+	if req.IDPrefix != "" {
+		if !ValidIDPrefix(req.IDPrefix) {
+			return nil, TxResult{}, fmt.Errorf(
+				"%w: id_prefix must be one to four uppercase letters (A-Z), got %q",
+				ErrInvalidArgument, req.IDPrefix)
+		}
+		g.Prefix = req.IDPrefix
+	}
+	if req.IDWidth != 0 {
+		if req.IDWidth < 1 {
+			return nil, TxResult{}, fmt.Errorf(
+				"%w: id_width must be at least 1, got %d", ErrInvalidArgument, req.IDWidth)
+		}
+		g.Width = req.IDWidth
+	}
+
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, TxResult{}, fmt.Errorf("%w: %s: %v", ErrIO, path, err)
 	}
 
 	files := map[string]string{
-		"backlog.md": renderInitBacklog(project, today),
+		"backlog.md": renderInitBacklog(project, today, g),
 		"done.md":    renderInitDone(today),
-		templateName: initTemplate,
+		templateName:  initTemplate,
 	}
 	if !req.NoStructure {
 		files["structure.md"] = renderInitStructure(project, today)
@@ -149,7 +179,8 @@ func validateInit(path string, files map[string]string, order []string) []Violat
 	b, vs := parseBacklog("backlog.md", []byte(files["backlog.md"]))
 	m.backlog = b
 	m.parseVs = append(m.parseVs, vs...)
-	d, vs := parseDone("done.md", []byte(files["done.md"]))
+	g := b.grammar
+	d, vs := parseDoneG("done.md", []byte(files["done.md"]), g)
 	m.done = d
 	m.parseVs = append(m.parseVs, vs...)
 	for _, name := range order {
@@ -157,7 +188,7 @@ func validateInit(path string, files map[string]string, order []string) []Violat
 			continue
 		}
 		m.entries = append(m.entries, name)
-		w, vs := parseWorking(name, []byte(files[name]))
+		w, vs := parseWorkingG(name, []byte(files[name]), g)
 		m.working = append(m.working, w)
 		m.parseVs = append(m.parseVs, vs...)
 	}
@@ -168,9 +199,20 @@ func validateInit(path string, files map[string]string, order []string) []Violat
 	return m.validate()
 }
 
-func renderInitBacklog(project string, today Date) string {
-	return "---\ndoc: backlog\nversion: 1\nproject: " + project +
-		"\nnext_id: T-0001\nupdated: " + today.String() + `
+func renderInitBacklog(project string, today Date, g IDGrammar) string {
+	fm := "---\ndoc: backlog\nversion: 1\nproject: " + project +
+		"\nnext_id: " + string(g.NewID(1))
+	// Keys are written only when the value is not the default, so an init that
+	// declares nothing stays byte-identical to spec version 1 (§3.3.2 rule 6).
+	// Key order follows the §5.1 schema: next_id, then the two optional keys.
+	if g.Prefix != "T" {
+		fm += "\nid_prefix: " + g.Prefix
+	}
+	if g.Width != 4 {
+		fm += "\nid_width: " + strconv.Itoa(g.Width)
+	}
+	fm += "\nupdated: " + today.String()
+	return fm + `
 ---
 
 # Backlog

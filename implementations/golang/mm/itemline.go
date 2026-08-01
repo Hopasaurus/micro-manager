@@ -9,46 +9,84 @@ import (
 //   - [ ] [T-0042] Fix the deploy script | prio:high | tags:infra,ci | created:2026-07-29
 //   - [BOX] [ID] TITLE | key:value | key:value | ...
 //
-// The prefix is fixed width and pure ASCII by construction, so the byte offsets
-// below are safe even though titles are UTF-8:
-//
-//	index: 0123456789...
-//	       - [x] [T-0042] title...
-//	         ^     ^^^^^^  ^
-//	         3     7..12   15
-const (
-	boxOffset   = 3  // the box character
-	idOffset    = 7  // first byte of the ID
-	idLen       = 6  // "T-0042"
-	titleOffset = 15 // first byte of the title
-	minLineLen  = titleOffset + 1
-)
+// The ID is located BY TOKEN against the directory's declared grammar, never
+// by fixed byte offsets: the prefix is one to four letters and the width is
+// variable (§3.3.2), so an offset that is safe under the default grammar is
+// wrong the moment a directory declares its own (rule 4 of §3.1, §4.2 rule 2).
 
 // fieldSep is the three-character sequence that separates an item line's title
 // from its fields, and its fields from each other. The spaces are significant:
 // a bare '|' inside a value does not split.
 const fieldSep = " | "
 
-// isItemLine reports whether the line is a candidate item line: matching
-// `^- \[[ x]\] \[T-[0-9]{4}\] .` including the trailing character, which
-// requires a non-empty title.
+// itemLineOffsets locates the box, ID and title of a candidate item line by
+// token, returning false when the line does not match
+// `^- \[[ x]\] [<grammar>] .` with a non-empty title. The ID is matched
+// against the declared grammar; everything between the ID and the first
+// " | " is the title (spec-file-format.md §4.2 rules 1-3).
+func itemLineOffsets(line string, g IDGrammar) (box, idStart, idLen, titleStart int, ok bool) {
+	i := 0
+	// "- ["
+	if len(line) < i+3 || line[i] != '-' || line[i+1] != ' ' || line[i+2] != '[' {
+		return 0, 0, 0, 0, false
+	}
+	i += 3
+	box = i
+	// the box character
+	if len(line) <= i || (line[i] != ' ' && line[i] != 'x') {
+		return 0, 0, 0, 0, false
+	}
+	i++
+	// "] ["
+	if len(line) < i+3 || line[i] != ']' || line[i+1] != ' ' || line[i+2] != '[' {
+		return 0, 0, 0, 0, false
+	}
+	i += 3
+	idStart = i
+	// the declared prefix, matched exactly
+	if len(line) < i+len(g.Prefix) || line[i:i+len(g.Prefix)] != g.Prefix {
+		return 0, 0, 0, 0, false
+	}
+	i += len(g.Prefix)
+	// the hyphen
+	if len(line) <= i || line[i] != '-' {
+		return 0, 0, 0, 0, false
+	}
+	i++
+	// exactly g.Width digits
+	if len(line) < i+g.Width {
+		return 0, 0, 0, 0, false
+	}
+	for j := 0; j < g.Width; j++ {
+		if line[i+j] < '0' || line[i+j] > '9' {
+			return 0, 0, 0, 0, false
+		}
+	}
+	i += g.Width
+	idLen = i - idStart
+	// "] " and a non-empty title
+	if len(line) < i+2 || line[i] != ']' || line[i+1] != ' ' {
+		return 0, 0, 0, 0, false
+	}
+	i += 2
+	if len(line) <= i {
+		return 0, 0, 0, 0, false
+	}
+	return box, idStart, idLen, i, true
+}
+
+// isItemLine reports whether the line is a candidate item line under the
+// default grammar: matching `^- \[[ x]\] \[T-[0-9]{4}\] .` including the
+// trailing character, which requires a non-empty title.
 func isItemLine(line string) bool {
-	if len(line) < minLineLen {
-		return false
-	}
-	if line[0] != '-' || line[1] != ' ' || line[2] != '[' {
-		return false
-	}
-	if line[boxOffset] != ' ' && line[boxOffset] != 'x' {
-		return false
-	}
-	if line[4] != ']' || line[5] != ' ' || line[6] != '[' {
-		return false
-	}
-	if line[13] != ']' || line[14] != ' ' {
-		return false
-	}
-	return ID(line[idOffset : idOffset+idLen]).Valid()
+	return isItemLineG(line, DefaultIDGrammar())
+}
+
+// isItemLineG reports whether the line is a candidate item line under the
+// declared grammar.
+func isItemLineG(line string, g IDGrammar) bool {
+	_, _, _, _, ok := itemLineOffsets(line, g)
+	return ok
 }
 
 // looksLikeItemLine reports whether a line was probably meant to be an item
@@ -58,23 +96,31 @@ func looksLikeItemLine(line string) bool {
 	return strings.HasPrefix(line, "- [")
 }
 
-// parseItemLine parses one line into an Item. file and lineNo locate errors.
+// parseItemLine parses one line into an Item under the default grammar. file
+// and lineNo locate errors.
+func parseItemLine(file string, lineNo int, line string) (*Item, error) {
+	return parseItemLineG(file, lineNo, line, DefaultIDGrammar())
+}
+
+// parseItemLineG parses one line into an Item under the declared grammar. file
+// and lineNo locate errors.
 //
 // Callers must only pass lines from backlog.md and done.md. A "- [ ]" line in a
 // working file is a SUBTASK, which has no ID by design (spec-file-format.md
 // §5.2.2); parsing one as an item invents a phantom.
-func parseItemLine(file string, lineNo int, line string) (*Item, error) {
-	if !isItemLine(line) {
+func parseItemLineG(file string, lineNo int, line string, g IDGrammar) (*Item, error) {
+	box, idStart, idLen, titleStart, ok := itemLineOffsets(line, g)
+	if !ok {
 		return nil, parseErrf(file, lineNo, "malformed item line: %s", line)
 	}
 
 	it := &Item{
-		ID:     ID(line[idOffset : idOffset+idLen]),
+		ID:     ID(line[idStart : idStart+idLen]),
 		Source: Location{File: file, Line: lineNo},
-		rawBox: line[boxOffset],
+		rawBox: line[box],
 	}
 
-	parts := strings.Split(line[titleOffset:], fieldSep)
+	parts := strings.Split(line[titleStart:], fieldSep)
 	it.Title = strings.TrimSpace(parts[0])
 	if it.Title == "" {
 		return nil, parseErrf(file, lineNo, "%s has an empty title", it.ID)

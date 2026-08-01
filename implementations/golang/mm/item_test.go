@@ -16,13 +16,15 @@ func TestParseID(t *testing.T) {
 		{"T-9999", "T-9999", true},
 		{"42", "T-0042", true},   // bare number is resolved
 		{"0042", "T-0042", true}, // already padded
-		{"t-0042", "T-0042", true},
 		{" T-0042 ", "T-0042", true},
-		{"T-42", "T-0042", true}, // short digits are padded
 		{"", "", false},
 		{"T-", "", false},
-		{"T-00042", "", false}, // too wide
+		{"t-0042", "", false},   // case deviation is rejected, not repaired (§3.3.2 rule 2)
+		{"T-42", "", false},     // width mismatch (§3.3.2 rule 3)
+		{"T-00042", "", false},  // too wide
+		{"X-0042", "", false},   // a prefix the default grammar does not declare
 		{"T-004x", "", false},
+		{"00042", "", false}, // a bare number that cannot fit the width
 		{"nope", "", false},
 	}
 	for _, c := range cases {
@@ -43,11 +45,49 @@ func TestParseID(t *testing.T) {
 	}
 }
 
-func TestIDValidAndNum(t *testing.T) {
+// The same parsing rules against a declared grammar: the prefix and width come
+// from the directory, matching is exact, and the bare number resolves into the
+// declared shape.
+func TestParseIDAgainstDeclaredGrammar(t *testing.T) {
+	g := IDGrammar{Prefix: "MM", Width: 3}
+	cases := []struct {
+		in   string
+		want ID
+		ok   bool
+	}{
+		{"MM-001", "MM-001", true},
+		{"MM-999", "MM-999", true},
+		{"7", "MM-007", true},
+		{"42", "MM-042", true},
+		{"mm-001", "", false}, // case deviation
+		{"M-001", "", false},  // wrong prefix
+		{"MMM-001", "", false},
+		{"MM-1", "", false},  // wrong width
+		{"MM-0001", "", false},
+		{"T-001", "", false}, // an ID from the default grammar does not belong here
+	}
+	for _, c := range cases {
+		got, err := g.ParseID(c.in)
+		if c.ok {
+			if err != nil {
+				t.Errorf("ParseID(%q) failed: %v", c.in, err)
+			} else if got != c.want {
+				t.Errorf("ParseID(%q) = %q, want %q", c.in, got, c.want)
+			}
+			continue
+		}
+		if err == nil {
+			t.Errorf("ParseID(%q) = %q, want error", c.in, got)
+		}
+	}
+}
+
+func TestIDGrammarShapes(t *testing.T) {
+	// ValidID, Num and NewID follow the declared grammar.
 	if !ID("T-0042").Valid() || ID("T-0042").Num() != 42 {
 		t.Error("T-0042 should be valid with num 42")
 	}
-	for _, bad := range []ID{"", "T-42", "X-0042", "T-004a", "T-00042"} {
+	for _, bad := range []ID{"", "T-42", "t-0042", "X-0042", "T-004a", "T-00042"} {
 		if bad.Valid() {
 			t.Errorf("%q should be invalid", bad)
 		}
@@ -57,6 +97,82 @@ func TestIDValidAndNum(t *testing.T) {
 	}
 	if NewID(7) != "T-0007" {
 		t.Errorf("NewID(7) = %q", NewID(7))
+	}
+
+	g := IDGrammar{Prefix: "MM", Width: 3}
+	if !g.ValidID("MM-007") || g.ValidID("MM-07") || g.ValidID("mm-007") || g.ValidID("T-007") {
+		t.Error("MM/3 grammar not honoured by ValidID")
+	}
+	if g.Num("MM-007") != 7 || g.Num("MM-07") != -1 {
+		t.Errorf("Num = %d, %d", g.Num("MM-007"), g.Num("MM-07"))
+	}
+	if g.NewID(7) != "MM-007" {
+		t.Errorf("NewID = %q", g.NewID(7))
+	}
+}
+
+func TestIDGrammarCap(t *testing.T) {
+	if c := DefaultIDGrammar().Cap(); c != 9999 {
+		t.Errorf("default cap = %d, want 9999", c)
+	}
+	for width, want := range map[int]int{1: 9, 2: 99, 3: 999, 4: 9999, 5: 99999} {
+		if c := (IDGrammar{Prefix: "T", Width: width}).Cap(); c != want {
+			t.Errorf("width %d cap = %d, want %d", width, c, want)
+		}
+	}
+}
+
+func TestParseIDGrammar(t *testing.T) {
+	fm := NewFrontmatter()
+	g, vs, warns := ParseIDGrammar(fm)
+	if g != DefaultIDGrammar() {
+		t.Errorf("absent keys must mean the defaults, got %v", g)
+	}
+	if len(vs) != 0 || len(warns) != 0 {
+		t.Errorf("an empty frontmatter produced %d violations %d warnings", len(vs), len(warns))
+	}
+
+	// Either key alone takes its own default (rule 2).
+	fm = NewFrontmatter()
+	fm.Set("id_prefix", "MM")
+	g, vs, warns = ParseIDGrammar(fm)
+	if g != (IDGrammar{Prefix: "MM", Width: 4}) || len(vs) != 0 || len(warns) != 0 {
+		t.Errorf("prefix alone: %v, %v, %v", g, vs, warns)
+	}
+
+	fm = NewFrontmatter()
+	fm.Set("id_width", "3")
+	g, vs, warns = ParseIDGrammar(fm)
+	if g != (IDGrammar{Prefix: "T", Width: 3}) || len(vs) != 0 || len(warns) != 0 {
+		t.Errorf("width alone: %v, %v, %v", g, vs, warns)
+	}
+
+	// A width outside the RECOMMENDED 3-6 range warns but never fails.
+	for _, w := range []string{"1", "2", "7", "12"} {
+		fm = NewFrontmatter()
+		fm.Set("id_width", w)
+		g, vs, warns = ParseIDGrammar(fm)
+		if len(vs) != 0 || len(warns) != 1 {
+			t.Errorf("width %s: %d violations %d warnings, want just one warning", w, len(vs), len(warns))
+		}
+	}
+
+	// Invalid declarations are violations, with the default standing in.
+	for _, p := range []string{"t", "Tt", "ABCDE", ""} {
+		fm = NewFrontmatter()
+		fm.Set("id_prefix", p)
+		g, vs, warns = ParseIDGrammar(fm)
+		if len(vs) != 1 || g.Prefix != "T" || len(warns) != 0 {
+			t.Errorf("prefix %q: grammar %v, %d violations, %d warnings", p, g, len(vs), len(warns))
+		}
+	}
+	for _, w := range []string{"abc", "0", "-2", ""} {
+		fm = NewFrontmatter()
+		fm.Set("id_width", w)
+		g, vs, warns = ParseIDGrammar(fm)
+		if len(vs) != 1 || g.Width != 4 || len(warns) != 0 {
+			t.Errorf("width %q: grammar %v, %d violations, %d warnings", w, g, len(vs), len(warns))
+		}
 	}
 }
 

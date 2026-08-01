@@ -71,6 +71,7 @@ Run 'mm --help --OPERATION' for one operation's switches.
 // operationUsage is the per-operation help. The key is the operation switch.
 var operationUsage = map[Op]string{
 	OpInit: `mm --init --project NAME [--dir PATH] [--slots N] [--slot-width W]
+             [--prefix P] [--id-width N]
 
 Creates backlog.md, done.md, N working files, details/_template.md and
 structure.md. Without --dir, creates ./micro-manager.
@@ -79,6 +80,9 @@ structure.md. Without --dir, creates ./micro-manager.
   --slots N                 how many working files, and so the WIP limit (1)
                             (not --wip: that is the operation that changes it)
   --slot-width W            digits in working.NN.md (2)
+  --prefix P                the ID prefix: one to four uppercase letters (T).
+                            Declared once, read by every other operation
+  --id-width N              digits in item IDs (4; 3-6 recommended)
 `,
 	OpAdd: `mm --add TITLE [--prio P] [--tag T]... [--section S] [--top]
               [--blocked REASON] [--created DATE]

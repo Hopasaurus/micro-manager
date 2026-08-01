@@ -10,9 +10,11 @@ import (
 
 // The check view (spec-gui.md §5.8).
 //
-// It runs Store.Validate and nothing else - the same call the CLI's --check
-// makes and the same one every mutation runs before it commits, so the view, the
-// command line and the tool's own guard cannot disagree about what is wrong.
+// It runs Store.Validate and nothing else - the same call every mutation runs
+// before it commits, so the view and the tool's own guard cannot disagree
+// about what is wrong. (The CLI's --check also surfaces non-fatal warnings
+// through ValidateWithWarnings; surfacing them in the GUI is the T-0117
+// grammar work.)
 
 // checkData is the check view model.
 type checkData struct {

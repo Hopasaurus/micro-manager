@@ -123,6 +123,7 @@ var valueModifiers = map[string]bool{
 	"created": true, "started": true, "done": true, "outcome": true,
 	"detail-text": true, "detail-file": true, "slot": true,
 	"project": true, "slots": true, "slot-width": true,
+	"prefix": true, "id-width": true,
 	"period": true, "week": true, "since": true, "until": true,
 	"group-by": true, "state": true, "limit": true,
 	"reason": true, "closing-note": true,
@@ -410,12 +411,19 @@ func editDistance(a, b string) int {
 	return prev[len(b)]
 }
 
-// ParseID accepts the full form and the bare number, because typing the prefix
-// is friction the format imposes for machine reasons (§3.3 rule 4).
-func ParseID(s string) (mm.ID, error) {
-	id, err := mm.ParseID(s)
+// parseIDIn resolves an ID argument against a directory's declared grammar
+// (spec-tools.md §3.3 rule 4, spec-file-format.md §3.3.2).
+//
+// Loosen here, validate there: the full form ("X-001") and the bare number
+// ("1") are both accepted, and the library's ParseID applies the directory's
+// grammar strictly - exact prefix, exact case, exact width - so an ID from
+// another grammar is rejected rather than repaired. The grammar is the
+// caller's to supply; it is read once from the opened directory before any
+// argument is interpreted (rule 4).
+func parseIDIn(s string, g mm.IDGrammar) (mm.ID, error) {
+	id, err := g.ParseID(s)
 	if err != nil {
-		return "", usagef("%q is not an item id; expected T-0042, or just 42", s)
+		return "", usagef("%q is not an item id; expected %s, or just 42", s, g.NewID(42))
 	}
 	return id, nil
 }

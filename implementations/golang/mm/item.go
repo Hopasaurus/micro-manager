@@ -10,62 +10,62 @@ import (
 // ID
 // ---------------------------------------------------------------------------
 
-// ID identifies an item permanently: "T-" plus exactly four digits, zero
-// padded (spec-file-format.md §3.3). IDs are never reused and never renumbered.
+// ID identifies an item permanently: the directory's declared prefix, a
+// hyphen, and exactly its declared number of zero-padded digits - by default
+// "T-" plus four (spec-file-format.md §3.3.2). IDs are never reused and never
+// renumbered.
 type ID string
 
-// ParseID accepts the canonical form "T-0042". It also accepts a bare number
-// ("42", "0042") and pads it, because typing the prefix is friction the format
-// imposes for machine reasons (spec-tools.md §3.3 rule 4).
-func ParseID(s string) (ID, error) {
+// ParseID parses s as an ID in the default grammar: "T-" plus four digits.
+func ParseID(s string) (ID, error) { return DefaultIDGrammar().ParseID(s) }
+
+// ParseID parses s as an ID in the declared grammar: the prefix, a hyphen, and
+// exactly g.Width zero-padded digits. Matching is exact - a case deviation or a
+// wrong width is rejected, not repaired, because an ID that does not match the
+// directory's declared grammar belongs to a different grammar and a different
+// counter (§3.3.2 rules 1-2).
+//
+// A bare number ("42", "0042") is still accepted and padded, because typing
+// the prefix is friction the format imposes for machine reasons (spec-tools.md
+// §3.3 rule 4).
+func (g IDGrammar) ParseID(s string) (ID, error) {
 	s = strings.TrimSpace(s)
-	digits := s
-	if strings.HasPrefix(s, "T-") || strings.HasPrefix(s, "t-") {
-		digits = s[2:]
+	bad := func() (ID, error) {
+		return "", fmt.Errorf("%w: %q is not a %s id", ErrInvalidArgument, s, g)
 	}
-	if digits == "" || len(digits) > 4 {
-		return "", fmt.Errorf("%w: %q is not an item id", ErrInvalidArgument, s)
+	if s == "" {
+		return bad()
 	}
-	for _, r := range digits {
-		if r < '0' || r > '9' {
-			return "", fmt.Errorf("%w: %q is not an item id", ErrInvalidArgument, s)
+	if isDigits(s) { // a bare number, resolved to the declared grammar
+		if len(s) > g.Width {
+			return bad() // a number that cannot fit the width
 		}
+		n, _ := strconv.Atoi(s)
+		return g.NewID(n), nil
 	}
-	n, err := strconv.Atoi(digits)
-	if err != nil {
-		return "", fmt.Errorf("%w: %q is not an item id", ErrInvalidArgument, s)
+	dash := strings.Index(s, "-")
+	if dash != len(g.Prefix) || s[:dash] != g.Prefix {
+		return bad()
 	}
-	return NewID(n), nil
+	digits := s[dash+1:]
+	if len(digits) != g.Width || !isDigits(digits) {
+		return bad()
+	}
+	return ID(s), nil
 }
 
-// NewID formats n as an ID. n is not range checked here; the caller allocating
-// from next_id is responsible for staying below 10000.
-func NewID(n int) ID { return ID(fmt.Sprintf("T-%04d", n)) }
+// NewID formats n as an ID in the default grammar. n is not range checked
+// here; the caller allocating from next_id is responsible for staying below
+// the counter cap.
+func NewID(n int) ID { return DefaultIDGrammar().NewID(n) }
 
-// Num returns the numeric part of the ID, or -1 if it is not well formed.
-func (id ID) Num() int {
-	if !id.Valid() {
-		return -1
-	}
-	n, err := strconv.Atoi(string(id[2:]))
-	if err != nil {
-		return -1
-	}
-	return n
-}
+// Num returns the numeric part of the ID in the default grammar, or -1 if it
+// is not well formed.
+func (id ID) Num() int { return DefaultIDGrammar().Num(string(id)) }
 
-// Valid reports whether the ID is exactly "T-" plus four digits.
-func (id ID) Valid() bool {
-	if len(id) != 6 || id[0] != 'T' || id[1] != '-' {
-		return false
-	}
-	for i := 2; i < 6; i++ {
-		if id[i] < '0' || id[i] > '9' {
-			return false
-		}
-	}
-	return true
-}
+// Valid reports whether the ID matches the default grammar exactly: the
+// prefix, a hyphen, and exactly four digits.
+func (id ID) Valid() bool { return DefaultIDGrammar().ValidID(string(id)) }
 
 func (id ID) String() string { return string(id) }
 
@@ -383,9 +383,15 @@ type Directory struct {
 	ProjectID string // spec-gui.md §3.1; how a URI addresses this directory
 	Project   string // the project frontmatter value
 	NextID    ID
-	Slots     []Slot
-	WipLimit  int // == len(Slots)
-	WipUsed   int
+
+	// The declared ID grammar (spec-file-format.md §3.3.2). Absent keys mean
+	// the defaults, exactly as if they were written.
+	IDPrefix string // id_prefix; "T" when absent
+	IDWidth  int    // id_width; 4 when absent
+
+	Slots    []Slot
+	WipLimit int // == len(Slots)
+	WipUsed  int
 }
 
 // ---------------------------------------------------------------------------

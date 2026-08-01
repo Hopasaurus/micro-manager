@@ -62,6 +62,7 @@ type dirModel struct {
 	entries []string               // the directory listing
 	stamps  map[string]stamp       // path -> as read
 	parseVs []Violation
+	warnVs  []Violation // non-fatal findings, e.g. id_width outside 3-6
 }
 
 // load reads every file of the directory into one model.
@@ -90,19 +91,26 @@ func (s *Store) load() (*dirModel, error) {
 		return data, true
 	}
 
+	// The ID grammar is declared in backlog.md frontmatter (§3.3.2), and must
+	// be read BEFORE any other ID is interpreted (rule 4), so backlog.md parses
+	// first and done.md and the working files inherit its grammar.
+	var g IDGrammar
 	if data, ok := read("backlog.md"); ok {
 		var vs []Violation
 		m.backlog, vs = parseBacklog("backlog.md", data)
 		m.parseVs = append(m.parseVs, vs...)
+		m.warnVs = append(m.warnVs, m.backlog.warnings...)
+		g = m.backlog.grammar
 	} else {
 		m.parseVs = append(m.parseVs, Violation{
 			Invariant: invFormat, At: Location{File: "backlog.md"}, Message: "missing",
 		})
+		g = DefaultIDGrammar()
 	}
 
 	if data, ok := read("done.md"); ok {
 		var vs []Violation
-		m.done, vs = parseDone("done.md", data)
+		m.done, vs = parseDoneG("done.md", data, g)
 		m.parseVs = append(m.parseVs, vs...)
 	} else {
 		m.parseVs = append(m.parseVs, Violation{
@@ -117,7 +125,7 @@ func (s *Store) load() (*dirModel, error) {
 		if !ok {
 			continue
 		}
-		w, vs := parseWorking(name, data)
+		w, vs := parseWorkingG(name, data, g)
 		m.working = append(m.working, w)
 		m.parseVs = append(m.parseVs, vs...)
 	}
@@ -155,6 +163,19 @@ func detailNames(dir string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// grammar returns the directory's declared ID grammar (§3.3.2). The
+// declaration lives in backlog.md frontmatter; without one the default
+// applies. An invalid declaration has already been reported by ParseIDGrammar
+// at parse time, so the default stands in here and the directory still
+// parses.
+func (m *dirModel) grammar() IDGrammar {
+	if m.backlog == nil {
+		return DefaultIDGrammar()
+	}
+	g, _, _ := ParseIDGrammar(m.backlog.FM)
+	return g
 }
 
 // items returns every item in the directory, in a stable order: backlog by
@@ -223,6 +244,9 @@ func (m *dirModel) directory() Directory {
 	if m.backlog != nil {
 		d.Project = m.backlog.FM.Get("project")
 		d.NextID = ID(m.backlog.FM.Get("next_id"))
+		g := m.grammar()
+		d.IDPrefix = g.Prefix
+		d.IDWidth = g.Width
 	}
 	return d
 }
@@ -302,13 +326,28 @@ func (s *Store) Get(id ID) (Item, error) {
 // line. Violations are results, not errors: an error here would mean the
 // directory could not be read at all.
 func (s *Store) Validate() ([]Violation, error) {
+	vs, _, err := s.ValidateWithWarnings()
+	return vs, err
+}
+
+// ValidateWithWarnings runs every invariant and returns the findings plus the
+// non-fatal warnings, both sorted by file then numeric line. A warning is a
+// finding that does not make the directory invalid - an id_width outside the
+// RECOMMENDED 3-6 range (spec-file-format.md §3.3.2 rule 3) - so it must never
+// fail --check, and the two slices are kept apart to keep that distinction
+// visible.
+func (s *Store) ValidateWithWarnings() ([]Violation, []Violation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m, err := s.load()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return m.validate(), nil
+	vs := m.validate()
+	ws := append([]Violation{}, m.warnVs...)
+	sortViolations(vs)
+	sortViolations(ws)
+	return vs, ws, nil
 }
 
 func hasTag(tags []string, want string) bool {

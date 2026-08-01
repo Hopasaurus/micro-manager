@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"micromanager/mm"
 )
 
 func mustParse(t *testing.T, args ...string) *Invocation {
@@ -117,10 +119,12 @@ func TestParseDoubleDashEndsSwitches(t *testing.T) {
 }
 
 // §3.3 rule 4: the bare number is accepted, because typing the prefix is
-// friction the format imposes for machine reasons.
+// friction the format imposes for machine reasons. Matching is otherwise exact:
+// a case deviation is rejected, not repaired (spec-file-format.md §3.3.2 rule 2).
 func TestParseIDForms(t *testing.T) {
-	for _, s := range []string{"T-0042", "t-0042", "42", "0042"} {
-		id, err := ParseID(s)
+	g := mm.DefaultIDGrammar()
+	for _, s := range []string{"T-0042", "42", "0042"} {
+		id, err := parseIDIn(s, g)
 		if err != nil {
 			t.Errorf("%q: %v", s, err)
 			continue
@@ -129,9 +133,38 @@ func TestParseIDForms(t *testing.T) {
 			t.Errorf("%q -> %q, want T-0042", s, id)
 		}
 	}
-	for _, s := range []string{"", "abc", "T-", "99999", "T-00042"} {
-		if _, err := ParseID(s); err == nil {
+	for _, s := range []string{"", "abc", "T-", "t-0042", "T-42", "99999", "T-00042"} {
+		if _, err := parseIDIn(s, g); err == nil {
 			t.Errorf("%q should not parse as an id", s)
+		}
+	}
+}
+
+// TestParseIDInDeclaredGrammar is the CLI half of the loosen-and-validate
+// contract (spec-tools.md §3.3 rule 4, spec-file-format.md §3.3.2): the CLI
+// accepts the directory's own form plus the bare number, and anything from
+// another grammar is a usage error, not a repair.
+func TestParseIDInDeclaredGrammar(t *testing.T) {
+	g := mm.IDGrammar{Prefix: "X", Width: 3}
+	for s, want := range map[string]mm.ID{
+		"X-001": "X-001",
+		"1":     "X-001",
+		"001":   "X-001",
+		"X-042": "X-042",
+		"42":    "X-042",
+	} {
+		id, err := parseIDIn(s, g)
+		if err != nil {
+			t.Errorf("%q: %v", s, err)
+			continue
+		}
+		if id != want {
+			t.Errorf("%q -> %q, want %q", s, id, want)
+		}
+	}
+	for _, s := range []string{"T-001", "x-001", "X-1", "X-0001", "M-001", "9999"} {
+		if _, err := parseIDIn(s, g); err == nil {
+			t.Errorf("%q should not parse against %s", s, g)
 		}
 	}
 }

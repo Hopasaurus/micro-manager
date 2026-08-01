@@ -28,7 +28,7 @@ func runCheck(env Env, in *Invocation) error {
 	// Collected as well as printed: --json reports the findings as structured
 	// data, and an operation cannot print as it goes and then be asked for one
 	// object at the end.
-	var results []checkResult
+	results := make([]checkResult, 0, len(dirs))
 
 	total := 0
 	problems := 0
@@ -37,7 +37,9 @@ func runCheck(env Env, in *Invocation) error {
 		if err != nil {
 			return err
 		}
-		violations, err := store.Validate()
+		// Warnings are a separate stream from violations (§3.3.2 rule 3): a
+		// width outside 3-6 is reported but never a failure.
+		violations, warnings, err := store.ValidateWithWarnings()
 		if err != nil {
 			return err
 		}
@@ -48,8 +50,13 @@ func runCheck(env Env, in *Invocation) error {
 
 		results = append(results, checkResult{
 			Path: path, Project: dir.Project, Violations: violations,
+			Warnings: warnings,
 		})
 
+		for _, w := range warnings {
+			fmt.Fprintf(env.Stderr, "mm: warning: %s/%s: %s\n",
+				dirLabel(env.Cwd, path), w.At, w.Message)
+		}
 		// file:line: message, sorted by path then numeric line — the format is
 		// the reference checker's, so the two are diffable against each other.
 		for _, v := range violations {
@@ -93,6 +100,7 @@ type checkResult struct {
 	Path       string
 	Project    string
 	Violations []mm.Violation
+	Warnings   []mm.Violation
 }
 
 // checkFailed carries "the check found problems" to the exit code without

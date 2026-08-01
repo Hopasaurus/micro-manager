@@ -20,8 +20,6 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0114] Library: honor the directory's declared ID grammar (id_prefix/id_width) | tags:library,format | detail:details/T-0114.md | created:2026-08-01
-- [ ] [T-0115] CLI: --init --prefix/--id-width and per-directory ID parsing | tags:cli | detail:details/T-0115.md | created:2026-08-01
 - [ ] [T-0116] check.sh and the Go validator agree on the declared ID grammar (fixture corpus) | tags:check,format | detail:details/T-0116.md | created:2026-08-01
 - [ ] [T-0117] GUI: non-default prefix and width end to end | tags:gui | detail:details/T-0117.md | created:2026-08-01
 - [ ] [T-0118] Per-task ID prefixes: per-prefix counters and I2 per counter (gated on the spec decision) | tags:format,spike | detail:details/T-0118.md | created:2026-08-01

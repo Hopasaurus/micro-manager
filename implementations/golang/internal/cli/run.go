@@ -39,12 +39,18 @@ func dispatch(env Env, in *Invocation) error {
 	if in.Verbose {
 		fmt.Fprintf(env.Stderr, "directory: %s (from %s)\n", res.Path, res.Source)
 	}
+	// The directory's declared ID grammar is resolved ONCE, before any ID
+	// argument is interpreted (spec-file-format.md §3.3.2 rule 4). --add,
+	// --show and friends all parse their subjects against this grammar, and the
+	// library validates strictly on the way in.
+	g := mm.DefaultIDGrammar()
 	if d, err := store.Directory(); err == nil {
 		env.json.directory = toJSONDirectory(d)
+		g = mm.IDGrammar{Prefix: d.IDPrefix, Width: d.IDWidth}
 	}
 	// §9.2: an error carries the id "where applicable". Recorded once here so
 	// that a failure anywhere below names the item the user asked about.
-	if id, err := ParseID(in.Subject); err == nil {
+	if id, err := parseIDIn(in.Subject, g); err == nil {
 		env.json.subject = string(id)
 	}
 
@@ -54,29 +60,29 @@ func dispatch(env Env, in *Invocation) error {
 	case OpList:
 		return runList(env, in, store)
 	case OpShow:
-		return runShow(env, in, store)
+		return runShow(env, in, store, g)
 	case OpEdit:
-		return runEdit(env, in, store)
+		return runEdit(env, in, store, g)
 	case OpRemove:
-		return runRemove(env, in, store)
+		return runRemove(env, in, store, g)
 	case OpMove:
-		return runMove(env, in, store)
+		return runMove(env, in, store, g)
 	case OpStart:
-		return runStart(env, in, store)
+		return runStart(env, in, store, g)
 	case OpPause:
-		return runPause(env, in, store)
+		return runPause(env, in, store, g)
 	case OpFinish:
-		return runFinish(env, in, store)
+		return runFinish(env, in, store, g)
 	case OpReport:
 		return runReport(env, in, store)
 	case OpWip:
 		return runWip(env, in, store)
 	case OpBlock:
-		return runBlock(env, in, store)
+		return runBlock(env, in, store, g)
 	case OpUnblock:
-		return runUnblock(env, in, store)
+		return runUnblock(env, in, store, g)
 	case OpNote:
-		return runNote(env, in, store)
+		return runNote(env, in, store, g)
 	case OpStatus:
 		return runStatus(env, in, store)
 	case OpNext:
@@ -130,6 +136,41 @@ func runInit(env Env, in *Invocation) error {
 			return usagef("--slot-width takes a number, got %q", v)
 		}
 		req.SlotWidth = n
+	}
+	// The ID grammar is declared once, at init, and read back by every other
+	// operation (spec-file-format.md §3.3.2). An invalid prefix or width is a
+	// usage error from the library, exactly like the other bad values.
+	if v := in.Value("prefix"); v != "" {
+		req.IDPrefix = v
+	}
+	if v := in.Value("id-width"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return usagef("--id-width takes a number, got %q", v)
+		}
+		// Zero is the library's "not given" value, so it must never reach Init
+		// as an explicit request: --id-width 0 would otherwise be silently
+		// ignored.
+		if n < 1 {
+			return usagef("--id-width must be at least 1, got %d", n)
+		}
+		req.IDWidth = n
+	}
+
+	// The width range is a recommendation, not a rule (§3.3.2 rule 3): warn
+	// when creating a directory that declares an unusual width, never fail.
+	g := mm.DefaultIDGrammar()
+	if req.IDPrefix != "" {
+		g.Prefix = req.IDPrefix
+	}
+	if req.IDWidth != 0 {
+		g.Width = req.IDWidth
+	}
+	if msg := g.WidthWarning(); msg != "" {
+		env.json.warn(msg)
+		if !in.Quiet && !in.JSON && !in.Porcelain {
+			fmt.Fprintf(env.Stderr, "mm: warning: %s\n", msg)
+		}
 	}
 
 	_, res, err := mm.Init(target, req, env.Today)
@@ -288,8 +329,8 @@ func runList(env Env, in *Invocation, s *mm.Store) error {
 	return nil
 }
 
-func runShow(env Env, in *Invocation, s *mm.Store) error {
-	id, err := subjectID(in, "--show")
+func runShow(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
+	id, err := subjectID(in, "--show", g)
 	if err != nil {
 		return err
 	}
@@ -311,8 +352,8 @@ func runShow(env Env, in *Invocation, s *mm.Store) error {
 	return nil
 }
 
-func runEdit(env Env, in *Invocation, s *mm.Store) error {
-	id, err := subjectID(in, "--edit")
+func runEdit(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
+	id, err := subjectID(in, "--edit", g)
 	if err != nil {
 		return err
 	}
@@ -370,8 +411,8 @@ func runEdit(env Env, in *Invocation, s *mm.Store) error {
 	return nil
 }
 
-func runRemove(env Env, in *Invocation, s *mm.Store) error {
-	id, err := subjectID(in, "--remove")
+func runRemove(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
+	id, err := subjectID(in, "--remove", g)
 	if err != nil {
 		return err
 	}
@@ -393,8 +434,8 @@ func runRemove(env Env, in *Invocation, s *mm.Store) error {
 	return nil
 }
 
-func runMove(env Env, in *Invocation, s *mm.Store) error {
-	id, err := subjectID(in, "--move")
+func runMove(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
+	id, err := subjectID(in, "--move", g)
 	if err != nil {
 		return err
 	}
@@ -412,14 +453,14 @@ func runMove(env Env, in *Invocation, s *mm.Store) error {
 		req.Position = n
 	}
 	if v := in.Value("before"); v != "" {
-		bid, err := ParseID(v)
+		bid, err := parseIDIn(v, g)
 		if err != nil {
 			return err
 		}
 		req.Before = bid
 	}
 	if v := in.Value("after"); v != "" {
-		aid, err := ParseID(v)
+		aid, err := parseIDIn(v, g)
 		if err != nil {
 			return err
 		}
@@ -444,8 +485,8 @@ func runMove(env Env, in *Invocation, s *mm.Store) error {
 	return nil
 }
 
-func runStart(env Env, in *Invocation, s *mm.Store) error {
-	id, err := subjectID(in, "--start")
+func runStart(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
+	id, err := subjectID(in, "--start", g)
 	if err != nil {
 		return err
 	}
@@ -468,8 +509,8 @@ func runStart(env Env, in *Invocation, s *mm.Store) error {
 	return nil
 }
 
-func runPause(env Env, in *Invocation, s *mm.Store) error {
-	id, err := subjectID(in, "--pause")
+func runPause(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
+	id, err := subjectID(in, "--pause", g)
 	if err != nil {
 		return err
 	}
@@ -500,8 +541,8 @@ func runPause(env Env, in *Invocation, s *mm.Store) error {
 	return nil
 }
 
-func runFinish(env Env, in *Invocation, s *mm.Store) error {
-	id, err := subjectID(in, "--finish")
+func runFinish(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
+	id, err := subjectID(in, "--finish", g)
 	if err != nil {
 		return err
 	}
@@ -541,8 +582,8 @@ func runFinish(env Env, in *Invocation, s *mm.Store) error {
 // --block and --unblock are SUGAR OVER --move (spec-tools.md §5.2). They call
 // the same operation with the section set, rather than being a second path that
 // writes a blocked: field — two paths into I5 would eventually disagree.
-func runBlock(env Env, in *Invocation, s *mm.Store) error {
-	id, err := subjectID(in, "--block")
+func runBlock(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
+	id, err := subjectID(in, "--block", g)
 	if err != nil {
 		return err
 	}
@@ -568,8 +609,8 @@ func runBlock(env Env, in *Invocation, s *mm.Store) error {
 	return nil
 }
 
-func runUnblock(env Env, in *Invocation, s *mm.Store) error {
-	id, err := subjectID(in, "--unblock")
+func runUnblock(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
+	id, err := subjectID(in, "--unblock", g)
 	if err != nil {
 		return err
 	}
@@ -590,8 +631,8 @@ func runUnblock(env Env, in *Invocation, s *mm.Store) error {
 	return nil
 }
 
-func runNote(env Env, in *Invocation, s *mm.Store) error {
-	id, err := subjectID(in, "--note")
+func runNote(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
+	id, err := subjectID(in, "--note", g)
 	if err != nil {
 		return err
 	}
@@ -845,12 +886,13 @@ func runSearch(env Env, in *Invocation, s *mm.Store) error {
 	return nil
 }
 
-// subjectID reads the operation's own value as an item ID.
-func subjectID(in *Invocation, op string) (mm.ID, error) {
+// subjectID reads the operation's own value as an item ID, in the directory's
+// declared grammar.
+func subjectID(in *Invocation, op string, g mm.IDGrammar) (mm.ID, error) {
 	if in.Subject == "" {
 		return "", usagef("%s needs an item id", op)
 	}
-	return ParseID(in.Subject)
+	return parseIDIn(in.Subject, g)
 }
 
 // dirLabel shortens a path for display, relative to the working directory.

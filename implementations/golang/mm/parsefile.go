@@ -33,12 +33,20 @@ type sectionSpan struct {
 //
 // Lines is retained verbatim so that an unmodified file can be written back byte
 // for byte, and so that an edit rewrites only the lines it touches (T-0008).
+//
+// grammar is the directory's declared ID grammar (§3.3.2), read from this
+// file's own frontmatter BEFORE any item line is interpreted (rule 4). warnings
+// carries the non-fatal findings about that declaration - an id_width outside
+// the RECOMMENDED 3-6 range - which never block a write.
 type backlogFile struct {
 	Name     string
 	FM       *Frontmatter
 	Lines    []string
 	Sections []*sectionSpan // in file order
 	Items    []*Item        // every item, in file order
+
+	grammar  IDGrammar
+	warnings []Violation
 
 	edit *fileEdit // set by Edit(); the live view of Lines
 }
@@ -106,10 +114,17 @@ func headingName(line string) (string, bool) {
 }
 
 // parseBacklog reads backlog.md.
+//
+// The ID grammar is read from this file's frontmatter first (§3.3.2 rule 4:
+// readers MUST read the declaration before interpreting any ID), then used to
+// locate the item lines of this file. done.md and the working files inherit
+// the same grammar from the caller.
 func parseBacklog(name string, data []byte) (*backlogFile, []Violation) {
 	lines := splitLines(data)
 	fm, body, vs := readHeader(name, lines)
-	b := &backlogFile{Name: name, FM: fm, Lines: lines}
+	g, gvs, gwarns := ParseIDGrammar(fm)
+	vs = append(vs, gvs...)
+	b := &backlogFile{Name: name, FM: fm, Lines: lines, grammar: g, warnings: gwarns}
 
 	var cur *sectionSpan
 	for i := body; i < len(lines); i++ {
@@ -135,7 +150,7 @@ func parseBacklog(name string, data []byte) (*backlogFile, []Violation) {
 		if !looksLikeItemLine(line) {
 			continue
 		}
-		it, err := parseItemLine(name, lineNo, line)
+		it, err := parseItemLineG(name, lineNo, line, g)
 		if err != nil {
 			vs = append(vs, violationFrom(invFormat, name, lineNo, err))
 			continue
@@ -151,8 +166,15 @@ func parseBacklog(name string, data []byte) (*backlogFile, []Violation) {
 	return b, vs
 }
 
-// parseDone reads done.md.
+// parseDone reads done.md under the default grammar.
 func parseDone(name string, data []byte) (*doneFile, []Violation) {
+	return parseDoneG(name, data, DefaultIDGrammar())
+}
+
+// parseDoneG reads done.md. The ID grammar comes from the directory's
+// backlog.md (§3.3.2 rule 1: one grammar per directory, declared once); done.md
+// itself carries no declaration.
+func parseDoneG(name string, data []byte, g IDGrammar) (*doneFile, []Violation) {
 	lines := splitLines(data)
 	fm, body, vs := readHeader(name, lines)
 	d := &doneFile{Name: name, FM: fm, Lines: lines}
@@ -181,7 +203,7 @@ func parseDone(name string, data []byte) (*doneFile, []Violation) {
 		if !looksLikeItemLine(line) {
 			continue
 		}
-		it, err := parseItemLine(name, lineNo, line)
+		it, err := parseItemLineG(name, lineNo, line, g)
 		if err != nil {
 			vs = append(vs, violationFrom(invFormat, name, lineNo, err))
 			continue
