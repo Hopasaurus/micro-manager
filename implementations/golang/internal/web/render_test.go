@@ -126,6 +126,60 @@ func TestBrokenTemplateFailsAtParse(t *testing.T) {
 	}
 }
 
+// A page may only reference definitions its own set contains: layout, itself,
+// and partials/. Go resolves {{template}} at EXECUTION, so a page reaching for
+// something defined in ANOTHER page parses cleanly and 500s only on the one
+// route that renders it.
+//
+// That is exactly how "Save and add another" shipped broken: board.html's
+// panel-replace-oob referenced item-panel while item-panel was defined inside
+// item.html, so every page loaded and the button answered
+// `no such template "item-panel"` (T-0103).
+func TestCrossPageTemplateReferenceFailsAtParse(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("layout.html", `{{define "layout"}}<html>{{template "content" .}}</html>{{end}}`)
+	// "panel" is defined by the item page, and the board page reaches for it.
+	write("item.html", `{{define "content"}}{{template "panel" .}}{{end}}{{define "panel"}}<aside></aside>{{end}}`)
+	write("board.html", `{{define "content"}}<main>{{template "panel" .}}</main>{{end}}`)
+
+	_, err := newRenderer(os.DirFS(dir), templateFuncs(), false)
+	if err == nil {
+		t.Fatal("a page referencing another page's template was accepted")
+	}
+	if !strings.Contains(err.Error(), "board") {
+		t.Errorf("the error must name the page, got %q", err)
+	}
+	if !strings.Contains(err.Error(), "panel") {
+		t.Errorf("the error must name the missing template, got %q", err)
+	}
+}
+
+// The same definition in partials/ is shared, which is the fix the error above
+// points at — so this must keep working.
+func TestPartialsAreSharedAcrossPages(t *testing.T) {
+	r := testRenderer(t, map[string]string{
+		"layout.html":         `{{define "layout"}}<html>{{template "content" .}}</html>{{end}}`,
+		"item.html":           `{{define "content"}}{{template "panel" .}}{{end}}`,
+		"board.html":          `{{define "content"}}<main>{{template "panel" .}}</main>{{end}}`,
+		"partials/panel.html": `{{define "panel"}}<aside>panel</aside>{{end}}`,
+	})
+
+	for _, page := range []string{"item", "board"} {
+		var buf bytes.Buffer
+		if err := r.renderFragment(&buf, page, "panel", nil); err != nil {
+			t.Fatalf("%s cannot render the shared partial: %v", page, err)
+		}
+		if !strings.Contains(buf.String(), "panel") {
+			t.Errorf("%s rendered the partial as %q", page, buf.String())
+		}
+	}
+}
+
 func TestUnknownPageAndFragment(t *testing.T) {
 	r := testRenderer(t, map[string]string{
 		"layout.html": `{{define "layout"}}{{template "content" .}}{{end}}`,

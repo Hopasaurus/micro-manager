@@ -77,6 +77,12 @@ func dispatch(env Env, in *Invocation) error {
 		return runUnblock(env, in, store)
 	case OpNote:
 		return runNote(env, in, store)
+	case OpStatus:
+		return runStatus(env, in, store)
+	case OpNext:
+		return runNext(env, in, store)
+	case OpSearch:
+		return runSearch(env, in, store)
 	}
 	return usagef("--%s is not implemented", in.Op)
 }
@@ -758,6 +764,84 @@ func runFind(env Env, in *Invocation) error {
 		env.json.warn("the scan hit a limit; results may be incomplete")
 	}
 	renderFind(env, found)
+	return nil
+}
+
+// runStatus is --status (spec-tools.md §5.2): one screen over the whole
+// directory — slots, WIP n/N, counts by section, next, and the oldest Ready
+// item nobody has started. One call answers all of it, so the screen cannot
+// show two moments in time.
+func runStatus(env Env, in *Invocation, s *mm.Store) error {
+	st, err := s.Status()
+	if err != nil {
+		return err
+	}
+	env.json.setResult(toJSONStatus(st))
+	env.porcelain.status(st)
+	renderStatus(env, in, st)
+	return nil
+}
+
+// runNext is --next: the top of ## Ready, or a not-found exit so a script can
+// stop rather than start something arbitrary.
+func runNext(env Env, in *Invocation, s *mm.Store) error {
+	item, err := s.Next()
+	if err != nil {
+		return err
+	}
+	env.json.setResult(toJSONItem(item))
+	env.porcelain.item(item)
+	renderNext(env, in, item)
+	return nil
+}
+
+// runSearch is --search: the same match the GUI's search-input and the board's
+// ?q= filter use, because the library owns the matcher and the front ends only
+// pass a query (T-0042).
+func runSearch(env Env, in *Invocation, s *mm.Store) error {
+	query := in.Subject
+	if query == "" && len(in.Rest) > 0 {
+		query = strings.Join(in.Rest, " ")
+	}
+	if query == "" {
+		return usagef("--search needs a query")
+	}
+
+	req := mm.SearchRequest{
+		Query: query,
+		Regex: in.Bool("regex"),
+	}
+	for _, f := range in.Fields {
+		switch f {
+		case "title", "tags", "detail":
+			req.Fields = append(req.Fields, mm.SearchField(f))
+		default:
+			return usagef("--field takes title, tags or detail, got %q", f)
+		}
+	}
+	if v := in.Value("state"); v != "" {
+		switch v {
+		case "backlog", "working", "done":
+			req.State = mm.State(v)
+		default:
+			return usagef("--state takes backlog, working or done, got %q", v)
+		}
+	}
+	if v := in.Value("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			return usagef("--limit takes a positive number, got %q", v)
+		}
+		req.Limit = n
+	}
+
+	hits, err := s.Search(req)
+	if err != nil {
+		return err
+	}
+	env.json.setResult(toJSONSearch(hits))
+	env.porcelain.search(hits)
+	renderSearch(env, in, hits)
 	return nil
 }
 

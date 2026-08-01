@@ -25,8 +25,8 @@
 
   <h3 data-testid="item-{{$i.ID}}-title" class="mm-item__title">
     <a href="{{with $p}}/p/{{.ID}}/item/{{$i.ID}}{{end}}"
-       {{with $p}}hx-get="/p/{{.ID}}/item/{{$i.ID}}" hx-target="[data-testid='item-panel-root']"
-       hx-push-url="true"{{end}}>{{$i.Title}}</a>
+       {{with $p}}hx-get="/p/{{.ID}}/item/{{$i.ID}}" hx-target="#item-panel-root"
+       hx-swap="innerHTML" hx-push-url="true"{{end}}>{{$i.Title}}</a>
   </h3>
   <span data-testid="item-{{$i.ID}}-id" class="mm-item__id">{{$i.ID}}</span>
 
@@ -52,12 +52,28 @@
 
   {{/* §5.5: one entry per legal operation. Illegal ones are PRESENT and
        disabled with data-reason naming the error code, rather than hidden, so a
-       test can assert why an action is unavailable. */}}
+       test can assert why an action is unavailable.
+
+       edit, move and note are the PANEL's operations: there is no one-shot
+       request that performs them, so the entry opens the panel on this item
+       exactly as the card title does, and the panel's form takes it from there.
+       §7.2 routes --note through item-notes for the same reason — a note needs
+       text, and the panel is where the text is typed. They carry hx-get for
+       that rather than being driven from mm.js, which keeps them working
+       without script and gets hx-push-url for free.
+
+       Without these attributes edit and move did nothing at all when clicked
+       (T-0105), and note posted with an empty body so the server refused it
+       with "a note needs some text" (T-0106). */}}
   <div data-testid="item-{{$i.ID}}-menu-items" class="mm-item__actions" role="menu" hidden>
     {{range $i.Actions}}
     <button data-testid="item-{{$i.ID}}-action-{{.Op}}" class="mm-item__action" role="menuitem"
             type="button"
             {{if not .Enabled}}disabled data-reason="{{.Reason}}"{{end}}
+            {{if and (or (eq .Op "edit") (eq .Op "move") (eq .Op "note")) $p}}
+            hx-get="/p/{{$p.ID}}/item/{{$i.ID}}" hx-target="#item-panel-root"
+            hx-swap="innerHTML" hx-push-url="true"
+            {{end}}
             data-op="{{.Op}}"
             data-item="{{$i.ID}}">{{.Label}}</button>
     {{end}}

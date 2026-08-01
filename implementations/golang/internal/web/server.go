@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -114,6 +115,10 @@ type Server struct {
 	// or not it happens to be observed, and this one intermittently was not.
 	addrMu sync.RWMutex
 	addr   net.Addr
+
+	// broker fans fingerprint changes out to SSE subscribers (architecture.md
+	// §4.5). One poller goroutine per open project.
+	broker *broker
 }
 
 // New builds the service. It does not listen; Start does.
@@ -147,8 +152,18 @@ func New(opts Options) (*Server, error) {
 		renderer: r,
 		registry: newRegistry(opts),
 	}
+	s.broker = newBroker(s.registry, time.Duration(opts.Config.UI.PollIntervalMs)*time.Millisecond)
 	s.echo.HTTPErrorHandler = s.errorHandler
 	s.echo.Use(middleware.Recover())
+	// Gzip is fine for every route but the event stream: compression buffers,
+	// and buffering is the one thing a stream cannot tolerate (architecture.md
+	// §4.5 item 2). The skipper is registered with the middleware so a future
+	// change cannot forget it.
+	s.echo.Use(middleware.GzipWithConfig(middleware.GzipConfig{
+		Skipper: func(c *echo.Context) bool {
+			return strings.HasPrefix(c.Request().URL.Path, "/api/v1/events")
+		},
+	}))
 	s.echo.Use(s.guardMiddleware())
 
 	s.routes()
@@ -232,8 +247,10 @@ func (s *Server) Start(ctx context.Context) error {
 
 	err := sc.Start(ctx, s.echo)
 	if err != nil && !isServerClosed(err) {
+		s.broker.close()
 		return fmt.Errorf("%s: %w", s.Address(), err)
 	}
+	s.broker.close()
 	return nil
 }
 

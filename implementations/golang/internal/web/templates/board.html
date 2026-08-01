@@ -14,10 +14,34 @@
 {{template "board" .}}
 {{template "app-status-oob" .}}
 {{template "toast-oob" .}}
+{{template "overlay-dismiss-oob" .}}
+{{- end}}
+
+{{/*
+  "Save and add another" (T-0080): the board swap, then a FRESH empty form
+  swapped into #item-panel-root. The panel must be replaced wherever the old
+  one lives: a direct load of /new renders the panel inside the page (board
+  and panel are content siblings), while an htmx flow swaps it into
+  #item-panel-root. So board-swap-again reuses the standard dismissal first,
+  then panel-replace-oob re-opens the form in the container. htmx's OOB
+  innerHTML inserts the carrier's CHILDREN, so the carrier wraps the panel.
+*/}}
+{{define "board-swap-again" -}}
+{{template "board-swap" (withData . .Data.Board)}}
+{{template "panel-replace-oob" .}}
+{{- end}}
+
+{{define "panel-replace-oob" -}}
+{{with .Data.Panel}}<div hx-swap-oob="innerHTML:#item-panel-root">{{template "item-panel" (withData $ .)}}</div>{{end}}
 {{- end}}
 
 {{define "app-status-oob" -}}
-<footer data-testid="app-status" class="mm-status" hx-swap-oob="true">
+<footer data-testid="app-status" class="mm-status" hx-swap-oob="outerHTML:[data-testid='app-status']"
+        {{with .App.Project}}
+        hx-get="/p/{{.ID}}/status"
+        hx-trigger="sse:status from:body, every 30s"
+        hx-swap="outerHTML"
+        {{end}}>
   {{with .App.Status}}
   <span data-testid="status-wip" class="mm-status__wip"
         data-wip-used="{{.WipUsed}}" data-wip-limit="{{.WipLimit}}">WIP {{.WipUsed}}/{{.WipLimit}}</span>
@@ -35,13 +59,25 @@
 {{- end}}
 
 {{/*
+  The transient overlays close on ANY successful mutation (T-0078, T-0085):
+  the board swap reflects the new state, and a panel or dialog left open over
+  it would show values that no longer exist. The OOB elements match nothing on
+  a page with no overlay open and are inert there. Error responses use a
+  different template and leave the overlay open so the user can correct the
+  form.
+*/}}
+{{define "overlay-dismiss-oob" -}}
+<div hx-swap-oob="outerHTML:[data-testid='item-panel']"></div>
+<div hx-swap-oob="innerHTML:[data-testid='dialog-root']"></div>
+{{- end}}
+
+{{/*
   The toast, swapped into the region out of band. It renders the SAME
   toast-body the whole page does, so the two forms cannot drift.
 */}}
 {{define "toast-oob" -}}
 {{with .App.Toast}}
-<div data-testid="toast-region" class="mm-toasts" role="status" aria-live="polite"
-     hx-swap-oob="beforeend">
+<div hx-swap-oob="beforeend:[data-testid='toast-region']">
   {{template "toast-body" .}}
 </div>
 {{end}}

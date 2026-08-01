@@ -2,8 +2,8 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0074
-updated: 2026-07-31
+next_id: T-0112
+updated: 2026-08-01
 ---
 
 # Backlog
@@ -20,13 +20,10 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0065] Implement the JSON API under /api/v1 with dryRun on every mutation | prio:high | tags:ui,api,phase-4 | created:2026-07-30
-- [ ] [T-0066] Implement the SSE broker, the event stream and the polling backstop | prio:med | tags:ui,events,phase-4 | created:2026-07-30
-- [ ] [T-0067] Implement test mode for MM_UI_TEST and the mm-test parameter | prio:med | tags:ui,test,phase-4 | created:2026-07-30
-- [ ] [T-0068] Meet the accessibility requirements of the UI spec | prio:med | tags:ui,a11y,phase-4 | created:2026-07-30
-- [ ] [T-0069] Render the about view with the three spec versions | prio:low | tags:ui,view,phase-4 | created:2026-07-30
-- [ ] [T-0070] Audit the templates against the testid, property and route indexes | prio:med | tags:ui,test,phase-4 | detail:details/T-0070.md | created:2026-07-30
-- [ ] [T-0071] Add the --status, --next and --search switches to the CLI | prio:med | tags:cli,ops | created:2026-07-30
+- [ ] [T-0101] Explore how micro-manager could interoperate with git, consider how merge conflicts with overlapping task IDs could be solved. | prio:med | tags:spike | detail:details/T-0101.md | created:2026-07-31
+- [ ] [T-0104] Explore how micro-manager could link between boards. | prio:med | tags:spike | detail:details/T-0104.md | created:2026-07-31
+- [ ] [T-0109] Consider breaking up the htmx updates to reduce flicker | prio:med | tags:spike | detail:details/T-0109.md | created:2026-07-31
+- [ ] [T-0111] Close the drag-behaviour test gap: non-displacing placeholder and/or a JS test runner (T-0110 follow-up) | tags:gui,test,tech-debt | detail:details/T-0111.md | created:2026-08-01
 
 ## Blocked
 

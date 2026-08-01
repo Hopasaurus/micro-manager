@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v5"
+
+	"micromanager/internal/web/api"
 )
 
 // The route table (spec-gui.md §4).
@@ -17,8 +19,14 @@ import (
 // "not implemented" handler would be indistinguishable, to a conformance suite,
 // from one that is implemented and broken.
 func (s *Server) routes() {
-	api := s.echo.Group("/api/v1")
-	api.GET("/health", s.health)
+	v1 := s.echo.Group("/api/v1")
+	v1.GET("/health", s.health)
+	// The rest of §4.2 lives in internal/web/api, a separate handler set over
+	// the same library calls (project/architecture.md §4.7). Errors it returns
+	// flow into this server's single error handler, which keys its JSON
+	// envelope on the /api/ path prefix (§4.3).
+	apiSrv := api.New(api.Config{Service: s, Logger: s.log})
+	apiSrv.Register(v1)
 
 	// View routes (§4.1).
 	s.echo.GET("/", s.home)
@@ -27,6 +35,7 @@ func (s *Server) routes() {
 	s.echo.POST("/p/:projectId/favorite", s.favoriteToggle)
 	s.echo.GET("/settings", s.settingsSystem)
 	s.echo.POST("/settings", s.saveSettingsSystem)
+	s.echo.GET("/about", s.about)
 	s.echo.GET("/settings/theme", s.themeEditor)
 	s.echo.POST("/settings/theme", s.saveThemeEditor)
 	s.echo.GET("/settings/themes", s.themeLibrary)
@@ -37,6 +46,8 @@ func (s *Server) routes() {
 	// /p/:projectId redirects to the board with a 302.
 	s.echo.GET("/p/:projectId", s.boardRedirect)
 	s.echo.GET("/p/:projectId/board", s.board)
+	s.echo.GET("/p/:projectId/status", s.status) // SSE refresh, internal (§4.5)
+	s.echo.GET("/p/:projectId/shell", s.shell)   // SSE theme refresh, internal (§4.5)
 	s.echo.GET("/p/:projectId/item/:itemId", s.itemPanel)
 	s.echo.GET("/p/:projectId/new", s.newItemPanel)
 	s.echo.GET("/p/:projectId/report", s.report)

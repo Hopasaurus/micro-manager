@@ -49,6 +49,27 @@
     });
   }
 
+  /*
+    htmx's default response handling swaps nothing for 4xx/5xx responses
+    (responseHandling: "[45].." => swap:false). The server's error responses
+    for htmx callers ARE the toast/dialog fragment, carried out of band — so
+    without this, a rejected save (a space in a tag, a bad date, a WIP limit)
+    fails SILENTLY: the form stays, no toast, no code. Re-enable the swap for
+    error bodies that carry OOB elements, but only the OOB part: the in-band
+    swap is overridden to "none" so a 400 can never replace the board with
+    an error fragment. The OOB then lands the toast in toast-region or the
+    dialog in dialog-root, exactly as a 2xx response would.
+  */
+  document.body.addEventListener('htmx:beforeSwap', (event) => {
+    const detail = event.detail;
+    if (!detail || !detail.isError || !detail.serverResponse) return;
+    if (!detail.serverResponse.includes('hx-swap-oob')) return;
+    detail.shouldSwap = true;
+    const region = document.querySelector("[data-testid='toast-region']");
+    if (region) detail.target = region;
+    detail.swapOverride = 'none';
+  });
+
   /* ---------------------------------------------------------------- menus */
 
   /*
@@ -205,7 +226,15 @@
       });
       return;
     }
-    if (op === 'edit' || op === 'move') return; // the panel owns these
+    // The panel owns these, and the entry carries its own hx-get to open it
+    // (item-card.html). Returning here leaves htmx to do that work; it does
+    // NOT mean "do nothing", which is what this line used to amount to before
+    // the entry had those attributes.
+    //
+    // note is one of them: it needs text, and item-notes in the panel is where
+    // the text is typed (§7.2). Posting it from here sent an empty body, so
+    // the entry could only ever answer "a note needs some text".
+    if (op === 'edit' || op === 'move' || op === 'note') return;
 
     htmx.ajax('POST', `/p/${project}/items/${id}/${op}`, {
       target: "[data-testid='board']",
@@ -463,6 +492,23 @@
     const body = event.target.closest('.mm-column__body');
     if (!body) return;
     event.preventDefault();
+
+    /*
+      Measure the column with NO placeholder in it.
+
+      hoverTarget inserts the placeholder between cards, so every card below it
+      sits one placeholder-height lower. Leaving it there while the next
+      dragover measures feeds that displacement back into the next index: the
+      pointer never reaches the shifted midpoints, so the index stays pinned
+      wherever it first landed and the placeholder never moves again.
+
+      Dragging an item DOWN therefore never reordered anything - the drop index
+      came back equal to the card's own position, and the move was a no-op the
+      user read as "drag and drop is broken" (T-0110). Dragging UP happened to
+      work, because the cards above the placeholder are the ones it does not
+      displace.
+    */
+    document.querySelectorAll('[data-testid="drop-placeholder"]').forEach((p) => p.remove());
 
     /* The insertion index is where the pointer is, not where the card is. */
     const cards = cardsIn(body).filter((c) => c !== move.card);

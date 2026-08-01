@@ -3,6 +3,8 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -74,6 +76,129 @@ func TestRemoveIsGuarded(t *testing.T) {
 	// The item is still there.
 	if ts.get("/p/"+id+"/item/T-0001").Status != http.StatusOK {
 		t.Error("the item was removed by an unforced delete")
+	}
+}
+
+// Every enabled entry in the card menu must DO something when clicked.
+//
+// mm.js returns early for the panel's operations — "the panel owns these" — so
+// each is driven by its own hx-get. Without it the early return left the entry
+// inert: Edit and Move did nothing at all, no request, no panel, no error
+// (T-0105). Note was worse than inert: it posted an empty body and the server
+// answered "a note needs some text" (T-0106), because a note's text is typed in
+// item-notes, which lives in the panel (§7.2).
+func TestCardMenuPanelOpsOpenThePanel(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+	body := ts.get("/p/" + id + "/board").expectStatus(http.StatusOK).Body
+
+	for _, op := range []string{"edit", "move", "note"} {
+		entry := testid(t, body, "item-T-0001-action-"+op)
+		if got := attrOf(t, entry, "hx-get"); got != "/p/"+id+"/item/T-0001" {
+			t.Errorf("%s entry hx-get = %q, want the item panel route", op, got)
+		}
+		if got := attrOf(t, entry, "hx-target"); got != "#item-panel-root" {
+			t.Errorf("%s entry hx-target = %q, want #item-panel-root", op, got)
+		}
+	}
+
+	// And the route those entries point at actually serves the panel, with the
+	// notes field the note entry exists to reach.
+	panel := ts.get("/p/" + id + "/item/T-0001").expectStatus(http.StatusOK).Body
+	if !hasTestid(panel, "item-panel") {
+		t.Error("the route the menu entries open does not render the item panel")
+	}
+	if !hasTestid(panel, "item-notes") {
+		t.Error("the panel has no item-notes for the note entry to land in")
+	}
+
+	// A disabled entry stays inert by being disabled, not by lacking wiring:
+	// move is refused for a working item, and the reason is on the element.
+	working := testid(t, body, "item-T-0003-action-move")
+	if !strings.Contains(working, "disabled") {
+		t.Errorf("move on a working item is not disabled: %s", working)
+	}
+}
+
+// spec-tools.md §5.1.6: a remove MUST either delete the item's detail file in
+// the same transaction or report the orphan it left; "silently leaving an
+// invalid directory is not conforming". The route did neither - it discarded
+// the Removal - so removing an item through the context menu left the project
+// failing I9 with nothing on screen to say so (T-0107).
+func TestRemoveDeletesTheDetailFile(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+	detail := filepath.Join(ts.Dirs[0], "details", "T-0001.md")
+
+	if _, err := os.Stat(detail); err != nil {
+		t.Fatalf("fixture has no detail file to remove: %v", err)
+	}
+
+	res := ts.form(http.MethodDelete, "/p/"+id+"/items/T-0001?force=true&withDetail=true", nil)
+	if res.Status != http.StatusOK {
+		t.Fatalf("remove returned %d, want 200", res.Status)
+	}
+
+	if _, err := os.Stat(detail); !os.IsNotExist(err) {
+		t.Errorf("details/T-0001.md survived a remove that asked for it to go (err=%v)", err)
+	}
+
+	// The whole point: the directory is still valid afterwards.
+	store, err := mm.Open(ts.Dirs[0])
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if v, err := store.Validate(); err != nil {
+		t.Fatalf("validate: %v", err)
+	} else if len(v) != 0 {
+		t.Errorf("removing with the detail file left violations: %v", v)
+	}
+}
+
+// The other branch of §5.1.6: the file may be left, but then the orphan MUST be
+// reported. The toast is the only place a GUI user can learn it.
+func TestRemoveWithoutDetailReportsTheOrphan(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+	detail := filepath.Join(ts.Dirs[0], "details", "T-0001.md")
+
+	res := ts.form(http.MethodDelete, "/p/"+id+"/items/T-0001?force=true", nil)
+	if res.Status != http.StatusOK {
+		t.Fatalf("remove returned %d, want 200", res.Status)
+	}
+
+	if _, err := os.Stat(detail); err != nil {
+		t.Errorf("the detail file was deleted without being asked for: %v", err)
+	}
+
+	toast := testid(t, res.Body, "toast-1")
+	if got := attrOf(t, toast, "data-severity"); got != "warning" {
+		t.Errorf("orphan toast severity = %q, want warning", got)
+	}
+	if !strings.Contains(res.Body, "details/T-0001.md is now an orphan") {
+		t.Errorf("the toast does not name the orphan it left: %s", toast)
+	}
+}
+
+// The dialog offers the choice, and only when there is something to choose.
+func TestRemoveDialogOffersTheDetailFile(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+
+	// T-0001 has a detail file: the box is offered, and pre-checked, because
+	// deleting is the only branch that leaves the directory valid.
+	withDetail := ts.get("/p/" + id + "/dialog/confirm-remove?item=T-0001").expectStatus(http.StatusOK).Body
+	if !hasTestid(withDetail, "x-dialog-confirm-remove-with-detail") {
+		t.Fatal("the dialog does not offer to delete the detail file")
+	}
+	box := testid(t, withDetail, "x-dialog-confirm-remove-with-detail")
+	if !strings.Contains(box, "checked") {
+		t.Errorf("the detail-file box is not checked by default: %s", box)
+	}
+	if !strings.Contains(withDetail, "details/T-0001.md") {
+		t.Error("the dialog does not name the file it would delete")
+	}
+
+	// T-0002 has none: the dialog says nothing about detail files.
+	none := ts.get("/p/" + id + "/dialog/confirm-remove?item=T-0002").expectStatus(http.StatusOK).Body
+	if hasTestid(none, "x-dialog-confirm-remove-with-detail") {
+		t.Error("the dialog offers to delete a detail file that does not exist")
 	}
 }
 

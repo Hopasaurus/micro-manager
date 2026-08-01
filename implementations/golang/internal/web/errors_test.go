@@ -3,6 +3,8 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -196,6 +198,34 @@ func TestHtmxToastCarriesSeverity(t *testing.T) {
 	}
 	if !strings.Contains(r.Body, codeNotFound) {
 		t.Errorf("the toast does not carry the error code: %s", r.Body)
+	}
+}
+
+// The error toast's OOB carrier must WRAP toast-body, not be the toast
+// (T-0082). htmx's beforeend OOB swap inserts the carrier's CHILDREN, so a
+// carrier that IS the toast leaves only its span and button in the region -
+// no .mm-toast wrapper, invisible. The wrapper form lands the toast intact.
+func TestHtmxErrorToastIsAWrapper(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+
+	r := ts.form(http.MethodPost, "/p/"+id+"/items",
+		url.Values{"title": {"Space tag item"}, "tags": {"my tag"}, "section": {"ready"}},
+		"HX-Request", "true")
+	r.expectStatus(http.StatusBadRequest)
+
+	if !strings.Contains(r.Body, `<div hx-swap-oob="beforeend:[data-testid='toast-region']">`) {
+		t.Fatalf("the error toast has no OOB carrier:\n%s", r.Body)
+	}
+	if !strings.Contains(r.Body, `data-testid="toast-1"`) {
+		t.Fatalf("the carrier does not wrap a toast:\n%s", r.Body)
+	}
+	// toast-body is the inner toast, so the carrier must not BE the toast.
+	if m := regexp.MustCompile(`data-testid="toast-1"[^>]*hx-swap-oob`).FindString(r.Body); m != "" {
+		t.Errorf("the OOB attribute sits ON the toast itself, not on a carrier: %s", m)
+	}
+	// The user's typed tags survive in the message.
+	if !strings.Contains(r.Body, "malformed tags: my tag") {
+		t.Errorf("the toast does not name the rejected value:\n%s", r.Body)
 	}
 }
 

@@ -6,7 +6,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.App.Title}}</title>
 <link rel="stylesheet" href="/static/mm.css">
-<style>{{.App.Theme.Style}}</style>
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/htmx-ext-sse.js" defer></script>
 <script src="/static/mm.js" defer></script>
@@ -29,7 +28,32 @@
      data-theme-name="{{.App.Theme.Name}}"
      data-theme-source="{{.App.Theme.Source}}"
      {{if .App.TestMode}}data-test-mode="true"{{end}}
-     {{with .App.Project}}data-project-id="{{.ID}}" data-project-name="{{.Name}}"{{end}}>
+     {{with .App.Project}}data-project-id="{{.ID}}" data-project-name="{{.Name}}"{{end}}
+     {{with .App.Project}}
+     {{/* No hx-target here: hx-target is INHERITED by every descendant
+          trigger, and the SSE refresh fragments (board, status, check) rely
+          on the default self-target. A target on this element would redirect
+          them all to it - every refresh would swap the whole shell - or, if
+          the selector matched nothing, abort with htmx:targetError. The
+          shell's own hx-get defaults to self, which is the whole app.
+
+          hx-swap stays outerHTML for the shell's own theme swap, but
+          hx-disinherit="*" stops it leaking to descendants: otherwise every
+          descendant trigger without its own hx-swap (dialogs, settings
+          forms, the item-card open) inherits outerHTML and REPLACES its
+          container instead of filling it - the dialog-root swap destroyed
+          the container this way. hx-ext is unaffected: the sse extension
+          still applies to descendants because the extension registry walks
+          ancestors directly rather than through hx-inherit semantics. */}}
+     hx-ext="sse" sse-connect="/api/v1/events?project={{.ID}}"
+     hx-get="/p/{{.ID}}/shell" hx-trigger="sse:theme from:body"
+     hx-swap="outerHTML" hx-disinherit="*"
+     {{end}}>
+  {{/* §8.7: the resolved tokens travel with the shell, so a theme change is
+       a shell swap — no fetch, no flash of the previous theme. The style sits
+       inside the app element rather than in the head so that the shell
+       fragment carries it. */}}
+  <style>{{.App.Theme.Style}}</style>
 
   <header data-testid="app-header" class="mm-header">
     <a data-testid="brand" class="mm-brand" href="/">
@@ -68,6 +92,7 @@
       {{template "navLink" navItem . "report" "Report"}}
       {{template "navLink" navItem . "check" "Check"}}
       {{template "navLink" navItem . "settings" "Settings"}}
+      {{template "navLink" navItem . "about" "About"}}
     </nav>
   </header>
 
@@ -81,6 +106,11 @@
     {{with .App.Toast}}{{template "toast-body" .}}{{end}}
   </div>
   <div data-testid="dialog-root" class="mm-dialogs"></div>
+  {{/* The item panel swaps in here (T-0083). It has no data-testid: the
+       spec's testid list (§5.1) is closed except for x- additions, and the
+       panel itself carries item-panel. The id is the swap hook, exactly as
+       htmx's default OOB matching works. */}}
+  <div id="item-panel-root"></div>
 </div>
 {{- end}}
 
@@ -93,7 +123,12 @@
   validation result at once.
 */}}
 {{define "app-status" -}}
-<footer data-testid="app-status" class="mm-status">
+<footer data-testid="app-status" class="mm-status"
+        {{with .App.Project}}
+        hx-get="/p/{{.ID}}/status"
+        hx-trigger="sse:status from:body, every 30s"
+        hx-swap="outerHTML" hx-disinherit="*"
+        {{end}}>
   {{with .App.Status}}
   <span data-testid="status-wip" class="mm-status__wip"
         data-wip-used="{{.WipUsed}}" data-wip-limit="{{.WipLimit}}">WIP {{.WipUsed}}/{{.WipLimit}}</span>

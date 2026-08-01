@@ -22,12 +22,14 @@
   The htmx form of an error: a toast the client swaps into toast-region.
   data-severity and the error code are what §5.10 and §7.5 require a client to
   branch on.
+
+  The OUTER div is the OOB carrier and never enters the DOM: htmx's beforeend
+  swap inserts the carrier's CHILDREN, so the carrier must wrap toast-body
+  exactly as board.html's toast-oob does. A carrier that IS the toast would
+  leave its span and button behind with no .mm-toast wrapper — invisible.
 */}}
 {{define "toast" -}}
-<div data-testid="toast-1" class="mm-toast" role="alert"
-     data-severity="{{.Data.Severity}}" data-code="{{.Data.Code}}"
-     hx-swap-oob="beforeend:[data-testid='toast-region']">
-  <span class="mm-toast__message">{{.Data.Message}}</span>
-  <button data-testid="toast-1-dismiss" class="mm-toast__dismiss" type="button" aria-label="Dismiss">&times;</button>
+<div hx-swap-oob="beforeend:[data-testid='toast-region']">
+  {{template "toast-body" .Data}}
 </div>
 {{- end}}

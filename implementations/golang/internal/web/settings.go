@@ -298,9 +298,13 @@ func (s *Server) buildThemeSettings(scope, currentTheme string, hasProjectTheme 
 		}
 	}
 
+	// Only the one built-in §8.7 defines. "sample-one-dark" was offered here as
+	// though it were a second: picking it stored an id no theme answers to, and
+	// resolution then fell through to this very entry.
+	bt := mm.BuiltinTheme()
 	themes := []themeOption{
-		{ID: "micro-manager", Name: "micro-manager (Builtin)", Source: "builtin", Selected: currentTheme == "micro-manager" || currentTheme == ""},
-		{ID: "sample-one-dark", Name: "Sample One — Dark", Source: "builtin", Selected: currentTheme == "sample-one-dark"},
+		{ID: bt.ID, Name: bt.Name + " (Builtin)", Source: "builtin",
+			Selected: currentTheme == bt.ID || currentTheme == ""},
 	}
 
 	return themeSettingsData{

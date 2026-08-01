@@ -1,0 +1,41 @@
+{{/*
+  About (spec-gui.md §4.1): version info. The spec versions are the documents
+  this implementation was written against, kept separate from the build version
+  on purpose (internal/web/version.go).
+
+  The testids here are x- prefixed: the about view is not in the appendix testid
+  index, and §5.1 lets an implementation add testids only with that prefix.
+*/}}
+{{define "content" -}}
+{{template "about" .}}
+{{- end}}
+
+{{define "about" -}}
+<section data-testid="x-about" class="mm-about" data-state="ready">
+  <h1>About micro-manager</h1>
+  <p>The todo system of plain markdown, with a web front end on top of it.</p>
+
+  <dl class="mm-about__versions">
+    <div>
+      <dt>Service</dt>
+      <dd data-testid="x-about-service">{{.Data.Service}}</dd>
+    </div>
+    <div>
+      <dt>Build version</dt>
+      <dd data-testid="x-about-version">{{.Data.Version}}</dd>
+    </div>
+    <div>
+      <dt>UI spec version</dt>
+      <dd data-testid="x-about-spec-ui">{{.Data.SpecUI}}</dd>
+    </div>
+    <div>
+      <dt>Tools spec version</dt>
+      <dd data-testid="x-about-spec-tools">{{.Data.SpecTools}}</dd>
+    </div>
+    <div>
+      <dt>Format spec version</dt>
+      <dd data-testid="x-about-spec-format">{{.Data.SpecFormat}}</dd>
+    </div>
+  </dl>
+</section>
+{{- end}}

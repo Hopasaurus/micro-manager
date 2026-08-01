@@ -1,7 +1,7 @@
 ---
 doc: done
 version: 1
-updated: 2026-07-31
+updated: 2026-08-01
 ---
 
 # Done
@@ -9,8 +9,38 @@ updated: 2026-07-31
 Closed items, newest month first, newest item first within a month. Cancelled
 work stays here too — see [structure.md](structure.md).
 
+## 2026-08
+
+- [x] [T-0100] Make the drop zone for each column extend to the same vertical size as the biggest column | prio:med | tags:new-feature | detail:details/T-0100.md | created:2026-07-31 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0110] Drag-and-drop doesn't seem to work for reordering tasks in Ready. | prio:med | tags:bug | detail:details/T-0110.md | created:2026-07-31 | started:2026-07-31 | done:2026-08-01 | outcome:shipped
+
 ## 2026-07
 
+- [x] [T-0108] Saving settings gives an error: 'Origin "null" may not make state-changing requests here" | prio:med | tags:bug | detail:details/T-0108.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0106] Clicking "Note" on the dots menu presents this error: "a note needs some text" | prio:med | tags:bug | detail:details/T-0106.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0105] Attempting to edit via the context menu does not seem to do anything | prio:med | tags:bug | detail:details/T-0105.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0103] Error when clicking "Save and add another": render board: html/template:board.html:35:77: no such template "item-panel" | prio:high | tags:bug | detail:details/T-0103.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0099] broker.Subscribe: gate wg.Add behind a closed flag so shutdown cannot race Wait (F7) | tags:gui,sse | detail:details/T-0099.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0098] Themes listing/export: sample-one-dark serves the builtin; don't advertise ids the library lacks (F4) | tags:gui,theme,api | detail:details/T-0098.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0096] deleteThemeFile must honour dryRun (F6: DELETE ?dryRun=true removes the file anyway) | tags:gui,theme,api | detail:details/T-0096.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0107] I deleted a duplicate ticket using the context menu then later started seeing this: "I9 details/T-0102.md orphan — no item references it" | prio:med | tags:bug | detail:details/T-0107.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0095] importTheme must not write an envelope missing the theme key over a user's theme.json (F3: data loss) | tags:gui,theme,api | detail:details/T-0095.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0097] Publish a theme event when a project theme.json is deleted (F5: themeStamp zero short-circuits the disappearing case) | tags:gui,theme,sse | detail:details/T-0097.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0094] Web API tests: canonicalize paths before comparing (F1: projectIDOf fails on macOS /var vs /private/var symlink paths) | tags:gui,test | detail:details/T-0094.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0071] Add the --status, --next and --search switches to the CLI | prio:med | tags:cli,ops | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0081] There should be a "save and add another" button when saving a new item. | prio:med | tags:new-feature | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:obsolete
+- [x] [T-0080] There should be a "save and add another" button when saving a new item. | prio:med | tags:new-feature | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0082] A space in a tag breaks saving with no error message. | prio:med | tags:bug | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0085] After removing an item the confirmation dialog is not going away. | prio:high | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0083] Editing an item from the UI doesn't seem to work. | prio:high | tags:bug | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0078] The new item dialog should go away when the new item is saved. | prio:high | tags:bug | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0084] SSE doesn't seem to be showing updates. | prio:high | tags:bug | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0070] Audit the templates against the testid, property and route indexes | prio:med | tags:ui,test,phase-4 | detail:details/T-0070.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0069] Render the about view with the three spec versions | prio:low | tags:ui,view,phase-4 | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0068] Meet the accessibility requirements of the UI spec | prio:med | tags:ui,a11y,phase-4 | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0067] Implement test mode for MM_UI_TEST and the mm-test parameter | prio:med | tags:ui,test,phase-4 | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0066] Implement the SSE broker, the event stream and the polling backstop | prio:med | tags:ui,events,phase-4 | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0065] Implement the JSON API under /api/v1 with dryRun on every mutation | prio:high | tags:ui,api,phase-4 | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
 - [x] [T-0064] Build the theme editor, library, import and export | prio:med | tags:ui,theme,phase-3 | detail:details/T-0064.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
 - [x] [T-0063] Render the settings views for the system and project scopes | prio:med | tags:ui,view,phase-3 | detail:details/T-0063.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
 - [x] [T-0073] Move someday column to left with collapsible toggle | tags:ui,view | detail:details/T-0073.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped

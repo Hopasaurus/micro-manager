@@ -243,3 +243,74 @@ func renderFind(env Env, res mm.DiscoveryResult) {
 			res.Skipped, plural(res.Skipped, "y", "ies"))
 	}
 }
+
+// renderStatus is the --status screen (spec-tools.md §5.2).
+//
+// One screen: the project name and WIP n/N, what is in each slot, counts by
+// section, the top of ## Ready, and the oldest untouched item. All of it comes
+// from ONE Status call, so the screen shows one moment in time.
+func renderStatus(env Env, in *Invocation, st mm.Status) {
+	if in.Quiet {
+		return
+	}
+	dir := st.Directory
+	out(env, "# %s  (wip %d/%d)\n\n", directoryName(dir), st.WipUsed(), st.WipLimit())
+
+	for _, slot := range dir.Slots {
+		if slot.Occupied() {
+			out(env, "%s: %s\n", slot.File, mm.RenderItemLine(slot.Item))
+		} else {
+			out(env, "%s: idle\n", slot.File)
+		}
+	}
+	out(env, "\n")
+
+	out(env, "%-10s %d\n", "ready:", st.Ready)
+	out(env, "%-10s %d\n", "blocked:", st.Blocked)
+	out(env, "%-10s %d\n", "someday:", st.Someday)
+	out(env, "%-10s %d\n\n", "done:", st.Done)
+
+	if st.Next != nil {
+		out(env, "next:   %s\n", shortItem(st.Next))
+	}
+	if st.OldestReady != nil {
+		out(env, "oldest: %s\n", shortItem(st.OldestReady))
+	}
+}
+
+// shortItem is the one-line form --status uses for its two featured items.
+func shortItem(it *mm.Item) string {
+	s := string(it.ID) + "  " + it.Title
+	if it.Created.IsZero() {
+		return s
+	}
+	return s + "  (created " + it.Created.String() + ")"
+}
+
+// renderNext prints the top of ## Ready exactly as --list would.
+func renderNext(env Env, in *Invocation, item mm.Item) {
+	if in.Quiet {
+		return
+	}
+	out(env, "%s\n", listLine(item, in.Verbose))
+}
+
+// renderSearch lists hits, one per line: state, item, field, and the exact
+// file and line the match is on — a detail hit points INTO the detail file,
+// which is what makes it navigable.
+func renderSearch(env Env, in *Invocation, hits []mm.SearchHit) {
+	if len(hits) == 0 {
+		if !in.Quiet {
+			out(env, "no matches\n")
+		}
+		return
+	}
+	for _, h := range hits {
+		state := string(h.Item.State)
+		if h.Item.State == mm.StateBacklog {
+			state += "/" + string(h.Item.Section)
+		}
+		out(env, "%-12s %-7s %-7s %-24s %s\n",
+			state, h.Item.ID, h.Field, h.At, h.Text)
+	}
+}

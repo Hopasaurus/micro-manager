@@ -173,8 +173,17 @@ func ParseTheme(path string, data []byte) (*Theme, error) {
 	return t, nil
 }
 
-// Save writes the theme atomically, preserving every key it did not understand.
-func (t *Theme) Save(path string, dryRun bool) error {
+// document folds the parsed fields back into the raw document and returns it.
+//
+// raw IS the file: it holds every key, including the ones this implementation
+// does not understand, which is how §8.2's round-trip rule is kept. This only
+// overwrites the keys the struct owns, so unknown ones survive untouched.
+//
+// Save and Bytes BOTH go through here. They used to differ - Save folded the
+// fields in, Bytes marshalled raw alone - so a theme built in Go rather than
+// parsed from a file rendered as "{}". That is what exporting the built-in
+// theme did: it served an empty document (§8.8 requires a self-contained one).
+func (t *Theme) document() map[string]any {
 	if t.raw == nil {
 		t.raw = map[string]any{}
 	}
@@ -187,8 +196,12 @@ func (t *Theme) Save(path string, dryRun bool) error {
 	writeNested(t.raw, "color", t.Color)
 	writeNested(t.raw, "colorDark", t.ColorDark)
 	writeNested(t.raw, "gui", t.GUI)
+	return t.raw
+}
 
-	data, err := marshalJSONFile(t.raw)
+// Save writes the theme atomically, preserving every key it did not understand.
+func (t *Theme) Save(path string, dryRun bool) error {
+	data, err := marshalJSONFile(t.document())
 	if err != nil {
 		return err
 	}
@@ -205,8 +218,9 @@ func (t *Theme) Save(path string, dryRun bool) error {
 	return nil
 }
 
-// Bytes renders the theme as it would be written.
-func (t *Theme) Bytes() ([]byte, error) { return marshalJSONFile(t.raw) }
+// Bytes renders the theme as it would be written — the same document Save
+// produces, which is what makes an export re-importable.
+func (t *Theme) Bytes() ([]byte, error) { return marshalJSONFile(t.document()) }
 
 // Validate reports every problem in a theme, by token path (§8.8 rule 2).
 //
@@ -551,7 +565,10 @@ func relativeLuminance(hex string) (float64, error) {
 // the file that makes "a theme setting only accent.base is valid" true.
 func BuiltinTheme() *Theme {
 	return &Theme{
-		ID:         "mm-default",
+		// The id every caller already advertises this theme under. It was
+		// "mm-default", which nothing anywhere resolved by, so an exported
+		// builtin carried an id no listing offered and no import could match.
+		ID:         "micro-manager",
 		Name:       "micro-manager",
 		Appearance: AppearanceAuto,
 		Brand: map[string]string{

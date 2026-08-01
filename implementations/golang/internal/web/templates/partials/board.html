@@ -15,7 +15,12 @@
 {{define "board" -}}
 <section data-testid="board" class="mm-board" data-state="{{if .Data.Empty}}empty{{else}}ready{{end}}"
          data-wip-used="{{.Data.WipUsed}}" data-wip-limit="{{.Data.WipLimit}}"
-         aria-live="polite">
+         aria-live="polite"
+         {{with .App.Project}}
+         hx-get="/p/{{.ID}}/board?fragment=1"
+         hx-trigger="sse:board from:body, every 30s"
+         hx-swap="outerHTML"
+         {{end}}>
   {{$project := .App.Project}}
   {{range .Data.Columns}}{{template "column" dict "Column" . "Project" $project}}{{end}}
 </section>

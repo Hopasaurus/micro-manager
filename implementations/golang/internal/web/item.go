@@ -73,6 +73,11 @@ func (s *Server) itemPanel(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
+	if wantsFragment(c.Request()) {
+		// The card click swaps the panel into #item-panel-root: render the
+		// panel alone, rebound to .Data.Panel exactly as content does.
+		return s.renderFragmentAlways(c, http.StatusOK, "item", "item-panel-fragment", v)
+	}
 	return s.render(c, http.StatusOK, "item", "item-panel", v)
 }
 
@@ -103,6 +108,9 @@ func (s *Server) newItemPanel(c *echo.Context) error {
 	v, err = s.withBoard(c, store, v, panelData{New: true, Section: section, Item: itemData{Prio: "med"}})
 	if err != nil {
 		return err
+	}
+	if wantsFragment(c.Request()) {
+		return s.renderFragmentAlways(c, http.StatusOK, "item", "item-panel-fragment", v)
 	}
 	return s.render(c, http.StatusOK, "item", "item-panel", v)
 }
@@ -239,6 +247,11 @@ type mutationResult struct {
 	Item    *mm.Item
 	Changes []mm.Change
 	Message string
+
+	// Severity overrides the toast's default "success". A mutation that
+	// succeeded but left something the user has to know about - a removed item
+	// whose detail file is now an orphan - is not a plain success.
+	Severity string
 }
 
 // operate runs one mutating operation and re-renders the board from what the
@@ -470,6 +483,7 @@ func (s *Server) addItem(c *echo.Context) error {
 		req.Section = section
 	}
 	req.Blocked = c.Request().FormValue("blocked")
+	req.DetailBody = c.Request().FormValue("detail")
 	req.DryRun = c.Request().FormValue("dryRun") == "true"
 
 	today, err := mm.ParseDate(mm.NewTimestamp(s.registry.now()).String()[:10])
@@ -480,6 +494,9 @@ func (s *Server) addItem(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
+	if c.Request().FormValue("addAnother") == "1" {
+		return s.afterMutationAddAnother(c, store, it, req.Section, req.DryRun)
+	}
 	return s.afterMutation(c, store, mutationResult{Item: &it, Message: string(it.ID) + " added"}, req.DryRun)
 }
 
@@ -488,6 +505,13 @@ func (s *Server) addItem(c *echo.Context) error {
 // item-action-remove carries data-guarded="true" and opens dialog-confirm-remove;
 // this route additionally REQUIRES force=true, so the guard is not something the
 // client can forget its way past.
+//
+// The item's detail file is the other half of the operation. spec-tools.md
+// §5.1.6: an implementation MUST either delete it in the same transaction or
+// report the orphan it left behind — "silently leaving an invalid directory is
+// not conforming". This route did neither: it discarded the Removal, so
+// deleting an item with a detail file left the project failing I9 with nothing
+// on screen to say so. withDetail chooses; both answers are now spoken aloud.
 func (s *Server) removeItem(c *echo.Context) error {
 	store, err := s.project(c)
 	if store == nil {
@@ -509,10 +533,29 @@ func (s *Server) removeItem(c *echo.Context) error {
 		return err
 	}
 	dryRun := c.Request().FormValue("dryRun") == "true"
-	if _, _, err := store.Remove(id, mm.RemoveRequest{Force: true, DryRun: dryRun}, today); err != nil {
+	withDetail := c.Request().URL.Query().Get("withDetail") == "true" ||
+		strings.EqualFold(c.Request().FormValue("withDetail"), "true")
+
+	removal, _, err := store.Remove(id, mm.RemoveRequest{
+		Force:      true,
+		WithDetail: withDetail,
+		DryRun:     dryRun,
+	}, today)
+	if err != nil {
 		return err
 	}
-	return s.afterMutation(c, store, mutationResult{Message: string(id) + " removed"}, dryRun)
+
+	result := mutationResult{Message: string(id) + " removed"}
+	switch {
+	case removal.DetailDeleted != "":
+		result.Message += " with " + removal.DetailDeleted
+	case removal.DetailOrphan != "":
+		// The write went through, so this is not an error - but the directory
+		// now fails I9, and the only place the user can learn that is here.
+		result.Message += "; " + removal.DetailOrphan + " is now an orphan"
+		result.Severity = "warning"
+	}
+	return s.afterMutation(c, store, result, dryRun)
 }
 
 // afterMutation renders what the change invalidated.
@@ -531,12 +574,41 @@ func (s *Server) afterMutation(c *echo.Context, store *mm.Store, result mutation
 		return err
 	}
 	v.Data = data
+	severity := result.Severity
+	if severity == "" {
+		severity = "success"
+	}
 	v.App.Toast = &toastData{
 		Message:  result.Message,
-		Severity: "success",
+		Severity: severity,
 		DryRun:   dryRun,
 	}
 	return s.render(c, http.StatusOK, "board", "board-swap", v)
+}
+
+// afterMutationAddAnother is the "save and add another" form of afterMutation
+// (T-0080): the saved item lands on the board exactly as a plain save does,
+// but the panel is NOT dismissed - a fresh empty form swaps into
+// #item-panel-root so the next title can be typed immediately. The response is
+// board-swap-again, whose panel OOB renders the same item-panel template the
+// /new route serves, so the re-opened form cannot drift from a direct load.
+func (s *Server) afterMutationAddAnother(c *echo.Context, store *mm.Store, it mm.Item, section mm.Section, dryRun bool) error {
+	if section == "" {
+		section = mm.SectionReady
+	}
+	v := s.newView(c, "New item", store)
+	v.App.Nav = "board"
+	v.App.Toast = &toastData{
+		Message:  string(it.ID) + " added",
+		Severity: "success",
+		DryRun:   dryRun,
+	}
+	board, err := s.buildBoard(c, store)
+	if err != nil {
+		return err
+	}
+	v.Data = itemPageData{Board: board, Panel: panelData{New: true, Section: string(section), Item: itemData{Prio: "med"}}}
+	return s.render(c, http.StatusOK, "board", "board-swap-again", v)
 }
 
 // toastData is one toast (§5.10).

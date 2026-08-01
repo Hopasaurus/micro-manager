@@ -127,6 +127,32 @@ func TestConfiguredHostIsAccepted(t *testing.T) {
 	}
 }
 
+// The Referrer-Policy must not defeat the origin guard next to it.
+//
+// Under `no-referrer` a browser strips the origin from NAVIGATIONS as well, so
+// a plain <form method="post"> aimed at this very service arrives carrying
+// `Origin: null` — indistinguishable from a sandboxed iframe, and refused as
+// one. Every native form POST in the UI 403'd with
+// `Origin "null" may not make state-changing requests here`, and saving
+// settings was impossible (T-0108).
+//
+// This cannot be caught by a Go test issuing its own headers, because the
+// header the browser sends is the whole bug. So the guard is on the policy
+// itself: any value that suppresses the origin on a same-origin navigation is
+// wrong here, however hardened it looks.
+func TestReferrerPolicyDoesNotSuppressOrigin(t *testing.T) {
+	ts := newTestServer(t)
+
+	got := ts.get("/api/v1/health").Header.Get("Referrer-Policy")
+	if got == "no-referrer" {
+		t.Fatal("Referrer-Policy: no-referrer makes browsers send Origin: null on " +
+			"same-origin form posts, which the origin guard then refuses (T-0108)")
+	}
+	if got != "same-origin" {
+		t.Errorf("Referrer-Policy = %q, want same-origin", got)
+	}
+}
+
 // §9.6: reject any state-changing request - anything other than GET and HEAD -
 // whose Origin is present and not the service's own origin, with 403.
 func TestOriginGuard(t *testing.T) {

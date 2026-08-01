@@ -109,6 +109,104 @@ func TestDoneItemsOfferNoMove(t *testing.T) {
 	}
 }
 
+// Every column's DROP ZONE is as tall as the tallest column (T-0100).
+//
+// The board laid columns out with align-items: flex-start, so each stopped at
+// its own last card. The empty space beside a short column belonged to the
+// board, not to any column, and mm.js resolves a drop with
+// closest('.mm-column__body') — so aiming there hit nothing and the drop was
+// silently discarded. A column with one card was measurably harder to drop into
+// than a full one.
+//
+// Two rules carry this and BOTH are required: stretch makes the column tall,
+// flex:1 makes the BODY (the droppable element) fill it rather than ending at
+// its last card.
+//
+// Source-shape assertion, like the ones below: the geometry itself needs a
+// browser. Measured there when this shipped — someday with one card had a 77px
+// body and a point 400px down hit nothing; afterwards the body was 415px, equal
+// to ready's, and the same point resolved to someday. T-0111 tracks closing
+// this gap properly.
+func TestColumnDropZonesShareTheTallestHeight(t *testing.T) {
+	css, err := os.ReadFile("static/mm.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheet := string(css)
+
+	// Anchored to a line start: the collapsed-column rule below contains
+	// ".mm-column__body {" as a substring, and matching that one instead reads
+	// display:none and reports the opposite of the truth.
+	rule := func(selector string) string {
+		start := strings.Index(sheet, "\n"+selector+" {")
+		if start < 0 {
+			t.Fatalf("mm.css has no %s rule", selector)
+		}
+		block := sheet[start:]
+		return block[:strings.Index(block, "}")]
+	}
+
+	board := rule(".mm-board")
+	if strings.Contains(board, "align-items: flex-start") {
+		t.Error(".mm-board uses align-items: flex-start, so a short column's drop " +
+			"zone stops at its last card and the space below it is not droppable (T-0100)")
+	}
+	if !strings.Contains(board, "align-items: stretch") {
+		t.Error(".mm-board does not stretch its columns to a shared height (T-0100)")
+	}
+
+	body := rule(".mm-column__body")
+	if !strings.Contains(body, "flex: 1") {
+		t.Error(".mm-column__body has no flex: 1, so the body ends at its last card " +
+			"and the column's extra height is not part of the drop zone (T-0100)")
+	}
+}
+
+// The drop index must be measured against the column WITHOUT the placeholder.
+//
+// hoverTarget inserts the placeholder between cards, so every card below it
+// sits one placeholder-height lower. If the next dragover measures while it is
+// still there, that displacement feeds back into the next index: the pointer
+// never reaches the shifted midpoints, the index stays pinned wherever it first
+// landed, and the placeholder never moves again. Dragging an item DOWN then
+// computed a drop index equal to its own position — a no-op the user reads as
+// "drag and drop is broken" (T-0110). Dragging UP was unaffected, because the
+// cards above the placeholder are the ones it does not displace.
+//
+// This is a source-shape assertion in the style of the test below: the gesture
+// itself needs a browser, but the ORDER of these two steps is the whole bug, and
+// a reordering is exactly what would silently bring it back.
+func TestDropIndexIsMeasuredWithoutThePlaceholder(t *testing.T) {
+	script, err := os.ReadFile("static/mm.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(script)
+
+	start := strings.Index(js, "addEventListener('dragover'")
+	if start < 0 {
+		t.Fatal("mm.js has no dragover handler")
+	}
+	end := strings.Index(js[start:], "addEventListener('drop'")
+	if end < 0 {
+		t.Fatal("mm.js has no drop handler after dragover")
+	}
+	handler := js[start : start+end]
+
+	remove := strings.Index(handler, `'[data-testid="drop-placeholder"]'`)
+	measure := strings.Index(handler, "getBoundingClientRect")
+	if remove < 0 {
+		t.Fatal("the dragover handler does not clear the placeholder before measuring (T-0110)")
+	}
+	if measure < 0 {
+		t.Fatal("the dragover handler measures no card geometry")
+	}
+	if remove > measure {
+		t.Error("the dragover handler measures card geometry BEFORE clearing the " +
+			"placeholder, so the placeholder's own height pins the drop index (T-0110)")
+	}
+}
+
 // §7.3 fixes the attributes a drag maintains, and §7.4 requires move mode to
 // maintain the SAME ones so one set of assertions covers both input paths.
 //
@@ -239,4 +337,3 @@ func TestWorkingToBlockedPromptsAndPauses(t *testing.T) {
 		t.Errorf("item not paused into blocked with reason: %+v", it)
 	}
 }
-

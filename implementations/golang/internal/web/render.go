@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"text/template/parse"
 
 	"github.com/labstack/echo/v5"
 )
@@ -106,6 +107,9 @@ func (r *renderer) parse() error {
 		if err != nil {
 			return fmt.Errorf("template %s: %w", page, err)
 		}
+		if err := verifyReferences(t); err != nil {
+			return fmt.Errorf("template %s: %w", page, err)
+		}
 		sets[page] = t
 	}
 
@@ -113,6 +117,81 @@ func (r *renderer) parse() error {
 	r.sets = sets
 	r.mu.Unlock()
 	return nil
+}
+
+// verifyReferences reports a {{template "x"}} naming something the set does not
+// define.
+//
+// Go resolves those at EXECUTION, not at parse. A page whose fragment reaches
+// for a definition living in a DIFFERENT page's file set therefore parses
+// perfectly and fails only when a user reaches the one route that renders it —
+// board.html's panel-replace-oob referenced item-panel while item-panel was
+// defined inside item.html, so every page loaded fine and "Save and add
+// another" answered `no such template "item-panel"` (T-0103).
+//
+// Sets are built per page (layout + that page + every partial), which is what
+// makes the mistake possible at all: a definition is shared only if it lives in
+// partials/. Checking here keeps the promise this file already makes — a broken
+// template is a startup failure, not a 500 somebody finds later.
+func verifyReferences(t *template.Template) error {
+	defined := map[string]bool{}
+	for _, tpl := range t.Templates() {
+		defined[tpl.Name()] = true
+	}
+
+	for _, tpl := range t.Templates() {
+		if tpl.Tree == nil {
+			continue
+		}
+		refs := map[string]bool{}
+		collectTemplateRefs(tpl.Tree.Root, refs)
+		for _, name := range sortedKeys(refs) {
+			if !defined[name] {
+				return fmt.Errorf("%q references undefined template %q "+
+					"(move the definition into partials/ to share it across pages)",
+					tpl.Name(), name)
+			}
+		}
+	}
+	return nil
+}
+
+// collectTemplateRefs walks a parse tree for {{template}} and {{block}} nodes.
+// The name is always a literal, so this sees every reference the set can make.
+func collectTemplateRefs(n parse.Node, out map[string]bool) {
+	switch v := n.(type) {
+	case nil:
+		return
+	case *parse.ListNode:
+		if v == nil {
+			return
+		}
+		for _, child := range v.Nodes {
+			collectTemplateRefs(child, out)
+		}
+	case *parse.TemplateNode:
+		out[v.Name] = true
+	case *parse.IfNode:
+		collectBranch(v.BranchNode, out)
+	case *parse.RangeNode:
+		collectBranch(v.BranchNode, out)
+	case *parse.WithNode:
+		collectBranch(v.BranchNode, out)
+	}
+}
+
+func collectBranch(b parse.BranchNode, out map[string]bool) {
+	collectTemplateRefs(b.List, out)
+	collectTemplateRefs(b.ElseList, out)
+}
+
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // lookup returns a page's template set, re-parsing first in dev mode.
@@ -264,6 +343,18 @@ func templateFuncs() template.FuncMap {
 			href := "/projects"
 			if v.App.Project != nil {
 				href = fmt.Sprintf("/p/%s/%s", v.App.Project.ID, key)
+			}
+			// settings and about are SYSTEM routes, reachable without a project:
+			// with one open they are project-scoped (/p/:id/settings) or global
+			// (/about) respectively.
+			if key == "settings" {
+				href = "/settings"
+				if v.App.Project != nil {
+					href = fmt.Sprintf("/p/%s/settings", v.App.Project.ID)
+				}
+			}
+			if key == "about" {
+				href = "/about"
 			}
 			return navLink{Key: key, Label: label, Href: href, Current: v.App.Nav == key}
 		},

@@ -44,6 +44,9 @@ const (
 	OpBlock   Op = "block"
 	OpUnblock Op = "unblock"
 	OpNote    Op = "note"
+	OpStatus  Op = "status"
+	OpNext    Op = "next"
+	OpSearch  Op = "search"
 )
 
 // takesValue reports whether an operation switch consumes the argument after it
@@ -53,6 +56,7 @@ var opTakesValue = map[Op]bool{
 	OpShow: true, OpEdit: true, OpRemove: true, OpMove: true,
 	OpStart: true, OpPause: true, OpFinish: true, OpAdd: true,
 	OpWip: true, OpBlock: true, OpUnblock: true, OpNote: true,
+	OpSearch: true,
 }
 
 // operations maps the switch name to its operation. Operation and modifier
@@ -63,6 +67,7 @@ var operations = map[string]Op{
 	"pause": OpPause, "finish": OpFinish, "report": OpReport, "check": OpCheck,
 	"wip": OpWip, "find": OpFind,
 	"block": OpBlock, "unblock": OpUnblock, "note": OpNote,
+	"status": OpStatus, "next": OpNext, "search": OpSearch,
 }
 
 // Invocation is one parsed command line.
@@ -96,6 +101,7 @@ type Invocation struct {
 	Untags   []string
 	Sets     []string
 	Unsets   []string
+	Fields   []string
 	Rest     []string // positional values after --
 	Booleans map[string]bool
 }
@@ -125,6 +131,7 @@ var valueModifiers = map[string]bool{
 // modifiers that accumulate rather than replace.
 var accumulating = map[string]bool{
 	"tag": true, "untag": true, "set": true, "unset": true,
+	"field": true,
 }
 
 // boolean modifiers.
@@ -135,7 +142,7 @@ var boolModifiers = map[string]bool{
 	"detail": true, "with-detail": true, "no-edit": true,
 	"last-week": true, "this-week": true, "include-wip": true,
 	"include-backlog": true, "include-archives": true, "keep-notes": true,
-	"discard-notes": true, "blocked-only": true,
+	"discard-notes": true, "blocked-only": true, "regex": true,
 }
 
 // UsageError is a §3 parsing failure. It maps to exit code 2.
@@ -226,6 +233,8 @@ func Parse(args []string) (*Invocation, error) {
 				in.Sets = append(in.Sets, v)
 			case "unset":
 				in.Unsets = append(in.Unsets, v)
+			case "field":
+				in.Fields = append(in.Fields, v)
 			}
 
 		case valueModifiers[name]:

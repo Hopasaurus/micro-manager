@@ -205,15 +205,26 @@ func TestNavCurrentItem(t *testing.T) {
 }
 
 // With no project open the nav links still exist - §5.1 forbids dropping a
-// required testid conditionally - and point somewhere useful.
+// required testid conditionally - and point somewhere useful. The project-scoped
+// links fall back to /projects; the system routes (settings, about) point at
+// themselves, because they are real routes with no project involved.
 func TestNavWithNoProject(t *testing.T) {
 	ts := newTestServer(t)
 	body := ts.get("/p/unknown/board").Body
 
-	for _, key := range []string{"board", "report", "check", "settings"} {
+	for _, key := range []string{"board", "report", "check"} {
 		tag := testid(t, body, "nav-"+key)
 		if got := attrOf(t, tag, "href"); got != "/projects" {
 			t.Errorf("nav-%s href = %q with no project open", key, got)
+		}
+	}
+	for _, tc := range []struct{ key, want string }{
+		{"settings", "/settings"},
+		{"about", "/about"},
+	} {
+		tag := testid(t, body, "nav-"+tc.key)
+		if got := attrOf(t, tag, "href"); got != tc.want {
+			t.Errorf("nav-%s href = %q, want %q", tc.key, got, tc.want)
 		}
 	}
 	tag := testid(t, body, "app")

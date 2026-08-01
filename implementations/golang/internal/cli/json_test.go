@@ -70,6 +70,9 @@ func TestJSONEnvelopeForEveryOperation(t *testing.T) {
 		{"report", []string{"--report", "--period", "all"}, true},
 		{"find", []string{"--find"}, true},
 		{"check", []string{"--check"}, true},
+		{"status", []string{"--status"}, true},
+		{"next", []string{"--next"}, true},
+		{"search", []string{"--search", "First"}, true},
 
 		{"unknown id", []string{"--show", "T-9999"}, false},
 		{"bad value", []string{"--add", "x", "--prio", "urgent"}, false},
@@ -164,6 +167,49 @@ func TestJSONResultShapes(t *testing.T) {
 	}
 	if rep.Period.Label != "2026-W31" || rep.Period.Source != "switch" {
 		t.Errorf("period = %+v", rep.Period)
+	}
+
+	// --status is the one-screen summary as data: wip, counts, slots, and the
+	// featured Ready items (null when ## Ready is empty).
+	e = decode(t, r.run("--status", "--json"))
+	var st struct {
+		Wip   struct{ Used, Limit int }
+		Slots []struct {
+			File     string
+			Occupied bool
+			Item     *jsonItem
+		}
+		Next *jsonItem
+	}
+	if err := json.Unmarshal(e.Result, &st); err != nil {
+		t.Fatalf("status result: %v", err)
+	}
+	if st.Wip.Limit != 1 || st.Wip.Used != 0 {
+		t.Errorf("wip = %+v", st.Wip)
+	}
+	if len(st.Slots) != 1 || st.Slots[0].File != "working.01.md" || st.Slots[0].Occupied {
+		t.Errorf("slots = %+v", st.Slots)
+	}
+	if st.Next == nil || st.Next.ID != "T-0001" {
+		t.Errorf("next = %+v, want T-0001 (the top of ## Ready)", st.Next)
+	}
+
+	// --search reports each hit's field and navigable file:line.
+	r.run("--add", "Deploy the script", "--section", "ready")
+	e = decode(t, r.run("--search", "deploy", "--json"))
+	var hits []struct {
+		Field string
+		At    struct {
+			File string
+			Line int
+		}
+		Item jsonItem
+	}
+	if err := json.Unmarshal(e.Result, &hits); err != nil {
+		t.Fatalf("search result: %v", err)
+	}
+	if len(hits) != 1 || hits[0].Field != "title" || hits[0].At.File != "backlog.md" {
+		t.Errorf("hits = %+v", hits)
 	}
 }
 

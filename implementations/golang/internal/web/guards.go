@@ -118,7 +118,18 @@ func (s *Server) guardMiddleware() echo.MiddlewareFunc {
 
 			res.Header().Set("Content-Security-Policy", contentSecurityPolicy)
 			res.Header().Set("X-Content-Type-Options", "nosniff")
-			res.Header().Set("Referrer-Policy", "no-referrer")
+			// same-origin, NOT no-referrer — and the difference is load-bearing.
+			//
+			// Under no-referrer a browser strips the origin from a NAVIGATION
+			// too, so a plain <form method="post"> to this very service arrives
+			// with `Origin: null`. The origin guard below then correctly refuses
+			// its own settings form: this header was defeating the check it sits
+			// next to, and every native form POST in the UI 403'd (T-0108).
+			//
+			// same-origin keeps the property that actually matters here — a
+			// cross-origin request still leaks nothing — while letting the
+			// browser identify its own requests as its own.
+			res.Header().Set("Referrer-Policy", "same-origin")
 			// Never Access-Control-Allow-Origin: * and never a reflected origin.
 			// The absence of any CORS header is the policy.
 
@@ -185,6 +196,16 @@ func (s *Server) originAllowed(req *http.Request) bool {
 	origin := req.Header.Get("Origin")
 	if origin == "" {
 		return true
+	}
+	// An OPAQUE origin serialises to the literal "null": a sandboxed iframe, a
+	// file:// page, a data: URL. That is precisely the caller this rule exists
+	// to refuse, so it is rejected by name rather than incidentally through a
+	// parse that happens to yield an empty host.
+	//
+	// A same-origin form post must never arrive this way. If it does, something
+	// upstream is stripping the origin — see the Referrer-Policy note above.
+	if origin == "null" {
+		return false
 	}
 	u, err := url.Parse(origin)
 	if err != nil {

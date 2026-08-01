@@ -208,6 +208,11 @@ func (s *Server) buildThemeEditor(c *echo.Context) themeEditorData {
 		Appearance: resolved.Appearance,
 	}
 
+	// §11 rule 7: warn on contrast failures, never block. The warning is part
+	// of the editor page, so it travels with every render - the initial load
+	// AND the save response, which re-renders the editor.
+	data.Warnings = append(data.Warnings, contrastWarnings(resolved)...)
+
 	for _, token := range mm.ColorTokens() {
 		val := resolved.Color[token]
 		data.Colors = append(data.Colors, tokenInput{
@@ -230,11 +235,16 @@ func (s *Server) buildThemeEditor(c *echo.Context) themeEditorData {
 }
 
 func (s *Server) buildThemeLibrary() themeLibraryData {
+	// Described FROM the built-in theme, so this listing and the JSON API's
+	// cannot drift from each other or from the document either one exports.
+	// "sample-one-dark" used to sit here too: it is the EXAMPLE theme of
+	// spec-gui.md §8.6, not a theme mm has, and selecting it silently served
+	// the built-in (§8.7 defines exactly one built-in default).
+	bt := mm.BuiltinTheme()
 	data := themeLibraryData{
 		Current: s.opts.Config.Theme.ID,
 		Themes: []themeSummary{
-			{ID: "micro-manager", Name: "micro-manager", Author: "Builtin", Appearance: "auto", Source: "builtin"},
-			{ID: "sample-one-dark", Name: "Sample One — Dark", Author: "Builtin", Appearance: "dark", Source: "builtin"},
+			{ID: bt.ID, Name: bt.Name, Author: "Builtin", Appearance: bt.Appearance, Source: "builtin"},
 		},
 	}
 
@@ -274,9 +284,43 @@ func (s *Server) buildThemeDetail(themeID string) themeSummary {
 	}
 }
 
+// contrastWarnings renders §11 rule 7 checks as editor warnings. Each failing
+// pair is one line; the pairs come from mm.CheckContrast, which measures the
+// two the spec names.
+//
+// Appearance decides the palette to judge. An "auto" theme carries both a
+// light and a dark palette and either could be shown at runtime, so both are
+// checked and the failing one is named.
+func contrastWarnings(r mm.ResolvedTheme) []string {
+	var warns []string
+	check := func(dark bool, label string) {
+		for _, p := range r.CheckContrast(dark) {
+			if p.Passes {
+				continue
+			}
+			warns = append(warns, fmt.Sprintf(
+				"%s: contrast %.2f:1 between %s and %s is below WCAG AA (4.5:1)",
+				label, p.Ratio,
+				mm.CSSPropertyName("color."+p.Foreground),
+				mm.CSSPropertyName("color."+p.Background)))
+		}
+	}
+	switch r.Appearance {
+	case "dark":
+		check(true, "Dark palette")
+	case "light":
+		check(false, "Light palette")
+	default:
+		check(false, "Light palette")
+		check(true, "Dark palette")
+	}
+	return warns
+}
+
 func (s *Server) resolveExportTheme(themeID string) *mm.Theme {
-	if themeID == "micro-manager" || themeID == "sample-one-dark" || themeID == "" {
-		return mm.BuiltinTheme()
+	// The empty id is the built-in too: nothing configured resolves to it.
+	if bt := mm.BuiltinTheme(); themeID == bt.ID || themeID == "" {
+		return bt
 	}
 
 	if s.opts.ConfigHome != "" {

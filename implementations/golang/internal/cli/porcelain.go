@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"micromanager/mm"
@@ -42,6 +43,9 @@ var porcelainFields = map[Op][]string{
 	OpInit:    {"path", "project"},
 	OpWip:     {"path", "project", "wipUsed", "wipLimit"},
 	OpReport:  {"id", "done", "outcome", "tags", "title"},
+	OpStatus:  {"wipUsed", "wipLimit", "ready", "blocked", "someday", "done"},
+	OpNext:    {"id", "state", "section", "prio", "tags", "title"},
+	OpSearch:  {"id", "state", "field", "file", "line", "text"},
 }
 
 // porcelainOut accumulates records, for the same reason the JSON envelope does:
@@ -64,6 +68,28 @@ func (p *porcelainOut) item(it mm.Item) {
 func (p *porcelainOut) items(items []mm.Item) {
 	for _, it := range items {
 		p.item(it)
+	}
+}
+
+// status appends the --status record: ONE summary row with the counts a
+// script gates on. What is IN each slot is the human screen's and --json's
+// business — porcelain is one record type per operation, never a mix, so the
+// slot contents stay where a pipeline already enumerates them: --list.
+func (p *porcelainOut) status(st mm.Status) {
+	p.row(strconv.Itoa(st.WipUsed()), strconv.Itoa(st.WipLimit()),
+		strconv.Itoa(st.Ready), strconv.Itoa(st.Blocked),
+		strconv.Itoa(st.Someday), strconv.Itoa(st.Done))
+}
+
+// search appends one record per hit.
+func (p *porcelainOut) search(hits []mm.SearchHit) {
+	for _, h := range hits {
+		state := string(h.Item.State)
+		if h.Item.State == mm.StateBacklog {
+			state += "/" + string(h.Item.Section)
+		}
+		p.row(string(h.Item.ID), state, string(h.Field),
+			h.At.File, strconv.Itoa(h.At.Line), h.Text)
 	}
 }
 

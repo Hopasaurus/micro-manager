@@ -232,7 +232,13 @@ body {
 .mm-board {
   display: flex;
   gap: var(--mm-space-3);
-  align-items: flex-start;
+  /* stretch, not flex-start: every column is as tall as the tallest one, so a
+     short column's DROP ZONE reaches as far down as a full one's. With
+     flex-start each column stopped at its own last card, and the empty space
+     beside it belonged to the board rather than to any column - a drop aimed
+     there landed on nothing, which made a nearly-empty column much harder to
+     drop into than a full one. */
+  align-items: stretch;
   overflow-x: auto;
   padding-bottom: var(--mm-space-4);
 }
@@ -327,7 +333,17 @@ body {
 
 .mm-column__add:hover { color: var(--mm-color-accent-base); background: var(--mm-color-bg-raised); }
 
-.mm-column__body { display: flex; flex-direction: column; gap: var(--mm-space-2); min-height: var(--mm-space-8); }
+/* flex: 1 is what actually makes the drop zone tall. The column stretches, but
+   without this the body still ends at its last card and the slack belongs to
+   the column - and .mm-column__body is what mm.js resolves a drop against
+   (closest('.mm-column__body')), so slack outside it is not droppable. */
+.mm-column__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mm-space-2);
+  min-height: var(--mm-space-8);
+  flex: 1;
+}
 
 /* The column colours are the semantic state tokens, which the TUI shares. */
 [data-testid="board-column-ready"]   { border-top: var(--mm-border-width-thick) solid var(--mm-color-state-ready); }

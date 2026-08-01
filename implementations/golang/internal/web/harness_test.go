@@ -26,6 +26,7 @@ type testServer struct {
 	*Server
 	t          *testing.T
 	ConfigHome string
+	Root       string // the configured scan root; every fixture sits under it
 	Dirs       []string
 }
 
@@ -35,28 +36,82 @@ type testServer struct {
 // under testdata/ is read-only by convention.
 func newTestServer(t *testing.T, fixtures ...string) *testServer {
 	t.Helper()
+	return newTestServerCfg(t, mm.DefaultConfig(), fixtures...)
+}
 
-	configHome := t.TempDir()
-	root := t.TempDir()
-	var dirs []string
-	for _, name := range fixtures {
-		dirs = append(dirs, copyFixtureTo(t, name, filepath.Join(root, name)))
-	}
+// newTestServerCfg is newTestServer with the merged configuration supplied by
+// the caller, for tests that need a non-default setting - the SSE tests use a
+// fast poll interval so a mutation is observed within the test's lifetime.
+func newTestServerCfg(t *testing.T, cfg mm.Config, fixtures ...string) *testServer {
+	t.Helper()
+	return newTestServerWith(t, func(o *Options) { o.Config = cfg }, fixtures...)
+}
+
+// newTestServerWith is newTestServer with a caller-supplied mutation of the
+// options, applied after the harness defaults. The test-mode tests pass
+// TestMode: true this way.
+func newTestServerWith(t *testing.T, mutate func(*Options), fixtures ...string) *testServer {
+	t.Helper()
 
 	opts := Options{
-		ConfigHome: configHome,
-		StartDir:   root,
-		Dirs:       dirs,
+		ConfigHome: t.TempDir(),
+		StartDir:   t.TempDir(),
 		Config:     mm.DefaultConfig(),
 		Logger:     newTestLogger(t),
 	}
-	opts.Config.Scan.Roots = []string{root}
+	mutate(&opts)
+
+	var dirs []string
+	for _, name := range fixtures {
+		dirs = append(dirs, copyFixtureTo(t, name, filepath.Join(opts.StartDir, name)))
+	}
+
+	opts.Dirs = dirs
+	opts.Config.Scan.Roots = []string{opts.StartDir}
 
 	srv, err := New(opts)
 	if err != nil {
 		t.Fatalf("new server: %v", err)
 	}
-	return &testServer{Server: srv, t: t, ConfigHome: configHome, Dirs: dirs}
+	return &testServer{Server: srv, t: t, ConfigHome: opts.ConfigHome, Root: opts.StartDir, Dirs: dirs}
+}
+
+// samePath reports whether two paths name the same directory.
+//
+// A fixture path comes from t.TempDir(); a path that came back from the service
+// came through discovery, which RESOLVES symlinks. On macOS t.TempDir() hands
+// out /var/folders/... while discovery reports /private/var/folders/..., so a
+// raw == between the two is false for every fixture on darwin and true on
+// Linux - a test that compares them directly passes in CI and fails on the
+// machine it was written on. registry.go's under() documents the same hazard
+// for the production path; this is that rule, for tests.
+//
+// Compare fixture paths against service output with this, never with ==.
+func samePath(a, b string) bool {
+	ca, err := mm.CanonicalPath(a)
+	if err != nil {
+		return false
+	}
+	cb, err := mm.CanonicalPath(b)
+	if err != nil {
+		return false
+	}
+	return ca == cb
+}
+
+// underRoot reports whether path sits at or below root, canonicalising both
+// sides for the reason samePath does. The separator check is what keeps
+// /tmp/aaa-sibling from counting as being under /tmp/aaa.
+func underRoot(path, root string) bool {
+	cp, err := mm.CanonicalPath(path)
+	if err != nil {
+		return false
+	}
+	cr, err := mm.CanonicalPath(root)
+	if err != nil {
+		return false
+	}
+	return cp == cr || strings.HasPrefix(cp, cr+string(filepath.Separator))
 }
 
 // response is one round trip, kept as bytes so a test may read it twice.

@@ -124,6 +124,17 @@ func (r *registry) discovery() discoveryView {
 // rescan re-runs discovery. It is what POST /api/v1/scan, the projects-rescan
 // button and scan.rescanOnFocus all reach.
 func (r *registry) rescan() discoveryView {
+	r.rescanRaw()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.view()
+}
+
+// rescanRaw re-runs discovery and returns the raw result plus the timestamp it
+// was taken at, without building the render-ready view. It is what the JSON
+// API calls; rescan builds on it so the two front ends cannot disagree about
+// what a scan found.
+func (r *registry) rescanRaw() (mm.DiscoveryResult, mm.Timestamp) {
 	roots := r.roots()
 	opts := r.scan.DiscoveryOptions()
 	opts.Roots = roots
@@ -143,7 +154,20 @@ func (r *registry) rescan() discoveryView {
 	for _, path := range r.explicit {
 		r.rememberPath(path)
 	}
-	return r.view()
+	return r.result, r.scannedAt
+}
+
+// rawResult returns the cached walk's raw result and its timestamp, running the
+// first walk of the process on demand.
+func (r *registry) rawResult() (mm.DiscoveryResult, mm.Timestamp) {
+	r.mu.RLock()
+	scanned := r.scanned
+	result, at := r.result, r.scannedAt
+	r.mu.RUnlock()
+	if !scanned {
+		return r.rescanRaw()
+	}
+	return result, at
 }
 
 // view builds the render-ready form. The caller holds at least a read lock.

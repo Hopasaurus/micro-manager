@@ -35,6 +35,9 @@ Operations:
   --block ID --reason T     move to Blocked with a reason
   --unblock ID              move back to Ready and drop the reason
   --note ID TEXT            append a dated note
+  --status                  one screen: slots, WIP, counts, next, oldest
+  --next                    print the top of ## Ready; exits non-zero if empty
+  --search QUERY            substring or regex match over titles, tags, details
   --find                    list discovered micro-manager directories
   --help, --version
 
@@ -204,6 +207,29 @@ detail file, which is created if it does not exist.
 	OpFind: `mm --find [--dir PATH]
 
 Lists micro-manager directories below the current directory, or below PATH.
+`,
+	OpStatus: `mm --status
+
+One screen (spec-tools.md §5.2): what is in each working slot, WIP n/N, counts
+by section, the top of ## Ready, and the oldest Ready item that has never been
+started — the one quietly aging at the bottom of the list.
+`,
+	OpNext: `mm --next
+
+Prints the top of ## Ready, the thing to start next. Exits non-zero (code 3)
+when ## Ready is empty, so a script can stop rather than start something
+arbitrary.
+`,
+	OpSearch: `mm --search QUERY [--regex] [--field F]... [--state S] [--limit N]
+
+Substring or regex match over titles, tags and detail bodies, reporting state
+and location per hit. A plain query is a case-insensitive substring; a regex is
+matched exactly as written, so ask for case-insensitivity with (?i).
+
+  --regex                   treat QUERY as a regular expression
+  --field title|tags|detail narrow where to look; repeats (default: all three)
+  --state backlog|working|done
+  --limit N                 cap the number of hits
 `,
 }
 

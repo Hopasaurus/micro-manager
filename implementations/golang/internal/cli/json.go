@@ -282,6 +282,61 @@ func toJSONFind(res mm.DiscoveryResult) any {
 	}
 }
 
+// toJSONStatus is --status: everything the one-screen summary carries, as
+// data. Slots are listed with their item or empty, and next/oldestReady are
+// null when ## Ready is empty.
+func toJSONStatus(st mm.Status) any {
+	slots := make([]map[string]any, 0, len(st.Directory.Slots))
+	for _, slot := range st.Directory.Slots {
+		s := map[string]any{"file": slot.File, "occupied": slot.Occupied()}
+		if slot.Occupied() {
+			s["item"] = toJSONItem(*slot.Item)
+		}
+		slots = append(slots, s)
+	}
+	out := map[string]any{
+		"project": st.Directory.Project,
+		"path":    st.Directory.Path,
+		"wip": map[string]any{
+			"used":  st.WipUsed(),
+			"limit": st.WipLimit(),
+		},
+		"counts": map[string]any{
+			"ready":   st.Ready,
+			"blocked": st.Blocked,
+			"someday": st.Someday,
+			"done":    st.Done,
+		},
+		"slots": slots,
+		"next":  nil,
+	}
+	if st.Next != nil {
+		out["next"] = toJSONItem(*st.Next)
+	}
+	if st.OldestReady != nil {
+		out["oldestReady"] = toJSONItem(*st.OldestReady)
+	}
+	return out
+}
+
+// toJSONSearch is --search: each hit is the item, the field it matched on, and
+// the exact file:line — the navigable location.
+func toJSONSearch(hits []mm.SearchHit) any {
+	out := make([]map[string]any, 0, len(hits))
+	for _, h := range hits {
+		out = append(out, map[string]any{
+			"item":  toJSONItem(h.Item),
+			"field": string(h.Field),
+			"at": map[string]any{
+				"file": h.At.File,
+				"line": h.At.Line,
+			},
+			"text": h.Text,
+		})
+	}
+	return out
+}
+
 // toJSONCheck is --check: the violations, as file/line/invariant/message, which
 // is more than the human output can convey in one line.
 func toJSONCheck(results []checkResult) any {

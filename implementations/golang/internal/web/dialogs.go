@@ -45,6 +45,11 @@ func (s *Server) dialog(c *echo.Context) error {
 	v.Data = map[string]any{
 		"ItemID":    itemID,
 		"IsWorking": it.State == mm.StateWorking,
+		// confirm-remove offers to delete the detail file along with the item,
+		// so it has to know whether there is one to offer (spec-tools.md
+		// §5.1.6). Empty for an item with no detail file, and the dialog then
+		// says nothing about detail files at all.
+		"Detail": it.Detail,
 	}
 
 	// A dialog is always a fragment: it is swapped into dialog-root over

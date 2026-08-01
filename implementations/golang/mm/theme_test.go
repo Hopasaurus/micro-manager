@@ -118,6 +118,43 @@ func TestBuiltinThemeIsComplete(t *testing.T) {
 	}
 }
 
+// §8.8: an export is "one self-contained JSON file". Bytes marshalled the raw
+// document alone while Save folded the parsed fields into it first, so a theme
+// built in Go rather than read from a file rendered as "{}" — exporting the
+// built-in downloaded an empty document under a .mm-theme.json filename.
+func TestBuiltinThemeExportsItself(t *testing.T) {
+	data, err := BuiltinTheme().Bytes()
+	if err != nil {
+		t.Fatalf("Bytes: %v", err)
+	}
+
+	// It must survive the round trip it exists for: export, re-import, same theme.
+	back, err := ParseTheme("exported.json", data)
+	if err != nil {
+		t.Fatalf("the exported built-in does not parse: %v\n%s", err, data)
+	}
+	if back.ID != BuiltinTheme().ID {
+		t.Errorf("exported id = %q, want %q", back.ID, BuiltinTheme().ID)
+	}
+	if back.Name != BuiltinTheme().Name {
+		t.Errorf("exported name = %q, want %q", back.Name, BuiltinTheme().Name)
+	}
+	if back.Appearance != BuiltinTheme().Appearance {
+		t.Errorf("exported appearance = %q, want %q", back.Appearance, BuiltinTheme().Appearance)
+	}
+	for _, token := range ColorTokens() {
+		if back.Color[token] == "" {
+			t.Errorf("exported theme lost color.%s", token)
+		}
+		if back.ColorDark[token] == "" {
+			t.Errorf("exported theme lost colorDark.%s", token)
+		}
+	}
+	if len(back.Validate()) != 0 {
+		t.Errorf("the exported built-in does not validate: %v", back.Validate())
+	}
+}
+
 // spec-gui.md §11 rule 7: fg.default/bg.base and accent.fg/accent.base MUST meet
 // WCAG AA. The editor only warns, so the built-in has to be right by itself.
 func TestBuiltinThemeMeetsContrastAA(t *testing.T) {

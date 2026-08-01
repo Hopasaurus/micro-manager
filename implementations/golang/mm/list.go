@@ -134,15 +134,27 @@ type ProjectList struct {
 // LoadProjectList reads a list file. A missing file is an empty list, not an
 // error: neither list exists until something is opened.
 func LoadProjectList(path string, kind ListKind) (*ProjectList, error) {
-	l := &ProjectList{Path: path, Kind: kind, raw: map[string]any{}}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return l, nil
+			return &ProjectList{Path: path, Kind: kind, raw: map[string]any{}}, nil
 		}
 		return nil, fmt.Errorf("%w: %s: %v", ErrIO, path, err)
 	}
+	l, err := ParseProjectList(path, kind, data)
+	if err != nil {
+		return nil, err
+	}
 	l.Exists = true
+	return l, nil
+}
+
+// ParseProjectList builds a list from content rather than from disk, which is
+// what a JSON API needs when a client PUTs a whole list back (spec-gui.md §4.2,
+// GET·PUT /recent and /favorites). The parse is the same one LoadProjectList
+// runs, so a document this accepts is a document that loads.
+func ParseProjectList(path string, kind ListKind, data []byte) (*ProjectList, error) {
+	l := &ProjectList{Path: path, Kind: kind, raw: map[string]any{}}
 	if len(bytes.TrimSpace(data)) == 0 {
 		return l, nil
 	}
@@ -197,6 +209,20 @@ func LoadProjectList(path string, kind ListKind) (*ProjectList, error) {
 	}
 	l.sortForKind()
 	return l, nil
+}
+
+// WriteProjectList writes a list file's content atomically, which is what a PUT
+// of a whole list needs (spec-gui.md §4.2). The document is parsed first so a
+// client cannot write a file the service itself could not load; unknown keys are
+// preserved because they were never decoded away.
+func WriteProjectList(path string, kind ListKind, data []byte) error {
+	if _, err := ParseProjectList(path, kind, data); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("%w: %s: %v", ErrIO, filepath.Dir(path), err)
+	}
+	return writeFileAtomic(path, data)
 }
 
 // sortForKind puts the file in the order the list is defined to be in: recent by

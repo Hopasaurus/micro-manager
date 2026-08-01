@@ -272,15 +272,27 @@ type ConfigFile struct {
 // LoadConfigFile reads a config file. A missing file is not an error: it is
 // equivalent to an empty object (spec-gui.md §9.1).
 func LoadConfigFile(path string, scope ConfigScope) (*ConfigFile, error) {
-	f := &ConfigFile{Path: path, Scope: scope, raw: map[string]any{}}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return f, nil
+			return &ConfigFile{Path: path, Scope: scope, raw: map[string]any{}}, nil
 		}
 		return nil, fmt.Errorf("%w: %s: %v", ErrIO, path, err)
 	}
+	f, err := ParseConfigFile(path, scope, data)
+	if err != nil {
+		return nil, err
+	}
 	f.Exists = true
+	return f, nil
+}
+
+// ParseConfigFile builds a ConfigFile from content rather than from disk, which
+// is what a JSON API needs when a client PUTs a whole file back (spec-gui.md
+// §4.2, GET·PUT /config). The parse is the same one LoadConfigFile runs, so a
+// file this accepts is a file that loads.
+func ParseConfigFile(path string, scope ConfigScope, data []byte) (*ConfigFile, error) {
+	f := &ConfigFile{Path: path, Scope: scope, raw: map[string]any{}}
 	if len(bytes.TrimSpace(data)) == 0 {
 		return f, nil
 	}
