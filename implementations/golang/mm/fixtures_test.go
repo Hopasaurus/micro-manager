@@ -67,6 +67,11 @@ var brokenInvariants = map[string]string{
 	// below next_id) so the three marker lines are the fixture's only findings
 	// - the T-0101 probe scenario, which used to pass with zero findings.
 	"broken-marker": "format",
+	// T-0126: the refs LINKLIST (spec-file-format.md §6) and the board slug
+	// (§5.1) are shape-checked, never resolved. This fixture breaks the shape
+	// in all three places — an uppercase slug, a space in a link, a non-ID
+	// element — and nothing else: the target boards need not exist.
+	"broken-refs": "format",
 	// A declared id_width above the shared 15-digit cap (§3.3.2 rule 3, T-0120)
 	// is a format violation: the default grammar stands in, so this is the
 	// directory's only finding.

@@ -134,6 +134,12 @@ function unq(s)   { if (s ~ /^".*"$/) s = substr(s, 2, length(s) - 2); return s 
 function err(m)   { print "ERR\t" pfx base ":" FNR ": " m }
 function ferr(m)  { print "ERR\t" pfx m }
 function istags(s) { return (s ~ /^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$/) }
+# isslug/isrefs cover the board slug and the refs LINKLIST (spec-file-format.md
+# §3.3): slug is lowercase [a-z][a-z0-9-]{0,15}, each link is SLUG:ID with ID
+# in the generic form every declared grammar shares. Shape only -- resolution
+# is never a checker job (§9); the GUI owns resolution, where a tree view exists.
+function isslug(s) { return (s ~ /^[a-z][a-z0-9-]{0,15}$/) }
+function isrefs(s) { return (s ~ /^[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15}(,[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15})*$/) }
 function isnull(s) { return (s == "" || s == "null") }
 # working file frontmatter: value of, and error located at, key k of file f
 function wv(f, k)      { return ((f, k) in wf) ? wf[f, k] : "" }
@@ -264,6 +270,7 @@ infm {
     if (k == "project") project = v
     if (k == "id_prefix") { idp_raw = v; idp_line = FNR }
     if (k == "id_width")  { idw_raw = v; idw_line = FNR }
+    if (k == "board")     { board_raw = v; board_line = FNR }
   }
   if (isw) { wf[base, k] = v; wl[base, k] = FNR }
   next
@@ -327,6 +334,8 @@ infm {
     err(id " has outcome:" fld["outcome"] " (want shipped, cancelled or obsolete)")
   if (("tags" in fld) && !istags(fld["tags"]))
     err(id " has malformed tags: " fld["tags"])
+  if (("refs" in fld) && !isrefs(fld["refs"]))
+    err(id " has malformed refs: " fld["refs"])
   split("created started done", datekey, " ")
   for (i in datekey)
     if ((datekey[i] in fld) && !isdate(fld[datekey[i]]))
@@ -385,13 +394,15 @@ END {
         werr(f, "prio", "prio:" wv(f, "prio") " (want high, med or low)")
       if (!isnull(wv(f, "tags")) && !istags(wv(f, "tags")))
         werr(f, "tags", "malformed tags: " wv(f, "tags") " (want name,name or null)")
+      if (!isnull(wv(f, "refs")) && !isrefs(wv(f, "refs")))
+        werr(f, "refs", "malformed refs: " wv(f, "refs") " (want slug:id,slug:id or null)")
       if (!isnull(wv(f, "created")) && !isdate(wv(f, "created")))
         werr(f, "created", "created:" wv(f, "created") " (want an ISO 8601 date, YYYY-MM-DD)")
       if (!isdate(wv(f, "started")))
         werr(f, "started", "started:" wv(f, "started") " (want an ISO 8601 date, YYYY-MM-DD; set when the item starts)")
 
     } else if (st == "idle") {
-      nk = split("id title prio tags detail created started", wk, " ")
+      nk = split("id title prio tags refs detail created started", wk, " ")
       for (m = 1; m <= nk; m++)
         if (!isnull(wv(f, wk[m])))
           werr(f, wk[m], "status is idle but " wk[m] " is " wv(f, wk[m]))
@@ -405,6 +416,8 @@ END {
   # backlog.md frontmatter carries the directory identity
   if (isnull(project))
     ferr("backlog.md: frontmatter has no project name")
+  if (board_raw != "" && !isslug(board_raw))
+    ferr("backlog.md:" board_line ": board must be a slug [a-z][a-z0-9-]{0,15}: " board_raw)
 
   # invariant 2: every ID is below next_id
   if (next_id == "")

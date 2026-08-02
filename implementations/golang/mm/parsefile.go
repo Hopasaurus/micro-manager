@@ -143,6 +143,14 @@ func parseBacklog(name string, data []byte) (*backlogFile, []Violation) {
 	vs = append(vs, hvs...)
 	g, gvs, gwarns := ParseIDGrammar(fm)
 	vs = append(vs, gvs...)
+	if fm.Has("board") {
+		if b := fm.Get("board"); !validSlug(b) {
+			vs = append(vs, Violation{
+				Invariant: invFormat, At: Location{File: name, Line: fm.Line("board")},
+				Message: "board must be a slug [a-z][a-z0-9-]{0,15}: " + b,
+			})
+		}
+	}
 	b := &backlogFile{Name: name, FM: fm, Lines: lines, grammar: g, warnings: gwarns}
 
 	var cur *sectionSpan

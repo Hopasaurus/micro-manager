@@ -182,6 +182,12 @@ func (it *Item) setField(file string, lineNo int, key, val string) error {
 			return fail(err)
 		}
 		it.Tags = tags
+	case "refs":
+		refs, err := ParseRefs(val)
+		if err != nil {
+			return fail(err)
+		}
+		it.Refs = refs
 	case "detail":
 		it.Detail = val
 	case "created":
@@ -222,7 +228,7 @@ func (it *Item) setField(file string, lineNo int, key, val string) error {
 // fieldOrder is the canonical order writers emit (spec-file-format.md §6.1).
 // Readers must not depend on it; it exists so that lines a writer touches come
 // out consistent.
-var fieldOrder = []string{"prio", "tags", "detail", "created", "started",
+var fieldOrder = []string{"prio", "tags", "refs", "detail", "created", "started",
 	"blocked", "done", "outcome"}
 
 // RenderItemLine serialises an item back to one line.
@@ -267,6 +273,8 @@ func (it *Item) fieldValue(key string) string {
 		return string(it.Prio)
 	case "tags":
 		return FormatTags(it.Tags)
+	case "refs":
+		return FormatRefs(it.Refs)
 	case "detail":
 		return it.Detail
 	case "created":

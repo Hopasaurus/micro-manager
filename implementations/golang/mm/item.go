@@ -301,6 +301,94 @@ func validTag(t string) bool {
 }
 
 // ---------------------------------------------------------------------------
+// Cross-board links
+// ---------------------------------------------------------------------------
+
+// Ref is one cross-board link: a target board's slug and the target item's ID
+// (spec-file-format.md §6, `refs`). Resolution — whether the target exists — is
+// deliberately never this directory's business (§9); shape is.
+//
+// The slug is the target board's declared `board` value (§5.1), the one board
+// handle that is content rather than location. The ID half uses the generic
+// form every declared grammar shares, so a link can be checked locally without
+// knowing the target directory's grammar (plan-board-links.md decision 3).
+type Ref struct {
+	Slug string
+	ID   ID
+}
+
+func (r Ref) String() string { return r.Slug + ":" + string(r.ID) }
+
+// ParseRefs splits a LINKLIST: one or more SLUG:ID elements, comma separated
+// with no spaces — the same lexical rule as a TAGLIST (spec-file-format.md
+// §3.3).
+func ParseRefs(s string) ([]Ref, error) {
+	if s == "" {
+		return nil, nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]Ref, 0, len(parts))
+	for _, p := range parts {
+		slug, id, ok := strings.Cut(p, ":")
+		if !ok || !validSlug(slug) || !validGenericID(id) {
+			return nil, fmt.Errorf("%w: malformed refs: %s", ErrInvalidArgument, s)
+		}
+		out = append(out, Ref{Slug: slug, ID: ID(id)})
+	}
+	return out, nil
+}
+
+// FormatRefs renders refs in their canonical form. No spaces: a space would
+// make the value unparseable as a LINKLIST.
+func FormatRefs(refs []Ref) string {
+	parts := make([]string, len(refs))
+	for i, r := range refs {
+		parts[i] = r.String()
+	}
+	return strings.Join(parts, ",")
+}
+
+// validSlug reports whether s is a board slug (spec-file-format.md §5.1):
+// lowercase, one to sixteen characters, starting with a letter. Lowercase
+// keeps the slug namespace disjoint from the uppercase ID-prefix namespace.
+func validSlug(s string) bool {
+	if len(s) == 0 || len(s) > 16 {
+		return false
+	}
+	if s[0] < 'a' || s[0] > 'z' {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		c := s[i]
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+// validGenericID reports whether s has the ID form every declared grammar
+// shares: an uppercase prefix of one to four letters, a hyphen, one to fifteen
+// digits (spec-file-format.md §3.3.2). The target board's exact grammar is
+// unknowable from here; the generic form is the intersection of them all.
+func validGenericID(s string) bool {
+	i := 0
+	for i < len(s) && s[i] >= 'A' && s[i] <= 'Z' {
+		i++
+	}
+	if i < 1 || i > 4 || i >= len(s) || s[i] != '-' {
+		return false
+	}
+	i++
+	digits := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+		digits++
+	}
+	return i == len(s) && digits >= 1 && digits <= 15
+}
+
+// ---------------------------------------------------------------------------
 // Item
 // ---------------------------------------------------------------------------
 
@@ -328,6 +416,7 @@ type Item struct {
 
 	Prio    Prio
 	Tags    []string
+	Refs    []Ref
 	Detail  string // "details/T-0042.md", or empty
 	Created Date
 	Started Date

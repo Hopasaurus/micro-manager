@@ -26,7 +26,7 @@ var workingFileRE = regexp.MustCompile(`^working\.(\d+)\.md$`)
 
 // workingItemKeys are the item's own fields in a slot's frontmatter
 // (spec-file-format.md §5.2.2). All seven must be null when the slot is idle.
-var workingItemKeys = []string{"id", "title", "prio", "tags", "detail", "created", "started"}
+var workingItemKeys = []string{"id", "title", "prio", "tags", "refs", "detail", "created", "started"}
 
 // workingFileKeys belong to the file rather than to the item it holds.
 var workingFileKeys = []string{"doc", "version", "status"}
@@ -272,6 +272,13 @@ func parseWorkingG(name string, data []byte, g IDGrammar) (*workingFile, []Viola
 			it.Tags = tags
 		}
 	}
+	if !fm.IsNull("refs") {
+		if refs, err := ParseRefs(fm.Get("refs")); err != nil {
+			bad("refs", "malformed refs: "+fm.Get("refs")+" (want slug:id,slug:id or null)")
+		} else {
+			it.Refs = refs
+		}
+	}
 	if !fm.IsNull("created") {
 		if d, err := ParseDate(fm.Get("created")); err != nil {
 			bad("created", "created:"+fm.Get("created")+" (want YYYY-MM-DD)")
@@ -345,6 +352,7 @@ func workingFields(it *Item) []Field {
 		{"title", it.Title},
 		{"prio", nz(string(it.Prio))},
 		{"tags", nz(FormatTags(it.Tags))},
+		{"refs", nz(FormatRefs(it.Refs))},
 		{"detail", nz(it.Detail)},
 		{"created", nz(it.Created.String())},
 		{"started", nz(it.Started.String())},

@@ -17,6 +17,7 @@ type AddRequest struct {
 	Section Section // defaults to Ready
 	Prio    Prio
 	Tags    []string
+	Refs    []Ref
 	Blocked string
 	Created Date // defaults to today; settable for backfilling
 
@@ -143,6 +144,11 @@ func buildNewItem(req AddRequest, today Date) (*Item, error) {
 			return nil, fmt.Errorf("%w: malformed tag %q", ErrInvalidArgument, tag)
 		}
 	}
+	for _, ref := range req.Refs {
+		if !validSlug(ref.Slug) || !validGenericID(string(ref.ID)) {
+			return nil, fmt.Errorf("%w: malformed ref %q", ErrInvalidArgument, ref.String())
+		}
+	}
 	if strings.ContainsAny(req.Blocked, "|") {
 		return nil, fmt.Errorf("%w: a blocked: reason may not contain %q", ErrInvalidArgument, "|")
 	}
@@ -157,6 +163,7 @@ func buildNewItem(req AddRequest, today Date) (*Item, error) {
 		Section: sec,
 		Prio:    req.Prio,
 		Tags:    req.Tags,
+		Refs:    req.Refs,
 		Blocked: req.Blocked,
 		Created: created,
 		Extra:   req.Extra,

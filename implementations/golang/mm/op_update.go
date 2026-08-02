@@ -187,6 +187,12 @@ func setAnyField(it *Item, key, value string) error {
 			return err
 		}
 		it.Tags = tags
+	case "refs":
+		refs, err := ParseRefs(value)
+		if err != nil {
+			return err
+		}
+		it.Refs = refs
 	case "created", "started", "done":
 		d, err := ParseDate(value)
 		if err != nil {
@@ -228,6 +234,8 @@ func unsetAnyField(it *Item, key string) error {
 		it.Prio = PrioNone
 	case "tags":
 		it.Tags = nil
+	case "refs":
+		it.Refs = nil
 	case "created":
 		it.Created = Date{}
 	case "started":
