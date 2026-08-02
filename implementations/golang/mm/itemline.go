@@ -96,6 +96,18 @@ func looksLikeItemLine(line string) bool {
 	return strings.HasPrefix(line, "- [")
 }
 
+// isConflictMarker reports whether line is a git conflict marker: a line whose
+// first non-blank characters are exactly <<<<<<<, =======, or >>>>>>> — the
+// three shapes git writes into a file whose merge conflicted (spec-file-format.md
+// §5.1, the one reserved exception to the prose allowance). A half-resolved
+// merge must never be indistinguishable from valid prose.
+func isConflictMarker(line string) bool {
+	line = strings.TrimLeft(line, " \t")
+	return strings.HasPrefix(line, "<<<<<<<") ||
+		strings.HasPrefix(line, "=======") ||
+		strings.HasPrefix(line, ">>>>>>>")
+}
+
 // parseItemLine parses one line into an Item under the default grammar. file
 // and lineNo locate errors.
 func parseItemLine(file string, lineNo int, line string) (*Item, error) {

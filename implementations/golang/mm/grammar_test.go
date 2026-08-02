@@ -645,3 +645,98 @@ func TestMixedPrefixesCannotBeWritten(t *testing.T) {
 		t.Errorf("violations after add:\n%s", violationMessages(vs))
 	}
 }
+
+// ---------------------------------------------------------------------------
+// T-0122 — git conflict markers are refused loudly, never ignored.
+
+// The T-0101 probe: a conflict block whose two sides carry different IDs used
+// to pass both validators with ZERO findings — §5.1's prose allowance made the
+// three marker lines legal. Now they are a format violation in every data
+// file, frontmatter and body alike.
+func TestConflictMarkersAreRefused(t *testing.T) {
+	block := func(inner string) string {
+		return "<<<<<<< HEAD\n" + inner + "=======\n" + inner + ">>>>>>> theirs\n"
+	}
+
+	cases := []struct {
+		name, file, body string
+	}{
+		{"backlog body", "backlog.md", block("- [ ] [MM-001] First | created:2026-07-29\n")},
+		{"done body", "done.md", block("- [x] [MM-010] Newest | created:2026-07-01 | done:2026-07-23 | outcome:shipped\n")},
+		{"working body", "working.01.md",
+			"---\ndoc: working\nstatus: idle\nslot: 01\n---\n" + block("## Task\n\n- [ ] a subtask\n")},
+		{"working frontmatter", "working.01.md", "---\ndoc: working\n<<<<<<< HEAD\nstatus: idle\n=======\nstatus: working\n>>>>>>> theirs\n---\n"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			files := map[string]string{"backlog.md": customBacklog, "done.md": customDone}
+			if c.file == "backlog.md" || c.file == "done.md" {
+				files[c.file] = strings.Replace(files[c.file], "## "+map[string]string{
+					"backlog.md": "Someday", "done.md": "2026-06",
+				}[c.file]+"\n", "## "+map[string]string{
+					"backlog.md": "Someday", "done.md": "2026-06",
+				}[c.file]+"\n\n"+c.body, 1)
+			} else {
+				files["working.01.md"] = c.body
+				files["working.02.md"] = "---\ndoc: working\nstatus: idle\nslot: 02\n---\n"
+			}
+			vs := validateCustomDir(t, files)
+			var markers []Violation
+			for _, v := range vs {
+				if strings.Contains(v.Message, "conflict-marker") {
+					markers = append(markers, v)
+				}
+			}
+			if len(markers) != 3 {
+				t.Fatalf("marker findings = %d, want 3:\n%s", len(markers), violationMessages(vs))
+			}
+			for _, v := range markers {
+				if v.Invariant != invFormat {
+					t.Errorf("%s:%d invariant = %s, want format", v.At.File, v.At.Line, v.Invariant)
+				}
+			}
+		})
+	}
+}
+
+// The fixture is the probe scenario: a conflict block whose two sides carry
+// different IDs (both below next_id), so the three marker lines are the
+// directory's ONLY findings — before T-0122 this passed with zero findings.
+func TestBrokenMarkerFixtureHasOnlyMarkerFindings(t *testing.T) {
+	s := mustOpen(t, "../testdata/broken-marker")
+	vs, err := s.Validate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vs) != 3 {
+		t.Fatalf("violations = %d, want exactly 3:\n%s", len(vs), violationMessages(vs))
+	}
+	for i, want := range []int{21, 23, 25} {
+		if vs[i].At.File != "backlog.md" || vs[i].At.Line != want {
+			t.Errorf("finding %d = %s:%d, want backlog.md:%d", i, vs[i].At.File, vs[i].At.Line, want)
+		}
+	}
+}
+
+// A marker makes the directory un-mutatable: the transaction envelope
+// validates before commit, so no operation can write on top of a half-merged
+// file. This is what T-0123 will rely on.
+func TestConflictMarkersBlockMutations(t *testing.T) {
+	dir := newDir(t, map[string]string{
+		"backlog.md": strings.Replace(customBacklog, "## Someday\n",
+			"## Someday\n\n<<<<<<< HEAD\n- [ ] [MM-004] Local | created:2026-07-29\n=======\n- [ ] [MM-004] Remote | created:2026-07-29\n>>>>>>> theirs\n", 1),
+		"done.md": customDone,
+	})
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The directory still opens (parse, don't stop), but no mutation commits.
+	if _, _, err := s.Add(AddRequest{Title: "Nope"}, today); err == nil {
+		t.Fatal("Add succeeded on a directory with conflict markers")
+	}
+	if _, err := s.Get("MM-001"); err != nil {
+		t.Fatalf("reads still work: %v", err)
+	}
+}

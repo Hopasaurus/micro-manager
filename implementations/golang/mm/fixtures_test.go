@@ -62,6 +62,11 @@ var brokenInvariants = map[string]string{
 	// the same way any ID outside the declared grammar is. This is that
 	// directory as its own fixture, with the foreign prefix as its only finding.
 	"broken-mixed-prefix": "format",
+	// T-0122: git conflict markers are the one reserved exception to the prose
+	// allowance (§5.1). The two sides carry DIFFERENT IDs (X-002 / X-003, both
+	// below next_id) so the three marker lines are the fixture's only findings
+	// - the T-0101 probe scenario, which used to pass with zero findings.
+	"broken-marker": "format",
 	// A declared id_width above the shared 15-digit cap (§3.3.2 rule 3, T-0120)
 	// is a format violation: the default grammar stands in, so this is the
 	// directory's only finding.

@@ -20,7 +20,6 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0122] Validators: reject git conflict-marker lines in check.sh and the Go validator | tags:format,checker,validator | detail:details/T-0122.md | created:2026-08-01
 - [ ] [T-0123] Library: mm fix — deterministic repair of I1 duplicates / I2 ceiling after a merge | tags:library,ops | detail:details/T-0123.md | created:2026-08-01
 - [ ] [T-0104] Explore how micro-manager could link between boards. | prio:med | tags:spike | detail:details/T-0104.md | created:2026-07-31
 - [ ] [T-0109] Consider breaking up the htmx updates to reduce flicker | prio:med | tags:spike | detail:details/T-0109.md | created:2026-07-31

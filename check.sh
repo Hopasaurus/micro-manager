@@ -238,6 +238,19 @@ FNR == 1 {
   next
 }
 
+# Git conflict markers are invalid in every data file (spec-file-format.md
+# §5.1): a line whose first non-blank characters are exactly <<<<<<<,
+# =======, or >>>>>>> is refused loudly, never ignored - a half-resolved
+# merge must never be indistinguishable from valid prose.
+{
+  t = $0
+  sub(/^[ \t]+/, "", t)
+  if (t ~ /^<<<<<<</ || t ~ /^=======/ || t ~ /^>>>>>>>/) {
+    err("git conflict-marker line: " $0)
+    next
+  }
+}
+
 infm {
   if ($0 == "---") { infm = 0; next }
   p = index($0, ":")

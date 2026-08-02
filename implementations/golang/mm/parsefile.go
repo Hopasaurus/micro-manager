@@ -113,6 +113,23 @@ func headingName(line string) (string, bool) {
 	return strings.TrimSpace(line[3:]), true
 }
 
+// markerViolations flags every git conflict-marker line in a data file
+// (spec-file-format.md §5.1). Called before any other parsing so a half-merged
+// file is refused loudly whatever else is in it.
+func markerViolations(name string, lines []string) []Violation {
+	var vs []Violation
+	for i, line := range lines {
+		if isConflictMarker(line) {
+			vs = append(vs, Violation{
+				Invariant: invFormat,
+				At:        Location{File: name, Line: i + 1},
+				Message:   "git conflict-marker line: " + line,
+			})
+		}
+	}
+	return vs
+}
+
 // parseBacklog reads backlog.md.
 //
 // The ID grammar is read from this file's frontmatter first (§3.3.2 rule 4:
@@ -121,7 +138,9 @@ func headingName(line string) (string, bool) {
 // the same grammar from the caller.
 func parseBacklog(name string, data []byte) (*backlogFile, []Violation) {
 	lines := splitLines(data)
-	fm, body, vs := readHeader(name, lines)
+	vs := markerViolations(name, lines)
+	fm, body, hvs := readHeader(name, lines)
+	vs = append(vs, hvs...)
 	g, gvs, gwarns := ParseIDGrammar(fm)
 	vs = append(vs, gvs...)
 	b := &backlogFile{Name: name, FM: fm, Lines: lines, grammar: g, warnings: gwarns}
@@ -176,7 +195,9 @@ func parseDone(name string, data []byte) (*doneFile, []Violation) {
 // itself carries no declaration.
 func parseDoneG(name string, data []byte, g IDGrammar) (*doneFile, []Violation) {
 	lines := splitLines(data)
-	fm, body, vs := readHeader(name, lines)
+	vs := markerViolations(name, lines)
+	fm, body, hvs := readHeader(name, lines)
+	vs = append(vs, hvs...)
 	d := &doneFile{Name: name, FM: fm, Lines: lines}
 
 	var cur *monthSpan

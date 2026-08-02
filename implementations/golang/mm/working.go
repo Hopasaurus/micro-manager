@@ -198,7 +198,9 @@ func parseWorking(name string, data []byte) (*workingFile, []Violation) {
 func parseWorkingG(name string, data []byte, g IDGrammar) (*workingFile, []Violation) {
 	num, width, _ := isWorkingFileName(name)
 	lines := splitLines(data)
-	fm, _, vs := readHeader(name, lines)
+	vs := markerViolations(name, lines)
+	fm, _, hvs := readHeader(name, lines)
+	vs = append(vs, hvs...)
 	w := &workingFile{Name: name, Number: num, Width: width, FM: fm, Lines: lines}
 
 	at := func(key string) Location {
