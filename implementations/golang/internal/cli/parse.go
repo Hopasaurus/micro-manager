@@ -47,6 +47,7 @@ const (
 	OpStatus  Op = "status"
 	OpNext    Op = "next"
 	OpSearch  Op = "search"
+	OpFix     Op = "fix"
 )
 
 // takesValue reports whether an operation switch consumes the argument after it
@@ -68,6 +69,7 @@ var operations = map[string]Op{
 	"wip": OpWip, "find": OpFind,
 	"block": OpBlock, "unblock": OpUnblock, "note": OpNote,
 	"status": OpStatus, "next": OpNext, "search": OpSearch,
+	"fix": OpFix,
 }
 
 // Invocation is one parsed command line.

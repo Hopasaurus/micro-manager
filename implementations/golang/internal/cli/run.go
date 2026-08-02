@@ -89,6 +89,8 @@ func dispatch(env Env, in *Invocation) error {
 		return runNext(env, in, store)
 	case OpSearch:
 		return runSearch(env, in, store)
+	case OpFix:
+		return runFix(env, in, store)
 	}
 	return usagef("--%s is not implemented", in.Op)
 }
@@ -893,6 +895,26 @@ func subjectID(in *Invocation, op string, g mm.IDGrammar) (mm.ID, error) {
 		return "", usagef("%s needs an item id", op)
 	}
 	return parseIDIn(in.Subject, g)
+}
+
+// --fix (plan-git-support.md decision 4).
+//
+// The deterministic repair for what a git merge manufactures: an I1 duplicate
+// (two branches both allocated the same ID) and the I2 ceiling left behind. It
+// refuses while anything else is wrong — markers, dangling details, a tie — and
+// is safe to run twice: the second run is a no-op.
+func runFix(env Env, in *Invocation, s *mm.Store) error {
+	res, tx, err := s.Fix(mm.FixRequest{DryRun: in.DryRun})
+	if err != nil {
+		return err
+	}
+	env.json.setChanges(tx)
+	env.json.setResult(toJSONFix(res))
+	for _, c := range res.Changes {
+		env.porcelain.row(string(c.OldID), string(c.NewID), c.File, c.Detail)
+	}
+	renderFix(env, in, res, tx)
+	return nil
 }
 
 // dirLabel shortens a path for display, relative to the working directory.

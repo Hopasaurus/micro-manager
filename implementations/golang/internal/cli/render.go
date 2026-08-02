@@ -45,6 +45,39 @@ func renderInit(env Env, in *Invocation, path, project string, res mm.TxResult) 
 	}
 }
 
+// renderFix reports each renumbering and the next_id the repair wrote. A
+// directory with nothing to repair says so: an empty fix is a success worth
+// stating, because a scripted merge flow gates on it.
+func renderFix(env Env, in *Invocation, res mm.FixResult, tx mm.TxResult) {
+	if in.Quiet {
+		return
+	}
+	if len(res.Changes) == 0 {
+		if !res.NextBumped {
+			out(env, "%snothing to fix: no duplicate IDs\n", prefix(in))
+			return
+		}
+		out(env, "%snext_id %s -> %s\n", prefix(in), res.WasNext, res.NextID)
+		return
+	}
+	out(env, "%sfixed %d duplicate ID(s)\n", prefix(in), len(res.Changes))
+	for _, c := range res.Changes {
+		out(env, "%s  %s -> %s in %s", prefix(in), c.OldID, c.NewID, c.File)
+		if c.Detail != "" {
+			out(env, " (detail %s moved)", c.Detail)
+		}
+		out(env, "\n")
+	}
+	if res.NextBumped {
+		out(env, "%snext_id %s -> %s\n", prefix(in), res.WasNext, res.NextID)
+	}
+	for _, f := range tx.Files {
+		if f != "backlog.md" {
+			out(env, "  %s\n", f)
+		}
+	}
+}
+
 func renderAdd(env Env, in *Invocation, item mm.Item, res mm.TxResult) {
 	// The ID must be reported in every output mode (§5.1.2). Even --quiet keeps
 	// it: quiet suppresses commentary, not the one value the caller needs.

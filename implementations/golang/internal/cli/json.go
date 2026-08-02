@@ -132,6 +132,39 @@ func toJSONChanges(res mm.TxResult) []jsonChange {
 	return out
 }
 
+// jsonFix is the --fix result: every renumbering plus the next_id the repair
+// wrote (or would write).
+type jsonFix struct {
+	Changes    []jsonFixChange `json:"changes"`
+	NextID     string          `json:"nextId"`
+	WasNext    string          `json:"wasNext"`
+	NextBumped bool            `json:"nextBumped"`
+}
+
+type jsonFixChange struct {
+	OldID  string `json:"oldId"`
+	NewID  string `json:"newId"`
+	File   string `json:"file"`
+	Detail string `json:"detail,omitempty"`
+}
+
+func toJSONFix(r mm.FixResult) jsonFix {
+	out := jsonFix{
+		NextID:     string(r.NextID),
+		WasNext:    string(r.WasNext),
+		NextBumped: r.NextBumped,
+	}
+	for _, c := range r.Changes {
+		out.Changes = append(out.Changes, jsonFixChange{
+			OldID:  string(c.OldID),
+			NewID:  string(c.NewID),
+			File:   c.File,
+			Detail: c.Detail,
+		})
+	}
+	return out
+}
+
 func toJSONDirectory(d mm.Directory) *jsonDirectory {
 	return &jsonDirectory{
 		Path:      d.Path,

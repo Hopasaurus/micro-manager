@@ -39,6 +39,7 @@ Operations:
   --next                    print the top of ## Ready; exits non-zero if empty
   --search QUERY            substring or regex match over titles, tags, details
   --find                    list discovered micro-manager directories
+  --fix                     repair duplicate IDs after a merge
   --help, --version
 
 Global modifiers:
@@ -223,6 +224,18 @@ started — the one quietly aging at the bottom of the list.
 Prints the top of ## Ready, the thing to start next. Exits non-zero (code 3)
 when ## Ready is empty, so a script can stop rather than start something
 arbitrary.
+`,
+	OpFix: `mm --fix [--dry-run]
+
+Repairs what a git merge manufactures: an ID in two homes (I1) and the
+next_id ceiling it leaves (I2). The duplicate is kept where it has advanced
+furthest (done > working > backlog, then earliest created); the others are
+renumbered to fresh IDs from next_id, and each one's detail file follows it
+(I9). next_id only ever rises. A tie — same home, same created — refuses with
+both items named. Refuses while anything else is wrong (conflict markers, a
+dangling detail); safe to run twice, the second run is a no-op.
+
+Porcelain columns: oldId newId file detail
 `,
 	OpSearch: `mm --search QUERY [--regex] [--field F]... [--state S] [--limit N]
 
