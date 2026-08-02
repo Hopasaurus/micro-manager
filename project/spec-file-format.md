@@ -186,7 +186,10 @@ Specifically:
 1. A line is a key/value pair if it contains `:`. The key is everything before
    the **first** `:`; the value is everything after it.
 2. Key and value are trimmed of leading and trailing spaces and tabs.
-3. A line with no `:` MUST be ignored.
+3. A line with no `:` MUST be ignored. (Git conflict-marker lines are the one
+   exception: a line whose first non-blank characters are exactly `<<<<<<<`,
+   `=======`, or `>>>>>>>` is invalid here as in every data file — §5.1 — and
+   MUST be refused loudly, never ignored.)
 4. If the trimmed value starts and ends with `"`, those two characters are
    removed. No other unescaping occurs.
 5. For every key except `title`, a trailing comment — whitespace, `#`, then any
@@ -305,6 +308,15 @@ inside one of the three sections — never before the first heading.
 
 Non-item content (prose, comments, blank lines) MAY appear anywhere and MUST be
 ignored by readers.
+
+Git conflict markers are the one reserved exception, and the rule applies to
+every data file in the directory — `backlog.md`, `working.NN.md`, `done.md`,
+and `details/` — not just to this one. A line whose first non-blank characters
+are exactly `<<<<<<<`, `=======`, or `>>>>>>>` (the three shapes git writes
+into a file whose merge conflicted) is invalid, and a conforming reader MUST
+refuse it loudly — report the file and line — never ignore it (§4.1, §8). A
+half-resolved merge must never be indistinguishable from valid prose. Ordinary
+prose that merely contains `<` or `>` is unaffected.
 
 ### 5.2 `working.NN.md`
 
@@ -541,8 +553,9 @@ ten; the identifiers match the numbering in `structure.md`.
 ## 8. Conformance
 
 **A conforming reader** implements §3 and §4, recognizes every schema in §5,
-tolerates unregistered fields and unknown frontmatter keys, and never treats a
-`- [` line in a working file as an item.
+tolerates unregistered fields and unknown frontmatter keys, never treats a
+`- [` line in a working file as an item, and refuses git conflict-marker lines
+in every data file rather than ignoring them (§5.1).
 
 **A conforming writer** additionally emits the required frontmatter keys and
 sections for each file, maintains `next_id`, preserves unregistered fields when
