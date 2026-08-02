@@ -79,6 +79,8 @@ SHOULD be stripped by writers.
 | `TIMESTAMP` | ISO 8601 combined date and time with a UTC offset | `2026-07-29T09:14:00Z` |
 | `TAG` | one or more of `A-Z a-z 0-9 . _ -` | `ci`, `infra-2` |
 | `TAGLIST` | one or more `TAG`, comma-separated, no spaces | `infra,ci` |
+| `SLUG` | one to sixteen ASCII characters: a lowercase letter, then lowercase letters, digits or hyphens | `py`, `python-impl` |
+| `LINKLIST` | one or more `SLUG` `:` `ID`, comma-separated, no spaces, where `ID` takes the generic form shared by every declared grammar — `[A-Z]{1,4}-[0-9]{1,15}` (§3.3.2, §6) | `py:T-0012,go:T-0003` |
 | `DETAILPATH` | `details/` + `ID` + `.md` | `details/T-0042.md` |
 | `SLOT` | one or more ASCII digits, zero-padded to the directory's width | `01`, `003` |
 | `NULL` | the literal four characters `null` | `null` |
@@ -269,6 +271,7 @@ Holds every item not yet started.
 | `next_id` | `ID` — the ID to assign to the next new item | yes |
 | `id_prefix` | one to four uppercase letters — the ID prefix (§3.3.2); absent means `T` | no |
 | `id_width` | one to fifteen ASCII digits — the ID digit width (§3.3.2); absent means `4` | no |
+| `board` | `SLUG` — the board's link identity for cross-board `refs` (§5.1, §6); absent means the directory is not a link target | no |
 | `updated` | `DATE` | no |
 
 `project` MUST be non-empty and MUST NOT be `NULL`. It is otherwise free text on
@@ -284,6 +287,25 @@ value, and nothing binds it to the directory name.
 is one to four ASCII letters, all uppercase, `id_width` is one to fifteen
 ASCII digits. `next_id`
 MUST use the declared grammar (or the default when neither key is present).
+
+`board` is the directory's link identity: the `SLUG` that item-line `refs`
+fields (§6) use to name this directory from another one. It is the one board
+handle that is content rather than location — `project` is unvalidated free
+text (§10) and `projectId` is derived from the canonical path (spec-gui.md
+§3.1), so a moved or renamed directory keeps its slug but not its id. The
+slug is therefore the form a cross-board link uses to survive a change in
+file hierarchy (plan-board-links.md).
+
+Lowercase is deliberate: every ID prefix is uppercase (§3.3.2 rule 2), so the
+slug namespace and the ID namespace are disjoint by case and a slug can never
+be mistaken for an ID, nor an ID for a slug. The key is optional — a directory
+without `board` is not a link target — and the value is human-chosen and
+human-stable: moving, renaming, or restructuring around the directory never
+changes it, and changing it is a deliberate act that breaks every link to this
+directory (a findable edit: the slug appears only in this frontmatter and in
+`refs:` values). Like `project`, it is not globally unique — two directories
+MAY declare the same slug, and a reader that finds two MUST refuse to resolve
+a link to it rather than guess (§10).
 
 **Body**
 
@@ -372,6 +394,7 @@ MUST be idle and MUST be the highest-numbered one, or constraint 1 breaks.
 | `started` | `DATE` — required | `NULL` |
 | `prio` | `high` / `med` / `low`, or `NULL` | `NULL` |
 | `tags` | `TAGLIST` or `NULL` | `NULL` |
+| `refs` | `LINKLIST` or `NULL` | `NULL` |
 | `detail` | `DETAILPATH` or `NULL` | `NULL` |
 | `created` | `DATE` or `NULL` | `NULL` |
 
@@ -493,6 +516,7 @@ accept it, and a writer moving an item between files MUST preserve it verbatim
 |---|---|---|---|---|
 | `prio` | `high` / `med` / `low` | no | all | Absent means `med`. |
 | `tags` | `TAGLIST` | no | all | No spaces. Identical form in working-file frontmatter. |
+| `refs` | `LINKLIST` | no | all | Cross-board references, §6. Never validated for resolution (§9). |
 | `created` | `DATE` | no | all | When the item was written down. |
 | `started` | `DATE` | no | working, done | Set on entering a working file; survives a pause. |
 | `done` | `DATE` | **yes** in `done.md` | done | |
@@ -500,12 +524,21 @@ accept it, and a writer moving an item between files MUST preserve it verbatim
 | `blocked` | free text, no `|` | **yes** in `## Blocked` | backlog | Forbidden in `## Ready` and `## Someday`. |
 | `detail` | `DETAILPATH` | no | all | MUST equal `details/<this item's ID>.md`. |
 
+`refs` names items in *other* directories — each element is a target board's
+`board` slug (§5.1), a colon, and the target item's ID. The ID half uses the
+generic form every declared grammar shares (`[A-Z]{1,4}-[0-9]{1,15}`, §3.3.2):
+a local reader can check the *shape* of a link without knowing the target
+directory's declared grammar, and a link's target grammar is exactly the thing
+a per-directory checker cannot know. Resolution — whether the named board and
+item exist — is deliberately NOT this directory's business (§9): a stale or
+ambiguous link never invalidates a directory.
+
 ### 6.1 Canonical field order
 
 Writers SHOULD emit fields in this order. Readers MUST NOT require it.
 
 ```
-prio, tags, detail, created, started, blocked, done, outcome, <unregistered...>
+prio, tags, refs, detail, created, started, blocked, done, outcome, <unregistered...>
 ```
 
 ## 7. Cross-file constraints
@@ -584,8 +617,15 @@ Forward compatibility rules:
 - The WIP limit is expressed only as a file count. A future revision MUST NOT
   add a `wip_limit` key without also deciding which of the two wins; extensions
   MUST NOT introduce one.
+- **Links are advisory, never load-bearing.** A `refs` value (§6) is checked
+  for shape and nothing else: a per-directory validator cannot see other
+  directories, so whether a link's target exists is never validated here, and
+  a stale or ambiguous link MUST NOT invalidate a directory the way a broken
+  `detail` reference does. Resolution is the business of a tool with a
+  tree-wide view (the GUI, discovery, a future sweep), and that tool MUST
+  refuse to resolve an ambiguous slug rather than guess (§5.1).
 - Reserved for future use, MUST NOT be redefined by extensions: `id`, `status`,
-  `next_id`, `doc`, `version`, `id_prefix`, `id_width`.
+  `next_id`, `doc`, `version`, `id_prefix`, `id_width`, `board`.
 
 A reader encountering `version` greater than the version it implements SHOULD
 report a version mismatch rather than parse the file speculatively.
@@ -629,6 +669,17 @@ without a spec revision.
    beyond non-emptiness. Nothing detects a `project` that no longer describes
    what the directory holds, and nothing prevents two directories claiming the
    same name.
+9. **`board` slugs are not globally unique.** The format has no server and no
+   global registry; even a tree-wide sweep cannot see boards in other
+   repositories. Two directories MAY declare the same `board` slug (§5.1). A
+   resolver that finds two known boards with one slug MUST refuse to resolve
+   links to it rather than guess, naming both boards — the same discipline a
+   repair applies to a tie it cannot decide.
+10. **A `refs` link can dangle.** The target item may be renumbered by a
+    collision repair in its own directory (a repair is directory-local by
+    design), or the target directory may move or vanish. Validators never
+    check resolution (§9), so a stale link costs exactly one rendered "missing
+    target" in a front end that resolves — never a board error.
 
 ---
 
@@ -647,6 +698,8 @@ WEEK            ^[0-9]{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$
 TIME            ^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$
 TIMESTAMP       ^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$
 TAGLIST         ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$
+SLUG            ^[a-z][a-z0-9-]{0,15}$
+LINKLIST        ^[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15}(,[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15})*$
 DETAILPATH      ^details/T-[0-9]{4}\.md$
 working file    ^working\.[0-9]+\.md$        (uniform width per directory)
 prio            ^(high|med|low)$

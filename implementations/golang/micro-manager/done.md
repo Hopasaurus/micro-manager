@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0125] Spec: reserve a content-declared board slug and cross-board refs in spec-file-format.md | tags:format,spec | detail:details/T-0125.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0104] Explore how micro-manager could link between boards. | prio:med | tags:spike | detail:details/T-0104.md | created:2026-07-31 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0123] Library: mm fix — deterministic repair of I1 duplicates / I2 ceiling after a merge | tags:library,ops | detail:details/T-0123.md | created:2026-08-01 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0122] Validators: reject git conflict-marker lines in check.sh and the Go validator | tags:format,checker,validator | detail:details/T-0122.md | created:2026-08-01 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
