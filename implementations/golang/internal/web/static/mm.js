@@ -22,6 +22,58 @@
   const root = () => document.querySelector('[data-testid="app"]');
   const dialogRoot = () => document.querySelector('[data-testid="dialog-root"]');
 
+  /* ------------------------------------------------------ refresh echoes */
+
+  /*
+    T-0130. Two reasons to drop a would-be board/status refresh before it
+    ever becomes a request:
+
+    1. Echo. A mutation's response already carries the fresh board (and, via
+       OOB, the fresh status); within ~5s the broker's next poll notices the
+       new fingerprint and republishes it, and the refresh that follows
+       (sse:board/status, or the 30s backstop on unlucky timing) would fetch
+       and morph in the IDENTICAL bytes. The broker cannot tell who wrote —
+       it only sees a fingerprint change — but the tab that issued the
+       write can, so the window is tracked here.
+    2. Drag. A refresh mid-gesture would morph in a board that has never
+       heard of data-dragging/data-move-mode (the server never emits them),
+       stripping them mid-drag and killing the move (move, below in §7).
+
+    Cancelling in htmx:beforeRequest — rather than letting the request run
+    and discarding the response — is what keeps data-busy correct: a
+    request that never starts never needs to be counted as in flight, and
+    nothing would ever settle to decrement it back. This listener is
+    registered in the CAPTURE phase specifically so it runs before the
+    data-busy listener below and can stop it with stopImmediatePropagation
+    before that listener increments inFlight for a request this cancels.
+  */
+  const ECHO_WINDOW_MS = 1500;
+  let lastMutationSettledAt = 0;
+
+  document.body.addEventListener('htmx:beforeRequest', (event) => {
+    const cfg = event.detail && event.detail.requestConfig;
+    const tgt = event.detail && event.detail.target;
+    if (!cfg || !tgt || !tgt.getAttribute || cfg.verb !== 'get') return;
+
+    const testid = tgt.getAttribute('data-testid');
+    if (testid !== 'board' && testid !== 'app-status') return;
+
+    const echoing = lastMutationSettledAt !== 0 && (Date.now() - lastMutationSettledAt) < ECHO_WINDOW_MS;
+    if (move !== null || echoing) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+
+  document.body.addEventListener('htmx:afterSettle', (event) => {
+    const cfg = event.detail && event.detail.requestConfig;
+    const tgt = event.detail && event.detail.target;
+    if (cfg && cfg.verb !== 'get' && tgt && tgt.getAttribute &&
+        tgt.getAttribute('data-testid') === 'board') {
+      lastMutationSettledAt = Date.now();
+    }
+  });
+
   /* ------------------------------------------------------------ data-busy */
 
   /*
@@ -238,7 +290,12 @@
 
     htmx.ajax('POST', `/p/${project}/items/${id}/${op}`, {
       target: "[data-testid='board']",
-      swap: 'outerHTML',
+      swap: 'morph',
+      // source anchors the morph extension lookup: without it htmx resolves
+      // no extension for this request at all (verified empirically) and a
+      // "morph" swap silently falls back to innerHTML, nesting the response
+      // inside the board instead of replacing it.
+      source: app,
     });
   });
 
@@ -465,7 +522,10 @@
 
     htmx.ajax('POST', `/p/${project}/items/${id}/${op}`, {
       target: "[data-testid='board']",
-      swap: 'outerHTML',
+      swap: 'morph',
+      // See the item-action htmx.ajax call above: source is required for the
+      // morph extension to resolve for this request at all.
+      source: app,
       values,
     }).catch(() => {
       /* A rejected drop restores the pre-drag DOM: the board is re-rendered

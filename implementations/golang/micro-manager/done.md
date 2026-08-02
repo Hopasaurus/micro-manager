@@ -1,7 +1,7 @@
 ---
 doc: done
 version: 1
-updated: 2026-08-01
+updated: 2026-08-02
 ---
 
 # Done
@@ -11,6 +11,10 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0130] Suppress refresh echoes in mm.js: own mutations and in-flight drags | prio:high | tags:gui,flicker-fix,phase-1 | detail:details/T-0130.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0129] Morph the board, status and check refreshes (hx-swap=morph) | prio:high | tags:gui,flicker-fix,phase-1 | detail:details/T-0129.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0128] Vendor idiomorph.js for morphing swaps (pin version, record licence) | prio:high | tags:gui,flicker-fix,phase-1 | detail:details/T-0128.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0109] Consider breaking up the htmx updates to reduce flicker | prio:med | tags:spike | detail:details/T-0109.md | created:2026-07-31 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0127] GUI: render refs as clickable cross-board links, resolved by board slug | tags:gui | detail:details/T-0127.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0126] Validators: accept the board slug and validate the shape of refs links in check.sh and the Go validator | tags:format,checker,validator | detail:details/T-0126.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0125] Spec: reserve a content-declared board slug and cross-board refs in spec-file-format.md | tags:format,spec | detail:details/T-0125.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped

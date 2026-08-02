@@ -302,7 +302,7 @@ func TestVendoredScriptsAreServed(t *testing.T) {
 	ts := newTestServer(t)
 
 	body := ts.get("/p/unknown/board").Body
-	for _, src := range []string{"/static/htmx.min.js", "/static/htmx-ext-sse.js", "/static/mm.js"} {
+	for _, src := range []string{"/static/htmx.min.js", "/static/htmx-ext-sse.js", "/static/idiomorph-ext.min.js", "/static/mm.js"} {
 		if !strings.Contains(body, src) {
 			t.Errorf("the shell does not load %s", src)
 		}
@@ -313,6 +313,22 @@ func TestVendoredScriptsAreServed(t *testing.T) {
 	// The SSE extension must load AFTER htmx core.
 	if strings.Index(body, "/static/htmx.min.js") > strings.Index(body, "/static/htmx-ext-sse.js") {
 		t.Error("htmx-ext-sse is loaded before htmx core")
+	}
+	// The morph extension must load AFTER htmx core and BEFORE mm.js: mm.js
+	// issues htmx.ajax() calls, and a swap performed before the extension is
+	// registered would not morph.
+	if strings.Index(body, "/static/htmx.min.js") > strings.Index(body, "/static/idiomorph-ext.min.js") {
+		t.Error("idiomorph-ext is loaded before htmx core")
+	}
+	if strings.Index(body, "/static/idiomorph-ext.min.js") > strings.Index(body, "/static/mm.js") {
+		t.Error("idiomorph-ext is loaded after mm.js")
+	}
+	// The vendored file is the htmx EXTENSION (bundles Idiomorph and registers
+	// the morph extension), not the bare library — guarding against a future
+	// replacement with the wrong build, which would silently disable morphing.
+	idiomorph := ts.get("/static/idiomorph-ext.min.js").Body
+	if !strings.Contains(idiomorph, `defineExtension("morph"`) {
+		t.Error("idiomorph-ext.min.js does not register the morph extension")
 	}
 	if strings.Contains(body, "//unpkg.com") || strings.Contains(body, "//cdn.") {
 		t.Error("the shell references a CDN")

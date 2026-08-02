@@ -330,3 +330,127 @@ func TestSSEStreamAttributesInShell(t *testing.T) {
 		t.Fatal("home without a project should not open an event stream")
 	}
 }
+
+// TestRefreshRegionsSwapWithMorph — T-0129. The 30s backstop, the SSE echo of
+// a tab's own mutation, and the mutation swap itself all tear down and
+// rebuild the region under outerHTML; morph diffs instead, so all three
+// become invisible. Every region that self-refreshes on sse:board/status/check
+// must swap with morph, and so must every element that swaps the board as a
+// mutation response (the second, identical swap around a write is the one
+// morph makes a no-op).
+func TestRefreshRegionsSwapWithMorph(t *testing.T) {
+	ts := newTestServer(t, "clean-full")
+	id := projectIDOf(t, ts, ts.Dirs[0])
+
+	// The opening tag of the first element with this exact data-testid.
+	openTag := func(t *testing.T, body, testid string) string {
+		t.Helper()
+		idx := strings.Index(body, `data-testid="`+testid+`"`)
+		if idx < 0 {
+			t.Fatalf("no data-testid=%q in body", testid)
+		}
+		end := strings.Index(body[idx:], ">")
+		if end < 0 {
+			t.Fatalf("unterminated tag for data-testid=%q", testid)
+		}
+		return body[idx : idx+end+1]
+	}
+
+	board := ts.get("/p/" + id + "/board").expectStatus(200).Body
+
+	boardTag := openTag(t, board, "board")
+	if !strings.Contains(boardTag, `hx-trigger="sse:board from:body, every 30s"`) ||
+		!strings.Contains(boardTag, `hx-swap="morph"`) {
+		t.Errorf("board region does not morph on its sse:board/backstop refresh:\n%s", boardTag)
+	}
+
+	statusTag := openTag(t, board, "app-status")
+	if !strings.Contains(statusTag, `hx-trigger="sse:status from:body, every 30s"`) ||
+		!strings.Contains(statusTag, `hx-swap="morph"`) {
+		t.Errorf("status footer does not morph on its sse:status/backstop refresh:\n%s", statusTag)
+	}
+
+	check := ts.get("/p/" + id + "/check").expectStatus(200).Body
+	checkTag := openTag(t, check, "check")
+	if !strings.Contains(checkTag, `hx-trigger="sse:check from:body, every 30s"`) ||
+		!strings.Contains(checkTag, `hx-swap="morph"`) {
+		t.Errorf("check region does not morph on its sse:check/backstop refresh:\n%s", checkTag)
+	}
+
+	// board.html's app-status-oob is a SEPARATE template from layout.html's
+	// own self-refresh above, rendered only on a mutation response — a note
+	// is the least destructive mutation to trigger it with.
+	mutated := ts.post("/p/"+id+"/items/T-0001/note", "text=morph+check",
+		"HX-Request", "true", "Content-Type", "application/x-www-form-urlencoded").expectStatus(200).Body
+	oobStatusTag := openTag(t, mutated, "app-status")
+	if !strings.Contains(oobStatusTag, `hx-swap="morph"`) {
+		t.Errorf("app-status-oob does not morph on its own refresh trigger:\n%s", oobStatusTag)
+	}
+
+	// The mutation response IS the board, re-rendered with the same "board"
+	// template checked above, so its own trigger already proves the point.
+	// What is left to check is the ELEMENT THAT ISSUED the mutation: the
+	// item-panel's note form targets the board with its own hx-swap, and it
+	// must say morph too, so the identical SSE re-fetch that follows the
+	// write is a no-op diff rather than a teardown.
+	panel := ts.get("/p/" + id + "/item/T-0001").expectStatus(200).Body
+	noteForm := panel[strings.Index(panel, `class="mm-note-form"`):]
+	noteForm = noteForm[:strings.Index(noteForm, "</form>")]
+	if !strings.Contains(noteForm, `hx-target="[data-testid='board']" hx-swap="morph"`) {
+		t.Errorf("item-panel's note form does not morph its board target:\n%s", noteForm)
+	}
+}
+
+// TestMorphSwapsDeclareOwnExtension — T-0129. In the vendored htmx build, a
+// native form submit (and an htmx.ajax() call with no explicit source) does
+// not reliably resolve the "morph" extension from an ancestor's hx-ext, even
+// a near one: the request silently falls back to htmx's default swap style
+// (innerHTML) and nests a full copy of the response INSIDE the existing
+// target instead of replacing it — verified empirically against this exact
+// vendored htmx.min.js, and reproducible with hx-ext declared only on the
+// app root despite the general rule (layout.html's app-root comment) that
+// hx-ext ordinarily walks ancestors directly. The one combination proven
+// reliable is declaring hx-ext="morph" on the SAME element as hx-swap="morph".
+// This test enforces that pairing everywhere in the rendered HTML so a future
+// morph swap added without it fails loudly here instead of nesting silently
+// in a browser no test here can drive.
+func TestMorphSwapsDeclareOwnExtension(t *testing.T) {
+	ts := newTestServer(t, "clean-full")
+	id := projectIDOf(t, ts, ts.Dirs[0])
+
+	pages := map[string]string{
+		"board":                 ts.get("/p/" + id + "/board").expectStatus(200).Body,
+		"item detail":           ts.get("/p/" + id + "/item/T-0001").expectStatus(200).Body,
+		"new item":              ts.get("/p/" + id + "/new").expectStatus(200).Body,
+		"check":                 ts.get("/p/" + id + "/check").expectStatus(200).Body,
+		"dialog confirm-remove": ts.get("/p/" + id + "/dialog/confirm-remove?item=T-0001").expectStatus(200).Body,
+		"dialog block":          ts.get("/p/" + id + "/dialog/block?item=T-0001").expectStatus(200).Body,
+		"dialog finish":         ts.get("/p/" + id + "/dialog/finish?item=T-0001").expectStatus(200).Body,
+		"note mutation response": ts.post("/p/"+id+"/items/T-0001/note", "text=ext+audit",
+			"HX-Request", "true", "Content-Type", "application/x-www-form-urlencoded").expectStatus(200).Body,
+	}
+
+	tagRe := regexp.MustCompile(`<[a-zA-Z][^>]*>`)
+	extRe := regexp.MustCompile(`hx-ext="([^"]*)"`)
+	for name, body := range pages {
+		for _, tag := range tagRe.FindAllString(body, -1) {
+			if !strings.Contains(tag, `hx-swap="morph"`) {
+				continue
+			}
+			m := extRe.FindStringSubmatch(tag)
+			if m == nil {
+				t.Errorf("%s: element declares hx-swap=\"morph\" with no hx-ext of its own:\n%s", name, tag)
+				continue
+			}
+			ok := false
+			for _, ext := range strings.Split(m[1], ",") {
+				if strings.TrimSpace(ext) == "morph" {
+					ok = true
+				}
+			}
+			if !ok {
+				t.Errorf("%s: element's hx-ext=%q does not include morph:\n%s", name, m[1], tag)
+			}
+		}
+	}
+}

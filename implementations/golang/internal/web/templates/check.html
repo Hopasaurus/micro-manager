@@ -12,9 +12,9 @@
 {{define "check" -}}
 {{$p := .App.Project}}{{$d := .Data}}
 <section data-testid="check" class="mm-check" data-state="ready" data-violations="{{$d.Count}}"
-         hx-get="/p/{{$p.ID}}/check?fragment=1"
+         hx-get="/p/{{$p.ID}}/check?fragment=1" hx-ext="morph"
          hx-trigger="sse:check from:body, every 30s"
-         hx-swap="outerHTML">
+         hx-swap="morph">
   <header class="mm-check__header">
     <h1 class="mm-check__title">
       {{if $d.Count}}{{$d.Count}} violation{{if ne $d.Count 1}}s{{end}}{{else}}Clean{{end}}

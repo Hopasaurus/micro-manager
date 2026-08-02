@@ -17,9 +17,9 @@
          data-wip-used="{{.Data.WipUsed}}" data-wip-limit="{{.Data.WipLimit}}"
          aria-live="polite"
          {{with .App.Project}}
-         hx-get="/p/{{.ID}}/board?fragment=1"
+         hx-get="/p/{{.ID}}/board?fragment=1" hx-ext="morph"
          hx-trigger="sse:board from:body, every 30s"
-         hx-swap="outerHTML"
+         hx-swap="morph"
          {{end}}>
   {{$project := .App.Project}}
   {{range .Data.Columns}}{{template "column" dict "Column" . "Project" $project}}{{end}}

@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/static/mm.css">
 <script src="/static/htmx.min.js" defer></script>
 <script src="/static/htmx-ext-sse.js" defer></script>
+<script src="/static/idiomorph-ext.min.js" defer></script>
 <script src="/static/mm.js" defer></script>
 </head>
 <body>
@@ -42,10 +43,16 @@
           descendant trigger without its own hx-swap (dialogs, settings
           forms, the item-card open) inherits outerHTML and REPLACES its
           container instead of filling it - the dialog-root swap destroyed
-          the container this way. hx-ext is unaffected: the sse extension
-          still applies to descendants because the extension registry walks
-          ancestors directly rather than through hx-inherit semantics. */}}
-     hx-ext="sse" sse-connect="/api/v1/events?project={{.ID}}"
+          the container this way. hx-ext is unaffected: the sse and morph
+          extensions still apply to descendants because the extension
+          registry walks ancestors directly rather than through hx-inherit
+          semantics - which is why morph (T-0129) is declared here rather
+          than on each swapping element. Without an active hx-ext="morph" on
+          an ancestor, hx-swap="morph" is an unrecognised swap style and
+          htmx falls back to its own default (innerHTML, not outerHTML): the
+          response's own board wrapper lands INSIDE the existing one instead
+          of replacing it. */}}
+     hx-ext="sse,morph" sse-connect="/api/v1/events?project={{.ID}}"
      hx-get="/p/{{.ID}}/shell" hx-trigger="sse:theme from:body"
      hx-swap="outerHTML" hx-disinherit="*"
      {{end}}>
@@ -125,9 +132,9 @@
 {{define "app-status" -}}
 <footer data-testid="app-status" class="mm-status"
         {{with .App.Project}}
-        hx-get="/p/{{.ID}}/status"
+        hx-get="/p/{{.ID}}/status" hx-ext="morph"
         hx-trigger="sse:status from:body, every 30s"
-        hx-swap="outerHTML" hx-disinherit="*"
+        hx-swap="morph" hx-disinherit="*"
         {{end}}>
   {{with .App.Status}}
   <span data-testid="status-wip" class="mm-status__wip"

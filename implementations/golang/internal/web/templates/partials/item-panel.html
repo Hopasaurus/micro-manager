@@ -22,13 +22,19 @@
     {{if $d.New}}New item{{else}}{{$i.ID}} — {{$i.Title}}{{end}}
   </h2>
 
-  <form data-testid="item-form" class="mm-panel__form"
+  {{/* hx-ext="morph" is repeated on each mutation here rather than relied on
+       from the app root: a native form submit does not reliably resolve the
+       extension from that far up in the vendored htmx build, and an
+       unresolved "morph" falls back to htmx's default swap (innerHTML),
+       nesting the response inside the board instead of replacing it.
+       Verified empirically; see layout.html's app-root comment. */}}
+  <form data-testid="item-form" class="mm-panel__form" hx-ext="morph"
         {{if $d.New}}
         hx-post="/p/{{$p.ID}}/items"
         {{else}}
         hx-patch="/p/{{$p.ID}}/items/{{$i.ID}}"
         {{end}}
-        hx-target="[data-testid='board']" hx-swap="outerHTML">
+        hx-target="[data-testid='board']" hx-swap="morph">
 
     <label class="mm-field">
       <span>Title</span>
@@ -102,8 +108,8 @@
             {{else if eq .Op "move"}}
             data-op="move"
             {{else}}
-            hx-post="/p/{{$p.ID}}/items/{{$i.ID}}/{{.Op}}"
-            hx-target="[data-testid='board']" hx-swap="outerHTML"
+            hx-post="/p/{{$p.ID}}/items/{{$i.ID}}/{{.Op}}" hx-ext="morph"
+            hx-target="[data-testid='board']" hx-swap="morph"
             {{end}}>{{.Label}}</button>
     {{end}}
     {{end}}
@@ -114,9 +120,9 @@
     <ul class="mm-notes">
       {{range $d.Notes}}<li class="mm-notes__line"><time>{{.Date}}</time> {{.Text}}</li>{{end}}
     </ul>
-    <form class="mm-note-form"
+    <form class="mm-note-form" hx-ext="morph"
           hx-post="/p/{{$p.ID}}/items/{{$i.ID}}/note"
-          hx-target="[data-testid='board']" hx-swap="outerHTML">
+          hx-target="[data-testid='board']" hx-swap="morph">
       <input data-testid="item-note-text" name="text" type="text" placeholder="Add a dated note">
       <button data-testid="item-note-add" class="mm-button" type="submit">Note</button>
     </form>

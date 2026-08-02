@@ -94,6 +94,7 @@ permissive licence — BSD, MIT, Apache-2.0.
 | `github.com/labstack/echo/v5/middleware` | MIT | `internal/web` | Recover, request ID, gzip (see §4.5) |
 | htmx 2.0.7 (vendored JS) | 0BSD | `internal/web/static/htmx.min.js` | Server-driven interactivity without a SPA |
 | `htmx-ext-sse` 2.2.4 (vendored JS) | BSD-2-Clause | `internal/web/static/htmx-ext-sse.js` | SSE extension; a separate file, loaded after htmx core |
+| idiomorph-ext 0.7.4 (vendored JS) | 0BSD | `internal/web/static/idiomorph-ext.min.js` | The `morph` htmx extension (bundles Idiomorph); makes `hx-swap="morph"` diff the DOM into place instead of replacing it |
 
 `mm/` is held to a higher bar than the front ends, because it is compiled into
 all three: a dependency there is one the CLI and the TUI pay for too. It is a
@@ -126,11 +127,18 @@ Do not copy v4 handler signatures from older examples; they will not compile.
 
 ### Vendored JavaScript
 
-htmx and `htmx-ext-sse` are **vendored into `internal/web/static/`**, not loaded
-from a CDN, and embedded with `embed.FS`. The service binds to loopback and must
+htmx, `htmx-ext-sse` and `idiomorph-ext` are **vendored into `internal/web/static/`**, not
+loaded from a CDN, and embedded with `embed.FS`. The service binds to loopback and must
 work with no network at all; a CDN reference would also leak the fact that the
-tool is running to a third party. The SSE extension is a separate script and
-MUST be loaded after htmx core.
+tool is running to a third party. The SSE and morph extensions are separate
+scripts and MUST be loaded after htmx core.
+
+Morphing is an *extension* in the htmx 2.x line — the htmx docs describe
+morph-style swaps as provided "via extensions", and htmx 2.0.7 has no morph
+support in core. `idiomorph-ext` bundles the Idiomorph library and registers the
+`morph` extension that `hx-swap="morph"` needs: without the extension active on
+the element (`hx-ext="morph"`), `hx-swap="morph"` falls back to the default
+swap style (`innerHTML`).
 
 ## 4. The GUI: Echo v5 + htmx + html/template
 
