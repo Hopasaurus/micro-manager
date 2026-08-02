@@ -2,8 +2,8 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0124
-updated: 2026-08-01
+next_id: T-0128
+updated: 2026-08-02
 ---
 
 # Backlog
@@ -20,7 +20,9 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0104] Explore how micro-manager could link between boards. | prio:med | tags:spike | detail:details/T-0104.md | created:2026-07-31
+- [ ] [T-0125] Spec: reserve a content-declared board slug and cross-board refs in spec-file-format.md | tags:format,spec | detail:details/T-0125.md | created:2026-08-02
+- [ ] [T-0126] Validators: accept the board slug and validate the shape of refs links in check.sh and the Go validator | tags:format,checker,validator | detail:details/T-0126.md | created:2026-08-02
+- [ ] [T-0127] GUI: render refs as clickable cross-board links, resolved by board slug | tags:gui | detail:details/T-0127.md | created:2026-08-02
 - [ ] [T-0109] Consider breaking up the htmx updates to reduce flicker | prio:med | tags:spike | detail:details/T-0109.md | created:2026-07-31
 - [ ] [T-0111] Close the drag-behaviour test gap: non-displacing placeholder and/or a JS test runner (T-0110 follow-up) | tags:gui,test,tech-debt | detail:details/T-0111.md | created:2026-08-01
 
