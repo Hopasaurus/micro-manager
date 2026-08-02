@@ -148,11 +148,12 @@ func (s *Server) buildReport(c *echo.Context, store *mm.Store) (reportData, erro
 	if err != nil {
 		return reportData{}, err
 	}
+	resolver := s.registry.newRefResolver()
 	for _, it := range rep.Wip {
-		data.Wip = append(data.Wip, s.itemView(it, dir, len(data.Wip)+1))
+		data.Wip = append(data.Wip, s.itemView(it, dir, len(data.Wip)+1, resolver))
 	}
 	for _, it := range rep.Next {
-		data.Next = append(data.Next, s.itemView(it, dir, len(data.Next)+1))
+		data.Next = append(data.Next, s.itemView(it, dir, len(data.Next)+1, resolver))
 	}
 	return data, nil
 }

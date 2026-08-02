@@ -260,6 +260,7 @@ func (m *dirModel) directory() Directory {
 	}
 	if m.backlog != nil {
 		d.Project = m.backlog.FM.Get("project")
+		d.Board = m.backlog.FM.Get("board")
 		d.NextID = ID(m.backlog.FM.Get("next_id"))
 		g := m.grammar()
 		d.IDPrefix = g.Prefix

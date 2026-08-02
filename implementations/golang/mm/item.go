@@ -471,6 +471,7 @@ type Directory struct {
 	Path      string // absolute, as opened
 	ProjectID string // spec-gui.md §3.1; how a URI addresses this directory
 	Project   string // the project frontmatter value
+	Board     string // declared board slug (spec-file-format.md §5.1); "" when absent
 	NextID    ID
 
 	// The declared ID grammar (spec-file-format.md §3.3.2). Absent keys mean

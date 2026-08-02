@@ -390,6 +390,22 @@ body {
   font-size: var(--mm-font-size-xs);
 }
 
+.mm-item__refs { display: flex; flex-wrap: wrap; gap: var(--mm-space-1); margin: 0; padding: 0; list-style: none; }
+.mm-item__ref {
+  padding: 0 var(--mm-space-1);
+  border-radius: var(--mm-radius-sm);
+  background: var(--mm-color-bg-sunken);
+  font-size: var(--mm-font-size-xs);
+}
+.mm-item__ref a { color: var(--mm-color-link, var(--mm-color-fg)); text-decoration: underline; }
+.mm-item__ref[data-missing="true"] { color: var(--mm-color-fg-muted); text-decoration: line-through; }
+.mm-item__ref[data-ambiguous="true"] { color: var(--mm-color-state-blocked); }
+
+.mm-refs { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--mm-space-1); }
+.mm-ref a { color: var(--mm-color-link, var(--mm-color-fg)); text-decoration: underline; }
+.mm-ref[data-missing="true"] { color: var(--mm-color-fg-muted); text-decoration: line-through; }
+.mm-ref__ambiguous { color: var(--mm-color-state-blocked); }
+
 .mm-item__detail { color: var(--mm-color-fg-subtle); }
 .mm-item__blocked { grid-column: 1 / -1; color: var(--mm-color-state-blocked); font-size: var(--mm-font-size-xs); }
 

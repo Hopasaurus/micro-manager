@@ -39,6 +39,25 @@
     {{range $i.Tags}}<li data-testid="item-{{$i.ID}}-tag-{{.}}" class="mm-item__tag">{{.}}</li>{{end}}
   </ul>
 
+  {{/* §5.5 (T-0127): a refs value renders as a small list, one element per
+       link. The three resolutions of plan-board-links.md decision 4: resolved
+       is a link addressed by the target board's projectId; missing is text
+       with data-missing (a board on an unmounted drive, or a renumbered item
+       — never a dead link, §10 rule 5); ambiguous is text naming every board
+       that declares the slug, with no guess. The data-testid names the slug
+       (the link identity, decision 7) and the target item. */}}
+  {{if $i.Refs}}
+  <ul data-testid="x-item-{{$i.ID}}-refs" class="mm-item__refs" aria-label="References">
+    {{range $i.Refs}}
+    <li data-testid="x-item-{{$i.ID}}-ref-{{.Slug}}-{{.TargetID}}" class="mm-item__ref"
+        {{if .Missing}}data-missing="true" title="No known board declares {{.Slug}}, or the item is gone"{{end}}
+        {{if .Ambiguous}}data-ambiguous="true" title="{{.Slug}} is declared by several boards: {{range $j, $b := .Boards}}{{if $j}}, {{end}}{{$b}}{{end}}"{{end}}>
+      {{if .Resolved}}<a href="/p/{{.ProjectID}}/item/{{.TargetID}}">{{.Element}}</a>{{else}}{{.Element}}{{end}}
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+
   <span data-testid="item-{{$i.ID}}-detail-indicator" class="mm-item__detail"
         {{if not $i.HasDetail}}hidden{{end}} aria-label="Has a detail file">&#9998;</span>
 

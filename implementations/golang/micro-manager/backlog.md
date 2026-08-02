@@ -20,7 +20,6 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0127] GUI: render refs as clickable cross-board links, resolved by board slug | tags:gui | detail:details/T-0127.md | created:2026-08-02
 - [ ] [T-0109] Consider breaking up the htmx updates to reduce flicker | prio:med | tags:spike | detail:details/T-0109.md | created:2026-07-31
 - [ ] [T-0111] Close the drag-behaviour test gap: non-displacing placeholder and/or a JS test runner (T-0110 follow-up) | tags:gui,test,tech-debt | detail:details/T-0111.md | created:2026-08-01
 

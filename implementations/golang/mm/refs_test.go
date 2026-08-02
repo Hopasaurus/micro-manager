@@ -171,6 +171,33 @@ func TestRefsSurviveStartAndFinish(t *testing.T) {
 	}
 }
 
+// The directory summary carries the declared board slug (spec-file-format.md
+// §5.1): it is the lookup key the GUI resolves refs against. Absent -> "".
+func TestDirectoryCarriesBoard(t *testing.T) {
+	with := newDir(t, map[string]string{
+		"backlog.md": strings.Replace(dirBacklog, "project: Sample One",
+			"project: Sample One\nboard: py", 1),
+	})
+	s := mustOpen(t, with)
+	d, err := s.Directory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Board != "py" {
+		t.Errorf("Directory.Board = %q, want py", d.Board)
+	}
+
+	without := newDir(t, map[string]string{})
+	s = mustOpen(t, without)
+	d, err = s.Directory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Board != "" {
+		t.Errorf("Directory.Board without a declaration = %q, want \"\"", d.Board)
+	}
+}
+
 // --edit --set refs:... reaches the registered field, validates it, and a
 // malformed value refuses without writing.
 func TestUpdateSetRefs(t *testing.T) {

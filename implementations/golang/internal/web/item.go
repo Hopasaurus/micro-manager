@@ -147,7 +147,7 @@ func (s *Server) panelView(c *echo.Context, store *mm.Store, it mm.Item) (view, 
 	v.App.Nav = "board"
 
 	data := panelData{
-		Item:    s.itemView(it, dir, 1),
+		Item:    s.itemView(it, dir, 1, s.registry.newRefResolver()),
 		Created: it.Created.String(),
 		Started: it.Started.String(),
 		Done:    it.Done.String(),

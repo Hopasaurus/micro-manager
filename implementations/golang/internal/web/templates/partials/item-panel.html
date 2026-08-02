@@ -131,6 +131,31 @@
     </ul>
   </section>
 
+  {{if $i.Refs}}
+  <section data-testid="x-item-refs" class="mm-panel__refs">
+    <h3>References</h3>
+    {{/* T-0127: the panel renders each refs element with its resolution. The
+         card shows the compact form; here the ambiguous case also says in
+         words which boards declare the slug. data-testid names the slug and
+         the target item. */}}
+    <ul class="mm-refs">
+      {{range $i.Refs}}
+      <li data-testid="x-item-ref-{{.Slug}}-{{.TargetID}}" class="mm-ref"
+          {{if .Missing}}data-missing="true" title="No known board declares {{.Slug}}, or the item is gone"{{end}}
+          {{if .Ambiguous}}data-ambiguous="true"{{end}}>
+        {{if .Resolved}}
+        <a href="/p/{{.ProjectID}}/item/{{.TargetID}}">{{.Element}}</a>
+        {{else if .Ambiguous}}
+        <span class="mm-ref__ambiguous">{{.Element}} — {{.Slug}} is declared by {{len .Boards}} boards: {{range $j, $b := .Boards}}{{if $j}}, {{end}}{{$b}}{{end}}</span>
+        {{else}}
+        {{.Element}}
+        {{end}}
+      </li>
+      {{end}}
+    </ul>
+  </section>
+  {{end}}
+
   <section data-testid="item-meta" class="mm-panel__meta"
            data-created="{{$d.Created}}" data-started="{{$d.Started}}" data-done="{{$d.Done}}">
     <dl>

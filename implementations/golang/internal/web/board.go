@@ -57,6 +57,7 @@ type itemData struct {
 	Position  int
 	Slot      string
 	Outcome   string
+	Refs      []refView
 	Actions   []actionData
 }
 
@@ -171,6 +172,10 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		WipLimit: dir.WipLimit,
 		Filters:  filters,
 	}
+	// One refs resolver per render: resolution is a lookup among the boards
+	// this service knows, and the memo it keeps for item existence is only
+	// useful while the render lasts.
+	resolver := s.registry.newRefResolver()
 
 	// The backlog columns (someday, ready, blocked), then working, then done:
 	// the DOM order of §5.5, which a test reads positionally.
@@ -188,7 +193,7 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		}
 		for _, it := range items {
 			if it.State == mm.StateBacklog && it.Section == section {
-				col.Items = append(col.Items, s.itemView(it, dir, len(col.Items)+1))
+				col.Items = append(col.Items, s.itemView(it, dir, len(col.Items)+1, resolver))
 			}
 		}
 		col.Count = len(col.Items)
@@ -205,7 +210,7 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		if slot.Item != nil {
 			for _, it := range items {
 				if it.ID == slot.Item.ID {
-					working.Items = append(working.Items, s.itemView(it, dir, len(working.Items)+1))
+					working.Items = append(working.Items, s.itemView(it, dir, len(working.Items)+1, resolver))
 				}
 			}
 		}
@@ -222,7 +227,7 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		if limit > 0 && len(done.Items) >= limit {
 			break
 		}
-		done.Items = append(done.Items, s.itemView(it, dir, len(done.Items)+1))
+		done.Items = append(done.Items, s.itemView(it, dir, len(done.Items)+1, resolver))
 	}
 	done.Count = len(done.Items)
 	data.Columns = append(data.Columns, done)
@@ -330,8 +335,9 @@ func readFilters(c *echo.Context) filterData {
 	return f
 }
 
-// itemView builds one card.
-func (s *Server) itemView(it mm.Item, dir mm.Directory, position int) itemData {
+// itemView builds one card. resolver is the per-render refs resolver; it is
+// never nil at the call sites in this package.
+func (s *Server) itemView(it mm.Item, dir mm.Directory, position int, resolver *refResolver) itemData {
 	d := itemData{
 		ID:        string(it.ID),
 		Title:     it.Title,
@@ -345,6 +351,7 @@ func (s *Server) itemView(it mm.Item, dir mm.Directory, position int) itemData {
 		HasDetail: it.Detail != "",
 		Position:  position,
 		Outcome:   string(it.Outcome),
+		Refs:      resolver.refsView(it),
 	}
 	if it.Slot > 0 {
 		d.Slot = fmt.Sprintf("%02d", it.Slot)

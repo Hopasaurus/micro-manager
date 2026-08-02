@@ -19,6 +19,9 @@ import (
 // appears, unregistered ones included: dropping them would make the JSON a
 // lossy view of a format whose extension point is unknown fields
 // (spec-file-format.md §9).
+// jsonItem is the wire shape of one item (spec-gui.md §4.1). Refs ride as
+// formatted "slug:ID" elements: the API carries the DATA, resolution stays
+// with whatever client has the tree-wide view.
 type jsonItem struct {
 	ID       string            `json:"id"`
 	Title    string            `json:"title"`
@@ -28,6 +31,7 @@ type jsonItem struct {
 	Position int               `json:"position,omitempty"`
 	Prio     string            `json:"prio,omitempty"`
 	Tags     []string          `json:"tags,omitempty"`
+	Refs     []string          `json:"refs,omitempty"`
 	Detail   string            `json:"detail,omitempty"`
 	Created  string            `json:"created,omitempty"`
 	Started  string            `json:"started,omitempty"`
@@ -49,6 +53,7 @@ func toJSONItem(it mm.Item) jsonItem {
 		Position: it.Pos,
 		Prio:     string(it.Prio),
 		Tags:     it.Tags,
+		Refs:     make([]string, 0, len(it.Refs)),
 		Detail:   it.Detail,
 		Created:  it.Created.String(),
 		Started:  it.Started.String(),
@@ -63,6 +68,9 @@ func toJSONItem(it mm.Item) jsonItem {
 		for _, f := range it.Extra {
 			out.Extra[f.Key] = f.Value
 		}
+	}
+	for _, ref := range it.Refs {
+		out.Refs = append(out.Refs, ref.String())
 	}
 	return out
 }
@@ -83,6 +91,7 @@ type jsonDirectory struct {
 	Path      string     `json:"path"`
 	ProjectID string     `json:"projectId"`
 	Project   string     `json:"project"`
+	Board     string     `json:"board,omitempty"`
 	NextID    string     `json:"nextId,omitempty"`
 	WipLimit  int        `json:"wipLimit"`
 	WipUsed   int        `json:"wipUsed"`
@@ -105,6 +114,7 @@ func toJSONDirectory(d mm.Directory) jsonDirectory {
 		Path:      d.Path,
 		ProjectID: d.ProjectID,
 		Project:   d.Project,
+		Board:     d.Board,
 		NextID:    string(d.NextID),
 		WipLimit:  d.WipLimit,
 		WipUsed:   d.WipUsed,

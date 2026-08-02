@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0127] GUI: render refs as clickable cross-board links, resolved by board slug | tags:gui | detail:details/T-0127.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0126] Validators: accept the board slug and validate the shape of refs links in check.sh and the Go validator | tags:format,checker,validator | detail:details/T-0126.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0125] Spec: reserve a content-declared board slug and cross-board refs in spec-file-format.md | tags:format,spec | detail:details/T-0125.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0104] Explore how micro-manager could link between boards. | prio:med | tags:spike | detail:details/T-0104.md | created:2026-07-31 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
