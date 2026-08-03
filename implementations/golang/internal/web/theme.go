@@ -2,8 +2,8 @@ package web
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,8 +14,11 @@ import (
 	"micromanager/mm"
 )
 
-// Theme editor, library, import and export (spec-gui.md §8, T-0064).
+// Theme editor, library, import and export (spec-gui.md §8, T-0064, T-0137).
 
+// themeEditorData fills the editor form. DarkTokens is the resolved dark
+// palette as JSON, for the live preview: the editor edits the light palette
+// only, and the preview must still show what the dark half looks like (§8.7).
 type themeEditorData struct {
 	ThemeID    string
 	ThemeName  string
@@ -24,6 +27,7 @@ type themeEditorData struct {
 	Colors     []tokenInput
 	Gui        []tokenOption
 	Warnings   []string
+	DarkTokens string
 }
 
 type tokenInput struct {
@@ -70,6 +74,17 @@ func (s *Server) saveThemeEditor(c *echo.Context) error {
 		reqTheme = "custom"
 	}
 
+	// Start from the RESOLVED theme, not the built-in default: the editor
+	// carries every colour and gui token, but it has no colourDark fields, so
+	// a save built on the default would silently replace a library theme's
+	// dark palette with the default's (T-0137). What the user was looking at
+	// is the best description of what they meant to keep.
+	req := mm.ThemeRequest{
+		ConfigHome:    s.opts.ConfigHome,
+		SystemThemeID: s.opts.Config.Theme.ID,
+	}
+	resolved, _, _ := mm.ResolveTheme(req)
+
 	theme := mm.BuiltinTheme()
 	theme.ID = reqTheme
 	theme.Name = c.Request().FormValue("name")
@@ -78,6 +93,8 @@ func (s *Server) saveThemeEditor(c *echo.Context) error {
 	if theme.Color == nil {
 		theme.Color = map[string]string{}
 	}
+	theme.ColorDark = resolved.ColorDark
+	theme.Brand = resolved.Brand
 
 	for _, token := range mm.ColorTokens() {
 		if val := c.Request().FormValue("token_" + token); val != "" {
@@ -208,6 +225,14 @@ func (s *Server) buildThemeEditor(c *echo.Context) themeEditorData {
 		Appearance: resolved.Appearance,
 	}
 
+	// The dark palette rides along as JSON so the live preview can show it
+	// even when the OS is light (§8.7). The values are the RESOLVED ones: an
+	// edit to a light token changes the light half, and the dark half is what
+	// the user last had it as.
+	if darkJSON, err := json.Marshal(resolved.ColorDark); err == nil {
+		data.DarkTokens = string(darkJSON)
+	}
+
 	// §11 rule 7: warn on contrast failures, never block. The warning is part
 	// of the editor page, so it travels with every render - the initial load
 	// AND the save response, which re-renders the editor.
@@ -235,17 +260,19 @@ func (s *Server) buildThemeEditor(c *echo.Context) themeEditorData {
 }
 
 func (s *Server) buildThemeLibrary() themeLibraryData {
-	// Described FROM the built-in theme, so this listing and the JSON API's
+	// Described FROM the built-in themes, so this listing and the JSON API's
 	// cannot drift from each other or from the document either one exports.
 	// "sample-one-dark" used to sit here too: it is the EXAMPLE theme of
 	// spec-gui.md §8.6, not a theme mm has, and selecting it silently served
-	// the built-in (§8.7 defines exactly one built-in default).
-	bt := mm.BuiltinTheme()
+	// the built-in (§8.7 defines the built-in default; T-0137 adds the lite
+	// theme as a second built-in entry).
 	data := themeLibraryData{
 		Current: s.opts.Config.Theme.ID,
-		Themes: []themeSummary{
-			{ID: bt.ID, Name: bt.Name, Author: "Builtin", Appearance: bt.Appearance, Source: "builtin"},
-		},
+	}
+	for _, bt := range mm.BuiltinThemes() {
+		data.Themes = append(data.Themes, themeSummary{
+			ID: bt.ID, Name: bt.Name, Author: "Builtin", Appearance: bt.Appearance, Source: "builtin",
+		})
 	}
 
 	if s.opts.ConfigHome != "" {
@@ -255,6 +282,11 @@ func (s *Server) buildThemeLibrary() themeLibraryData {
 			for _, e := range entries {
 				if strings.HasSuffix(e.Name(), ".json") {
 					id := strings.TrimSuffix(e.Name(), ".json")
+					if mm.BuiltinLibraryTheme(id) != nil {
+						// A file shadowing a built-in id is an override the user
+						// imported on purpose; it is not a second theme to list.
+						continue
+					}
 					if t, err := mm.LoadTheme(filepath.Join(libDir, e.Name())); err == nil {
 						data.Themes = append(data.Themes, themeSummary{
 							ID:         id,
@@ -323,6 +355,12 @@ func (s *Server) resolveExportTheme(themeID string) *mm.Theme {
 		return bt
 	}
 
+	// A built-in library theme (the lite theme, T-0137) exports like any
+	// library entry even though no file backs it.
+	if bt := mm.BuiltinLibraryTheme(themeID); bt != nil {
+		return bt
+	}
+
 	if s.opts.ConfigHome != "" {
 		sp := mm.NewSystemPaths(s.opts.ConfigHome)
 		libPath := mm.ThemeLibraryPath(sp, themeID)
@@ -334,5 +372,38 @@ func (s *Server) resolveExportTheme(themeID string) *mm.Theme {
 	return mm.BuiltinTheme()
 }
 
-// unused import fix helper
-var _ = (*multipart.FileHeader)(nil)
+// isFile reports whether path names an existing regular file.
+func isFile(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
+}
+
+// themePalette serves GET /settings/theme/palette?base=#rrggbb.
+//
+// Internal helper for the theme editor's "generate palette" control (T-0137):
+// given one base colour it returns the harmonized color.* token set for both
+// appearances, derived by mm.HarmonizedPalette. The colour math lives in the
+// library so a future TUI theme editor derives the same tokens from the same
+// base; this endpoint is how the web editor reaches it without duplicating it
+// in mm.js. It is not in the spec's route table, like /p/:projectId/shell.
+func (s *Server) themePalette(c *echo.Context) error {
+	base := c.QueryParam("base")
+	if base == "" {
+		return fmt.Errorf("%w: palette needs a base colour", mm.ErrInvalidArgument)
+	}
+
+	light, err := mm.HarmonizedPalette(base, false)
+	if err != nil {
+		return fmt.Errorf("%w: %v", mm.ErrInvalidArgument, err)
+	}
+	dark, err := mm.HarmonizedPalette(base, true)
+	if err != nil {
+		return fmt.Errorf("%w: %v", mm.ErrInvalidArgument, err)
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{
+		"base":  base,
+		"light": light,
+		"dark":  dark,
+	})
+}

@@ -335,22 +335,29 @@ func ResolveTheme(req ThemeRequest) (ResolvedTheme, []ConfigWarning, error) {
 	type candidate struct {
 		path   string
 		source ThemeSource
+		// builtinID is the compiled-in library theme to fall back to when the
+		// file is absent. A library entry is a file today and a built-in tomorrow
+		// (T-0137's "lite" theme ships inside the binary); the id must resolve
+		// either way, and at the SAME precedence position, or a project that
+		// names "micro-manager-lite" would silently lose to a system theme.json
+		// it outranks.
+		builtinID string
 	}
 	var candidates []candidate
 
 	if req.ProjectDir != "" {
-		candidates = append(candidates, candidate{ProjectThemePath(req.ProjectDir), ThemeSourceProject})
+		candidates = append(candidates, candidate{ProjectThemePath(req.ProjectDir), ThemeSourceProject, ""})
 	}
 	if req.ConfigHome != "" {
 		sp := NewSystemPaths(req.ConfigHome)
 		if req.ProjectThemeID != "" {
 			// Named by the PROJECT, so the source is the project even though the
 			// file lives in the system library.
-			candidates = append(candidates, candidate{ThemeLibraryPath(sp, req.ProjectThemeID), ThemeSourceProject})
+			candidates = append(candidates, candidate{ThemeLibraryPath(sp, req.ProjectThemeID), ThemeSourceProject, req.ProjectThemeID})
 		}
-		candidates = append(candidates, candidate{sp.Theme, ThemeSourceSystem})
+		candidates = append(candidates, candidate{sp.Theme, ThemeSourceSystem, ""})
 		if req.SystemThemeID != "" {
-			candidates = append(candidates, candidate{ThemeLibraryPath(sp, req.SystemThemeID), ThemeSourceSystem})
+			candidates = append(candidates, candidate{ThemeLibraryPath(sp, req.SystemThemeID), ThemeSourceSystem, req.SystemThemeID})
 		}
 	}
 
@@ -360,6 +367,9 @@ func ResolveTheme(req ThemeRequest) (ResolvedTheme, []ConfigWarning, error) {
 		if err != nil {
 			warnings = append(warnings, ConfigWarning{c.path, "", err.Error()})
 			continue
+		}
+		if t == nil && c.builtinID != "" {
+			t = BuiltinLibraryTheme(c.builtinID)
 		}
 		if t == nil {
 			continue
@@ -560,6 +570,28 @@ func relativeLuminance(hex string) (float64, error) {
 // The built-in default
 // ---------------------------------------------------------------------------
 
+// BuiltinThemes returns every theme compiled into mm: the default plus the
+// built-in library entries. The default is first and is the bottom of §8.7's
+// resolution; the rest are themes that ship with the binary and resolve by id
+// exactly as a theme-library file does, without needing a file on disk.
+//
+// A second built-in must appear here AND in the web listing; the two are
+// derived from this list so they cannot drift.
+func BuiltinThemes() []*Theme {
+	return []*Theme{BuiltinTheme(), BuiltinLiteTheme()}
+}
+
+// BuiltinLibraryTheme resolves a theme id against the compiled-in library:
+// nil when the id names nothing that ships with mm.
+func BuiltinLibraryTheme(id string) *Theme {
+	for _, t := range BuiltinThemes() {
+		if t.ID == id {
+			return t
+		}
+	}
+	return nil
+}
+
 // BuiltinTheme is the bottom of §8.7 and the per-token fallback for every layer
 // above it. Every token in the taxonomy is present here, by definition: this is
 // the file that makes "a theme setting only accent.base is valid" true.
@@ -580,6 +612,73 @@ func BuiltinTheme() *Theme {
 		ColorDark: builtinDark(),
 		GUI:       builtinGUI(),
 		raw:       map[string]any{},
+	}
+}
+
+// BuiltinLiteTheme is the second built-in: a deliberately light-weight theme.
+//
+// "Lite" here means reduced visual weight, not reduced colour count: the
+// palette is desaturated (grey is a valid base — the derivation is monotone),
+// borders and shadows are softer than the default's, and the whole thing reads
+// as the terminal-native bare minimum the format's heritage suggests. It is
+// appearance light with one palette; GUI tokens fall through to the default
+// (§8.7 per-token fallback), which is what keeps a lite screen from
+// re-deriving typography nobody asked to change.
+func BuiltinLiteTheme() *Theme {
+	return &Theme{
+		ID:         "micro-manager-lite",
+		Name:       "micro-manager lite",
+		Appearance: AppearanceLight,
+		Brand: map[string]string{
+			"name":   "micro-manager lite",
+			"short":  "mm",
+			"accent": "#3d3d3d",
+		},
+		Color: builtinLite(),
+		raw:   map[string]any{},
+	}
+}
+
+func builtinLite() map[string]string {
+	return map[string]string{
+		"bg.base":    "#fbfbfb",
+		"bg.raised":  "#ffffff",
+		"bg.sunken":  "#f1f1f1",
+		"bg.overlay": "#ffffff",
+
+		"fg.default":  "#1b1b1b",
+		"fg.muted":    "#555555",
+		"fg.subtle":   "#6f6f6f",
+		"fg.inverted": "#ffffff",
+
+		"border.default": "#e4e4e4",
+		"border.strong":  "#b9b9b9",
+		"border.focus":   "#4a4a4a",
+
+		"accent.base":  "#3d3d3d",
+		"accent.fg":    "#ffffff",
+		"accent.muted": "#ececec",
+
+		"state.ready":   "#336699",
+		"state.blocked": "#99404a",
+		"state.someday": "#7a7a7a",
+		"state.working": "#8a6d1f",
+		"state.done":    "#2f6b45",
+
+		"prio.high": "#99404a",
+		"prio.med":  "#8a6d1f",
+		"prio.low":  "#7a7a7a",
+
+		"feedback.success": "#2f6b45",
+		"feedback.warning": "#8a6d1f",
+		"feedback.danger":  "#99404a",
+		"feedback.info":    "#336699",
+
+		"selection.bg": "#ececec",
+		"selection.fg": "#1b1b1b",
+
+		"drag.valid":   "#2f6b45",
+		"drag.invalid": "#99404a",
 	}
 }
 

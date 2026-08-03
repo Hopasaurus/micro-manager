@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -262,7 +263,7 @@ func (s *Server) buildSystemSettings() settingsData {
 	}
 	data.Scan.RootCount = len(data.Scan.Roots)
 
-	data.Theme = s.buildThemeSettings("system", cfg.Theme.ID, false)
+	data.Theme = s.buildThemeSettings(cfg.Theme.ID, "", "")
 	return data
 }
 
@@ -272,8 +273,14 @@ func (s *Server) buildProjectSettings(store *mm.Store) (settingsData, error) {
 		return settingsData{}, err
 	}
 
-	themePath := mm.ProjectThemePath(dir.Path)
-	hasProjectTheme := isFile(themePath)
+	// The project's own config names the theme; the system config's id is not
+	// the project's choice and must not highlight the select (T-0137).
+	projectThemeID := ""
+	if pCfg, err := mm.LoadConfigFile(mm.ProjectConfigPath(dir.Path), mm.ScopeProject); err == nil && pCfg != nil {
+		if merged, err := mm.MergeConfig(nil, pCfg); err == nil {
+			projectThemeID = merged.Theme.ID
+		}
+	}
 
 	data := settingsData{
 		Scope:     "project",
@@ -283,28 +290,59 @@ func (s *Server) buildProjectSettings(store *mm.Store) (settingsData, error) {
 		},
 	}
 
-	data.Theme = s.buildThemeSettings("project", s.opts.Config.Theme.ID, hasProjectTheme)
+	data.Theme = s.buildThemeSettings(projectThemeID, dir.Path, projectThemeID)
 	return data, nil
 }
 
-func (s *Server) buildThemeSettings(scope, currentTheme string, hasProjectTheme bool) themeSettingsData {
-	source := "builtin"
-	if scope == "project" && hasProjectTheme {
-		source = "project"
-	} else if scope == "system" && s.opts.ConfigHome != "" {
-		sysThemePath := mm.NewSystemPaths(s.opts.ConfigHome).Theme
-		if isFile(sysThemePath) {
-			source = "system"
-		}
+func (s *Server) buildThemeSettings(currentTheme, projectDir, projectThemeID string) themeSettingsData {
+	// The badge names where the CURRENT theme resolves from — project, system
+	// or builtin — which is exactly what ResolveTheme already decided, so the
+	// source is read off the resolution rather than re-derived from file
+	// existence.
+	req := mm.ThemeRequest{
+		ProjectDir:     projectDir,
+		ConfigHome:     s.opts.ConfigHome,
+		ProjectThemeID: projectThemeID,
+		SystemThemeID:  s.opts.Config.Theme.ID,
+	}
+	resolved, _, _ := mm.ResolveTheme(req)
+	source := string(resolved.Source)
+
+	// The built-ins §8.7 defines, derived from the registry so the default and
+	// the lite theme (T-0137) cannot drift from the library listing. The
+	// default is selected when nothing is configured, because nothing
+	// resolving is the definition of the default.
+	defaultID := mm.BuiltinTheme().ID
+	var themes []themeOption
+	for _, bt := range mm.BuiltinThemes() {
+		themes = append(themes, themeOption{
+			ID: bt.ID, Name: bt.Name + " (Builtin)", Source: "builtin",
+			Selected: currentTheme == bt.ID || (bt.ID == defaultID && currentTheme == ""),
+		})
 	}
 
-	// Only the one built-in §8.7 defines. "sample-one-dark" was offered here as
-	// though it were a second: picking it stored an id no theme answers to, and
-	// resolution then fell through to this very entry.
-	bt := mm.BuiltinTheme()
-	themes := []themeOption{
-		{ID: bt.ID, Name: bt.Name + " (Builtin)", Source: "builtin",
-			Selected: currentTheme == bt.ID || currentTheme == ""},
+	// The library files, so a theme saved there is selectable without editing
+	// config.json by hand. A file theme can never be confused with a built-in:
+	// the ids are validated disjoint by the config write.
+	if s.opts.ConfigHome != "" {
+		libDir := filepath.Join(mm.NewSystemPaths(s.opts.ConfigHome).Dir, "themes")
+		if entries, err := os.ReadDir(libDir); err == nil {
+			for _, e := range entries {
+				if !strings.HasSuffix(e.Name(), ".json") {
+					continue
+				}
+				id := strings.TrimSuffix(e.Name(), ".json")
+				if mm.BuiltinLibraryTheme(id) != nil {
+					continue // a file shadowing a built-in id is the user's own; the built-in row already offers it
+				}
+				if t, err := mm.LoadTheme(filepath.Join(libDir, e.Name())); err == nil {
+					themes = append(themes, themeOption{
+						ID: id, Name: t.Name + " (Library)", Source: "system",
+						Selected: currentTheme == id,
+					})
+				}
+			}
+		}
 	}
 
 	return themeSettingsData{
@@ -312,9 +350,4 @@ func (s *Server) buildThemeSettings(scope, currentTheme string, hasProjectTheme 
 		Source:  source,
 		Themes:  themes,
 	}
-}
-
-func isFile(path string) bool {
-	st, err := os.Stat(path)
-	return err == nil && !st.IsDir()
 }

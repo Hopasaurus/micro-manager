@@ -415,15 +415,17 @@ type jsonThemeSummary struct {
 // themes serves GET /api/v1/themes: the built-ins plus everything in the theme
 // library directory.
 func (s *Server) themes(c *echo.Context) error {
-	// Described FROM the theme rather than beside it, so the listing cannot
+	// Described FROM the themes rather than beside them, so the listing cannot
 	// claim an id, name or appearance the exported document does not carry.
-	// §8.7 defines exactly one built-in; the listing previously offered a
-	// second, "sample-one-dark", which is the spec's EXAMPLE theme document
-	// (§8.6) and not a theme this library has. Asking for it served the
-	// built-in under a name nothing defines.
-	bt := mm.BuiltinTheme()
-	out := []jsonThemeSummary{
-		{ID: bt.ID, Name: bt.Name, Author: "Builtin", Appearance: bt.Appearance, Source: "builtin"},
+	// The built-in registry is the single source: the default plus the lite
+	// theme (T-0137). "sample-one-dark" is NOT offered — it is the spec's
+	// EXAMPLE theme document (§8.6), not a theme this library has, and asking
+	// for it served the built-in under a name nothing defines.
+	out := []jsonThemeSummary{}
+	for _, bt := range mm.BuiltinThemes() {
+		out = append(out, jsonThemeSummary{
+			ID: bt.ID, Name: bt.Name, Author: "Builtin", Appearance: bt.Appearance, Source: "builtin",
+		})
 	}
 	if home := s.svc.ConfigHome(); home != "" {
 		sp := mm.NewSystemPaths(home)
@@ -433,6 +435,11 @@ func (s *Server) themes(c *echo.Context) error {
 					continue
 				}
 				id := strings.TrimSuffix(e.Name(), ".json")
+				if mm.BuiltinLibraryTheme(id) != nil {
+					// A file shadowing a built-in id overrides it; it is not a
+					// second theme to list.
+					continue
+				}
 				path := filepath.Join(sp.Themes, e.Name())
 				if t, err := mm.LoadTheme(path); err == nil && t != nil {
 					out = append(out, jsonThemeSummary{
@@ -613,9 +620,10 @@ func (s *Server) exportTheme(c *echo.Context) error {
 }
 
 // libraryTheme resolves a themeId against the built-ins and the library
-// directory.
+// directory. The built-in registry is checked for every id, so the lite theme
+// (T-0137) exports like any library entry even though no file backs it.
 func (s *Server) libraryTheme(themeID string) *mm.Theme {
-	if bt := mm.BuiltinTheme(); themeID == bt.ID {
+	if bt := mm.BuiltinLibraryTheme(themeID); bt != nil {
 		return bt
 	}
 	if home := s.svc.ConfigHome(); home != "" && mm.ValidThemeID(themeID) {

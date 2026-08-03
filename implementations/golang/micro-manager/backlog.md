@@ -2,8 +2,8 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0141
-updated: 2026-08-02
+next_id: T-0150
+updated: 2026-08-03
 ---
 
 # Backlog
@@ -23,11 +23,18 @@ thing that can be started.
 ## Ready
 
 
+- [ ] [T-0149] Drops over the drop placeholder silently never fire (upward drags) | prio:med | tags:gui,dnd | detail:details/T-0149.md | created:2026-08-03
 - [ ] [T-0138] Morph leaks an htmx poll chain per externally-targeted board swap | prio:high | tags:gui,flicker-fix,regression | detail:details/T-0138.md | created:2026-08-02
 - [ ] [T-0111] Close the drag-behaviour test gap: non-displacing placeholder and/or a JS test runner (T-0110 follow-up) | tags:gui,test,tech-debt | detail:details/T-0111.md | created:2026-08-01
-- [ ] [T-0137] Theme editor updates | prio:med | tags:spike | detail:details/T-0137.md | created:2026-08-02
 - [ ] [T-0139] Conditional polling (D2): poll only while the SSE stream is down | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0139.md | created:2026-08-02
 - [ ] [T-0140] TestAuditTestids fails: no report-item-<key> rendered (Appendix A) | prio:high | tags:test,gui | created:2026-08-02
+- [ ] [T-0142] Theme editor: edit the dark palette (colorDark) alongside the light | prio:med | tags:gui,theme | detail:details/T-0142.md | created:2026-08-03
+- [ ] [T-0143] Spec: name the compiled-in library themes in spec-gui.md §8.7 (micro-manager-lite) | prio:low | tags:format,spec | created:2026-08-03
+- [ ] [T-0148] Check if flicker fixes need to be applied to more paths | prio:med | tags:spike | detail:details/T-0148.md | created:2026-08-03
+- [ ] [T-0144] Done only shows the count up to the limit | prio:med | tags:bug | detail:details/T-0144.md | created:2026-08-03
+- [ ] [T-0145] Make a way to show all done items | prio:med | tags:new-feature,spike | detail:details/T-0145.md | created:2026-08-03
+- [ ] [T-0147] Add 'move to top' & 'move to bottom' to card context menu. | prio:med | tags:new-feature | created:2026-08-03
+- [ ] [T-0146] When saving after edit return to board | prio:med | tags:bug | detail:details/T-0146.md | created:2026-08-03
 
 ## Blocked
 

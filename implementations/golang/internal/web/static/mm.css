@@ -712,3 +712,55 @@ body {
 }
 
 .mm-project-card__favorite[aria-pressed="true"] { color: var(--mm-color-prio-med); }
+
+/* ------------------------------------------------------------------ theme editor */
+
+.mm-theme-editor .mm-field { margin-bottom: var(--mm-space-2); }
+.mm-theme-editor .mm-field label { display: block; margin-bottom: var(--mm-space-1); color: var(--mm-color-fg-muted); font-size: var(--mm-font-size-sm); }
+.mm-theme-editor .mm-field input[type="text"], .mm-theme-editor .mm-field select {
+  padding: var(--mm-space-1) var(--mm-space-2);
+  border: var(--mm-border-width-thin) solid var(--mm-color-border-default);
+  border-radius: var(--mm-radius-sm);
+  background: var(--mm-color-bg-raised);
+  color: var(--mm-color-fg-default);
+  font-family: var(--mm-font-family-mono);
+  font-size: var(--mm-font-size-sm);
+}
+.mm-theme-editor .mm-field input:focus, .mm-theme-editor .mm-field select:focus {
+  outline: none;
+  border-color: var(--mm-color-border-focus);
+}
+
+.mm-theme-editor__colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: var(--mm-space-2) var(--mm-space-3);
+}
+
+/* The swatch sits between the label and the input, and the live preview
+   updates it as the user types. Its background is the THEME's value, set
+   inline by the template and by mm.js; this file carries no colour for it. */
+.mm-theme-editor__token { position: relative; }
+.mm-swatch {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  border: var(--mm-border-width-thin) solid var(--mm-color-border-strong);
+  border-radius: var(--mm-radius-sm);
+  margin-left: var(--mm-space-1);
+  vertical-align: middle;
+}
+
+.mm-theme-editor__palette {
+  margin-top: var(--mm-space-4);
+  padding: var(--mm-space-3);
+  border: var(--mm-border-width-thin) solid var(--mm-color-border-default);
+  border-radius: var(--mm-radius-md);
+  background: var(--mm-color-bg-raised);
+}
+.mm-theme-editor__palette h2 { margin-top: 0; }
+.mm-theme-editor__palette-row { display: flex; gap: var(--mm-space-2); align-items: center; }
+.mm-theme-editor__palette-row input { flex: 0 0 10rem; }
+
+.mm-hint { color: var(--mm-color-fg-subtle); font-size: var(--mm-font-size-xs); margin: var(--mm-space-1) 0 0; }
+.mm-error__message { color: var(--mm-color-feedback-danger); }

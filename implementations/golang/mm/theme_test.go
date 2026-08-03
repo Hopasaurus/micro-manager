@@ -484,3 +484,149 @@ func TestThemeAndConfigAreInvisibleToTheValidator(t *testing.T) {
 		t.Errorf("a theme or config file produced violations: %v", vs)
 	}
 }
+
+// T-0137: the lite theme is a second built-in. It must be complete enough to
+// stand alone — every colour token present, every value well-formed, and the
+// whole document valid — because it resolves with no file behind it.
+func TestBuiltinLiteThemeIsComplete(t *testing.T) {
+	b := BuiltinLiteTheme()
+	if b.ID == "" || b.ID == BuiltinTheme().ID {
+		t.Errorf("the lite theme must have its own id, got %q", b.ID)
+	}
+	if b.Appearance != AppearanceLight {
+		t.Errorf("lite appearance = %q, want light", b.Appearance)
+	}
+	for _, token := range ColorTokens() {
+		if v := b.Color[token]; v == "" {
+			t.Errorf("lite theme has no color.%s", token)
+		} else if err := ValidateColor(v); err != nil {
+			t.Errorf("color.%s: %v", token, err)
+		}
+	}
+	if len(b.Validate()) != 0 {
+		t.Errorf("the lite theme does not validate: %v", b.Validate())
+	}
+}
+
+// The lite theme's GUI tokens fall through to the default (§8.7 per-token
+// fallback) — lite changes the colour story, not the typography. This is the
+// one completeness rule that does NOT apply to it.
+func TestBuiltinLiteThemeInheritsGuiTokens(t *testing.T) {
+	lite := BuiltinLiteTheme()
+	for _, token := range GUITokens() {
+		if lite.GUI[token] != "" {
+			t.Errorf("lite theme carries its own gui.%s = %q; it should inherit", token, lite.GUI[token])
+		}
+	}
+}
+
+// §11 rule 7 applied to the second built-in: its contrast pairs must clear
+// AA by themselves, exactly as the default's must.
+func TestBuiltinLiteThemeMeetsContrastAA(t *testing.T) {
+	lite := BuiltinLiteTheme()
+	resolved := overlay(builtinResolved(), lite, ThemeSourceBuiltin)
+	for _, pair := range resolved.CheckContrast(false) {
+		if !pair.Passes {
+			t.Errorf("%s on %s is %.2f:1, below AA %.1f:1",
+				pair.Foreground, pair.Background, pair.Ratio, ContrastAA)
+		}
+	}
+}
+
+// The registry: the default is first (it is the bottom of §8.7), the ids are
+// distinct, and an unknown id resolves to nothing.
+func TestBuiltinThemeRegistry(t *testing.T) {
+	themes := BuiltinThemes()
+	if len(themes) < 2 {
+		t.Fatalf("BuiltinThemes has %d entries, want at least 2", len(themes))
+	}
+	if themes[0].ID != BuiltinTheme().ID {
+		t.Errorf("the default must be first, got %q", themes[0].ID)
+	}
+	seen := map[string]bool{}
+	for _, th := range themes {
+		if seen[th.ID] {
+			t.Errorf("duplicate built-in id %q", th.ID)
+		}
+		seen[th.ID] = true
+	}
+	if BuiltinLibraryTheme("micro-manager-lite") == nil {
+		t.Error("BuiltinLibraryTheme does not resolve the lite theme")
+	}
+	if BuiltinLibraryTheme("no-such-theme") != nil {
+		t.Error("BuiltinLibraryTheme resolves an unknown id")
+	}
+}
+
+// T-0137: a config that names the lite theme resolves it with no file on
+// disk — the whole point of "built in".
+func TestLiteThemeResolvesWhenNamed(t *testing.T) {
+	got, warnings, err := ResolveTheme(ThemeRequest{ProjectDir: t.TempDir(), ConfigHome: t.TempDir(), SystemThemeID: "micro-manager-lite"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+	if got.Name != BuiltinLiteTheme().Name {
+		t.Errorf("name = %q, want the lite theme's %q", got.Name, BuiltinLiteTheme().Name)
+	}
+	if got.Color["bg.base"] != BuiltinLiteTheme().Color["bg.base"] {
+		t.Errorf("bg.base = %q, want the lite palette's", got.Color["bg.base"])
+	}
+	// The GUI tokens still come from the default.
+	if got.GUI["font.family.ui"] == "" {
+		t.Error("the lite resolution lost the default GUI tokens")
+	}
+}
+
+// A named built-in library theme must sit at the SAME precedence position as
+// a library FILE: a project that names lite beats a system theme.json, and a
+// project theme.json beats the project's own naming of lite.
+func TestBuiltinLibraryThemePrecedence(t *testing.T) {
+	home := t.TempDir()
+	project := t.TempDir()
+	sp := NewSystemPaths(home)
+
+	// Project names lite; a system theme.json exists. Step 2 (project-named
+	// library) outranks step 3 (system theme.json).
+	writeJSON(t, sp.Theme, `{"schemaVersion":1,"id":"sys","name":"System","color":{"accent":{"base":"#030303"}}}`)
+	got, _, err := ResolveTheme(ThemeRequest{ProjectDir: project, ConfigHome: home, ProjectThemeID: "micro-manager-lite", SystemThemeID: "micro-manager-lite"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != BuiltinLiteTheme().Name {
+		t.Errorf("project-named lite lost to the system theme.json: %q", got.Name)
+	}
+
+	// A project theme.json outranks the project's own naming of lite.
+	writeJSON(t, ProjectThemePath(project), `{"schemaVersion":1,"id":"proj","name":"Project","color":{"accent":{"base":"#010101"}}}`)
+	got, _, _ = ResolveTheme(ThemeRequest{ProjectDir: project, ConfigHome: home, ProjectThemeID: "micro-manager-lite"})
+	if got.Name != "Project" {
+		t.Errorf("project theme.json lost to named lite: %q", got.Name)
+	}
+}
+
+// Exporting the lite theme must produce a document that re-imports to the
+// same theme, like the default's export (TestBuiltinThemeExportsItself).
+func TestBuiltinLiteThemeExportsItself(t *testing.T) {
+	data, err := BuiltinLiteTheme().Bytes()
+	if err != nil {
+		t.Fatalf("Bytes: %v", err)
+	}
+	back, err := ParseTheme("lite.json", data)
+	if err != nil {
+		t.Fatalf("the exported lite theme does not parse: %v\n%s", err, data)
+	}
+	if back.ID != "micro-manager-lite" || back.Name != BuiltinLiteTheme().Name {
+		t.Errorf("exported lite id/name = %q/%q", back.ID, back.Name)
+	}
+	for _, token := range ColorTokens() {
+		if back.Color[token] == "" {
+			t.Errorf("exported lite theme lost color.%s", token)
+		}
+	}
+	if len(back.Validate()) != 0 {
+		t.Errorf("the exported lite theme does not validate: %v", back.Validate())
+	}
+}

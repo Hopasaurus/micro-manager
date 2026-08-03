@@ -38,6 +38,7 @@ func (s *Server) routes() {
 	s.echo.GET("/about", s.about)
 	s.echo.GET("/settings/theme", s.themeEditor)
 	s.echo.POST("/settings/theme", s.saveThemeEditor)
+	s.echo.GET("/settings/theme/palette", s.themePalette) // editor helper, internal (T-0137)
 	s.echo.GET("/settings/themes", s.themeLibrary)
 	s.echo.GET("/settings/themes/:themeId", s.themeDetail)
 	s.echo.GET("/settings/themes/:themeId/export", s.themeExport)

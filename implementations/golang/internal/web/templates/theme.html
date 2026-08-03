@@ -13,7 +13,9 @@
 
 {{define "theme-editor" -}}
 {{$d := .Data}}
-<div data-testid="theme-editor" class="mm-theme-editor" data-state="ready">
+<div data-testid="theme-editor" class="mm-theme-editor" data-state="ready"
+     data-dark-tokens="{{$d.DarkTokens}}">
+  <script src="/static/theme-editor.js" defer></script>
   <h1>Theme Editor</h1>
   <p>Edit theme tokens live. Changes update the current view preview.</p>
 
@@ -41,16 +43,43 @@
         <option value="light" {{if eq $d.Appearance "light"}}selected{{end}}>light</option>
         <option value="dark" {{if eq $d.Appearance "dark"}}selected{{end}}>dark</option>
       </select>
+      <span class="mm-hint">The preview follows this choice; the editor itself edits the light palette (dark palette editing is a follow-up).</span>
     </div>
 
     <h2>Colors</h2>
     <div class="mm-theme-editor__colors">
       {{range $d.Colors}}
-      <div class="mm-field">
+      <div class="mm-field mm-theme-editor__token">
         <label for="token-{{.Path}}">{{.Name}} (<code>{{.Path}}</code>)</label>
-        <input id="token-{{.Path}}" name="token_{{.Path}}" type="text" value="{{.Value}}">
+        <span class="mm-swatch" data-swatch-for="token-{{.Path}}" style="background-color:{{.Value}}"></span>
+        <input id="token-{{.Path}}" name="token_{{.Path}}" type="text" value="{{.Value}}"
+               data-token-path="color.{{.Path}}" spellcheck="false">
       </div>
       {{end}}
+    </div>
+
+    <h2>GUI</h2>
+    <div class="mm-theme-editor__colors">
+      {{range $d.Gui}}
+      <div class="mm-field mm-theme-editor__token">
+        <label for="token-{{.Path}}">{{.Name}} (<code>{{.Path}}</code>)</label>
+        <input id="token-{{.Path}}" name="token_{{.Path}}" type="text" value="{{.Value}}"
+               data-token-path="gui.{{.Path}}" spellcheck="false">
+      </div>
+      {{end}}
+    </div>
+
+    <div class="mm-theme-editor__palette">
+      <h2>Palette from a colour</h2>
+      <p>Pick one colour; the editor fills every colour token with a color-wheel
+      derivation of it — the accent becomes your colour, the states keep their
+      meaning and take its saturation, and focus and selection take its
+      complement. Saving writes the result like any other edit.</p>
+      <div class="mm-theme-editor__palette-row">
+        <input data-testid="x-palette-base" type="text" placeholder="#1257c9" spellcheck="false" aria-label="Base colour">
+        <button data-testid="x-palette-generate" class="mm-button" type="button">Generate palette</button>
+      </div>
+      <p data-testid="x-palette-message" class="mm-hint" role="status"></p>
     </div>
 
     <div class="mm-theme-editor__submit">

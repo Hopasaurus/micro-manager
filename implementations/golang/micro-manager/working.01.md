@@ -9,7 +9,6 @@ tags: null
 detail: null
 created: null
 started: null
-refs: null
 ---
 
 # Working
