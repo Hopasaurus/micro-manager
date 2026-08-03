@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 // specGUI is the normative source. The path is relative to the package
@@ -134,7 +135,13 @@ func auditViews(t *testing.T, ts *testServer, id string) string {
 	add("/", 200)
 	add("/projects", 200)
 	add("/p/"+id+"/board", 200)
-	add("/p/"+id+"/report?include-backlog=1", 200)
+	// period=all, not the default period: the audit's question is whether
+	// report-item-<ID> CAN render, and the default is the last complete ISO
+	// week — which stops containing the fixture's done dates (newest is
+	// 2026-07-24) as soon as the calendar moves past them. Asking for the
+	// default here made this a test that passed in July and failed in August
+	// (T-0140). Which period the default resolves to is report_test.go's job.
+	add("/p/"+id+"/report?period=all&include-backlog=1", 200)
 	add("/p/"+id+"/check", 200)
 	add("/p/"+id+"/settings", 200)
 	add("/settings", 200)
@@ -246,6 +253,10 @@ func TestAuditTestids(t *testing.T) {
 	}
 
 	ts := newTestServer(t, "clean-full")
+	// Pin the clock for the same reason reportServer does: the audit renders
+	// every view in the build, several of which resolve dates relative to
+	// today, and a test that drifts with the calendar is not a test.
+	ts.registry.now = func() time.Time { return time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC) }
 	id := projectIDOf(t, ts, ts.Dirs[0])
 	all := auditViews(t, ts, id)
 

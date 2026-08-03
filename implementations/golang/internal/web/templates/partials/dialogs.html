@@ -27,15 +27,16 @@
     only branch that leaves the directory valid. The testid is x- prefixed:
     §5.1 permits an implementation to ADD testids only under that prefix.
   */}}
-  {{/* hx-ext="morph" repeats the app root's declaration directly on this form:
-       a native <form> submit does not reliably resolve the extension from an
-       ancestor this far up in the vendored htmx build, and an unresolved
-       "morph" swap style silently falls back to htmx's default (innerHTML),
-       nesting a full copy of the response inside the board instead of
-       replacing it. Verified empirically; see layout.html's app-root comment
-       for the general rule. */}}
-  <form hx-delete="/p/{{$p.ID}}/items/{{$id}}?force=true" hx-ext="morph"
-        hx-target="[data-testid='board']" hx-swap="morph">
+  {{/* outerHTML, NOT morph (T-0138). Morphing the board from an element
+       OUTSIDE it leaks an htmx polling chain: htmx's scheduler overwrites its
+       timer handle without clearing the old one and relies on the swapped-out
+       element leaving the DOM to stop it, which morph — by preserving the
+       element — prevents. Every mutation would add another `every 30s` chain
+       for the life of the tab. The board's OWN sse/backstop refresh still
+       morphs (partials/board.html); that path does not compound, and it is
+       where the flicker was. */}}
+  <form hx-delete="/p/{{$p.ID}}/items/{{$id}}?force=true"
+        hx-target="[data-testid='board']" hx-swap="outerHTML">
     {{if $detail}}
     <label class="mm-field mm-field--check">
       <input data-testid="x-dialog-confirm-remove-with-detail" type="checkbox"
@@ -60,8 +61,8 @@
 <div data-testid="dialog-block" class="mm-dialog" role="dialog" aria-modal="true"
      aria-labelledby="dialog-block-title" data-item-id="{{$id}}">
   <h2 data-testid="dialog-block-title" id="dialog-block-title">Block {{$id}}</h2>
-  <form hx-post="/p/{{$p.ID}}/items/{{$id}}/{{if $working}}pause{{else}}block{{end}}" hx-ext="morph"
-        hx-target="[data-testid='board']" hx-swap="morph">
+  <form hx-post="/p/{{$p.ID}}/items/{{$id}}/{{if $working}}pause{{else}}block{{end}}"
+        hx-target="[data-testid='board']" hx-swap="outerHTML">
     {{if $working}}<input type="hidden" name="section" value="blocked">{{end}}
     <label class="mm-field">
       <span>What is it waiting on?</span>
@@ -79,8 +80,8 @@
 <div data-testid="dialog-finish" class="mm-dialog" role="dialog" aria-modal="true"
      aria-labelledby="dialog-finish-title" data-item-id="{{$id}}">
   <h2 data-testid="dialog-finish-title" id="dialog-finish-title">Finish {{$id}}</h2>
-  <form hx-post="/p/{{$p.ID}}/items/{{$id}}/finish" hx-ext="morph"
-        hx-target="[data-testid='board']" hx-swap="morph">
+  <form hx-post="/p/{{$p.ID}}/items/{{$id}}/finish"
+        hx-target="[data-testid='board']" hx-swap="outerHTML">
     <label class="mm-field">
       <span>Outcome</span>
       <select data-testid="dialog-finish-outcome" name="outcome">

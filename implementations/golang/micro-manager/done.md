@@ -1,7 +1,7 @@
 ---
 doc: done
 version: 1
-updated: 2026-08-02
+updated: 2026-08-03
 ---
 
 # Done
@@ -11,6 +11,8 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0138] Morph leaks an htmx poll chain per externally-targeted board swap | prio:high | tags:gui,flicker-fix,regression | detail:details/T-0138.md | created:2026-08-02 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
+- [x] [T-0140] TestAuditTestids fails: no report-item-<key> rendered (Appendix A) | prio:high | tags:test,gui | detail:details/T-0140.md | created:2026-08-02 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0141] Drag and drop fails a lot | prio:med | tags:spike | detail:details/T-0141.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0137] Theme editor updates | prio:med | tags:spike | detail:details/T-0137.md | created:2026-08-02 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0131] Measure refresh traffic after Phase 1 ships; record the Phase 2 go/no-go | prio:med | tags:gui,flicker-fix,phase-1 | detail:details/T-0131.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped

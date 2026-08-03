@@ -290,7 +290,11 @@
 
     htmx.ajax('POST', `/p/${project}/items/${id}/${op}`, {
       target: "[data-testid='board']",
-      swap: 'morph',
+      /* outerHTML, not morph (T-0138): a morph aimed at the board from out
+         here preserves the element, and htmx's polling scheduler relies on
+         the swapped-out element leaving the DOM to stop the old `every 30s`
+         chain — so every mutation would leak one. */
+      swap: 'outerHTML',
       // source anchors the morph extension lookup: without it htmx resolves
       // no extension for this request at all (verified empirically) and a
       // "morph" swap silently falls back to innerHTML, nesting the response
@@ -522,7 +526,11 @@
 
     htmx.ajax('POST', `/p/${project}/items/${id}/${op}`, {
       target: "[data-testid='board']",
-      swap: 'morph',
+      /* outerHTML, not morph (T-0138): a morph aimed at the board from out
+         here preserves the element, and htmx's polling scheduler relies on
+         the swapped-out element leaving the DOM to stop the old `every 30s`
+         chain — so every mutation would leak one. */
+      swap: 'outerHTML',
       // See the item-action htmx.ajax call above: source is required for the
       // morph extension to resolve for this request at all.
       source: app,

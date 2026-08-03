@@ -387,18 +387,17 @@ func TestRefreshRegionsSwapWithMorph(t *testing.T) {
 		t.Errorf("app-status-oob does not morph on its own refresh trigger:\n%s", oobStatusTag)
 	}
 
-	// The mutation response IS the board, re-rendered with the same "board"
-	// template checked above, so its own trigger already proves the point.
-	// What is left to check is the ELEMENT THAT ISSUED the mutation: the
-	// item-panel's note form targets the board with its own hx-swap, and it
-	// must say morph too, so the identical SSE re-fetch that follows the
-	// write is a no-op diff rather than a teardown.
-	panel := ts.get("/p/" + id + "/item/T-0001").expectStatus(200).Body
-	noteForm := panel[strings.Index(panel, `class="mm-note-form"`):]
-	noteForm = noteForm[:strings.Index(noteForm, "</form>")]
-	if !strings.Contains(noteForm, `hx-target="[data-testid='board']" hx-swap="morph"`) {
-		t.Errorf("item-panel's note form does not morph its board target:\n%s", noteForm)
-	}
+	// The board region the mutation response carries is the same "board"
+	// template checked above, so its own refresh trigger already proves it
+	// morphs.
+	//
+	// This test deliberately does NOT assert that the element ISSUING a
+	// mutation morphs the board. It used to, and that was the bug: a morph
+	// aimed at the board from outside it leaks an htmx poll chain, because
+	// htmx stops the previous chain only when the swapped-out element leaves
+	// the DOM. Those swaps are outerHTML again, asserted by
+	// TestBoardMutationsSwapOuterHTML and TestMorphOnlyOnSelfRefreshingRegions
+	// (T-0138).
 }
 
 // TestMorphSwapsDeclareOwnExtension — T-0129. In the vendored htmx build, a
@@ -452,5 +451,93 @@ func TestMorphSwapsDeclareOwnExtension(t *testing.T) {
 				t.Errorf("%s: element's hx-ext=%q does not include morph:\n%s", name, m[1], tag)
 			}
 		}
+	}
+}
+
+// TestMorphOnlyOnSelfRefreshingRegions — T-0138. A morph swap aimed at an
+// element from OUTSIDE it leaks an htmx polling chain, and every region here
+// polls (`every 30s`).
+//
+// htmx's polling scheduler stores its timer handle on the element's internal
+// data and reschedules itself, guarded only by `bodyContains(elt)` and a
+// `cancelled` flag. A second registration overwrites the handle WITHOUT
+// clearing the first timer, so the only thing that ever stops the old chain is
+// the element leaving the DOM. `outerHTML` provided that; morph, by preserving
+// the element, does not — and `cancelled` is a one-way latch set only by an
+// HTTP 286 and never reset, so cancelling first is not a repair either. The
+// result was one extra `every 30s` chain per mutation, for the life of the tab.
+//
+// The rule this pins: an element may morph ITSELF (its own hx-get, which does
+// not compound), but nothing may morph a polling region from elsewhere. In
+// practice that means every board-targeting mutation swaps outerHTML.
+func TestMorphOnlyOnSelfRefreshingRegions(t *testing.T) {
+	ts := newTestServer(t, "clean-full")
+	id := projectIDOf(t, ts, ts.Dirs[0])
+
+	pages := map[string]string{
+		"board":                 ts.get("/p/" + id + "/board").expectStatus(200).Body,
+		"item detail":           ts.get("/p/" + id + "/item/T-0001").expectStatus(200).Body,
+		"new item":              ts.get("/p/" + id + "/new").expectStatus(200).Body,
+		"dialog confirm-remove": ts.get("/p/" + id + "/dialog/confirm-remove?item=T-0001").expectStatus(200).Body,
+		"dialog block":          ts.get("/p/" + id + "/dialog/block?item=T-0001").expectStatus(200).Body,
+		"dialog finish":         ts.get("/p/" + id + "/dialog/finish?item=T-0001").expectStatus(200).Body,
+		"note mutation response": ts.post("/p/"+id+"/items/T-0001/note", "text=t0138",
+			"HX-Request", "true", "Content-Type", "application/x-www-form-urlencoded").expectStatus(200).Body,
+	}
+
+	tagRe := regexp.MustCompile(`<[a-zA-Z][^>]*>`)
+	for name, body := range pages {
+		for _, tag := range tagRe.FindAllString(body, -1) {
+			if !strings.Contains(tag, `hx-swap="morph"`) {
+				continue
+			}
+			// A morph is only legitimate on an element refreshing itself: it
+			// carries its own hx-get and no hx-target pointing elsewhere.
+			if strings.Contains(tag, "hx-target=") {
+				t.Errorf("%s: morph swap carries an hx-target, so it morphs another element and will leak a poll chain (T-0138):\n%s",
+					name, tag)
+			}
+			if !strings.Contains(tag, "hx-get=") {
+				t.Errorf("%s: morph swap has no hx-get of its own, so it is not a self-refresh:\n%s", name, tag)
+			}
+		}
+	}
+
+	// And specifically: nothing may morph the board from outside it.
+	for name, body := range pages {
+		for _, tag := range tagRe.FindAllString(body, -1) {
+			if strings.Contains(tag, `hx-target="[data-testid='board']"`) &&
+				strings.Contains(tag, `hx-swap="morph"`) {
+				t.Errorf("%s: board-targeting swap uses morph; it must use outerHTML (T-0138):\n%s", name, tag)
+			}
+		}
+	}
+}
+
+// TestBoardMutationsSwapOuterHTML — the positive half of T-0138: the
+// board-targeting mutation swaps must actually be present and be outerHTML,
+// so "no morph targets the board" cannot be satisfied by the swaps vanishing.
+func TestBoardMutationsSwapOuterHTML(t *testing.T) {
+	ts := newTestServer(t, "clean-full")
+	id := projectIDOf(t, ts, ts.Dirs[0])
+
+	for name, body := range map[string]string{
+		"item panel":            ts.get("/p/" + id + "/item/T-0001").expectStatus(200).Body,
+		"dialog confirm-remove": ts.get("/p/" + id + "/dialog/confirm-remove?item=T-0001").expectStatus(200).Body,
+		"dialog block":          ts.get("/p/" + id + "/dialog/block?item=T-0001").expectStatus(200).Body,
+		"dialog finish":         ts.get("/p/" + id + "/dialog/finish?item=T-0001").expectStatus(200).Body,
+	} {
+		if !strings.Contains(body, `hx-target="[data-testid='board']" hx-swap="outerHTML"`) {
+			t.Errorf("%s: no board-targeting outerHTML swap found; the mutation path changed", name)
+		}
+	}
+
+	// mm.js issues the same mutation through htmx.ajax and must agree.
+	js := ts.get("/static/mm.js").expectStatus(200).Body
+	if strings.Contains(js, "swap: 'morph'") {
+		t.Error("mm.js still issues a morph swap; its ajax calls target the board (T-0138)")
+	}
+	if n := strings.Count(js, "swap: 'outerHTML'"); n != 2 {
+		t.Errorf("mm.js has %d outerHTML ajax swaps, want 2 (card-menu op and drag commit)", n)
 	}
 }

@@ -414,13 +414,18 @@ only appears on a pathological uncapped board, and even there it is ~7%.
 
 ### 8.6 A regression found while measuring
 
-Morph leaks an htmx polling chain on every swap that targets the board *from
-another element* — i.e. every mutation. Idle traffic becomes
-`(1 + mutations) x 120 fetches/hour` and grows for the life of the tab. Filed
-as **T-0138** with the reproduction and cause; it is on `main`.
+Morph leaked an htmx polling chain on every swap that targeted the board *from
+another element* — i.e. every mutation — making idle traffic
+`(1 + mutations) x 120 fetches/hour` and growing for the life of the tab.
 
-This matters to the numbers above: §8.1 was measured on tabs with no mutations.
-A working session is worse than the 240 fetches/hour quoted.
+**Fixed in T-0138** (2026-08-03): board-targeting mutations swap `outerHTML`
+again; the self-refreshing regions still morph, which is where the flicker was
+and which does not compound. Re-verified after four real mutations — board and
+status each hold one 30 s chain over 457 s.
+
+The §8.1 figures therefore stand as the steady-state cost: they were measured
+on tabs with no mutations, and after the fix a tab with mutations matches
+them.
 
 ### 8.7 Go / no-go for Phase 2 — **NO-GO**
 
