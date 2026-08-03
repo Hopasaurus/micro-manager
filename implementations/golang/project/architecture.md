@@ -275,10 +275,20 @@ func (h *Handler) Events(c *echo.Context) error {
             rc.Flush()
         case <-c.Request().Context().Done():
             return nil          // client went away
+        case <-h.Done():        // T-0151
+            return nil          // the service is stopping
         }
     }
 }
 ```
+
+A stream must also end when the service stops, not when echo's graceful
+shutdown times out (T-0151): echo's `Shutdown` waits for active connections to
+go idle, and a stream that only watched its request context stayed open until
+the 5s `GracefulTimeout` expired and logged `failed to shut down server within
+given timeout`. The handler selects on the service's shutdown channel, so the
+connection goes idle within milliseconds of the stop signal and shutdown
+completes immediately.
 
 Three things that will silently break the stream if missed — see
 [architecture-echo-v5.md](architecture-echo-v5.md) §4 for the detail:
@@ -474,8 +484,9 @@ front ends, and the GUI service is the stricter one.
 - Discovery results are cached with an explicit rescan, since fingerprint
   polling detects change *within* a project and never a new project appearing.
 - SSE holds one goroutine per open connection plus one fingerprint poller per
-  open project (§4.5). Both exit on `Request().Context().Done()` and on the last
-  subscriber leaving; neither may hold a `Store` lock while blocked on a send.
+  open project (§4.5). Both exit on `Request().Context().Done()`, on the last
+  subscriber leaving, and on the service stopping (T-0151); neither may hold a
+  `Store` lock while blocked on a send.
 
 ## 6. The TUI
 

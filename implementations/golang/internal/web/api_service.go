@@ -55,3 +55,6 @@ func (s *Server) Now() time.Time { return s.registry.now() }
 func (s *Server) Subscribe(projectID string) (<-chan api.Event, func()) {
 	return s.broker.Subscribe(projectID)
 }
+
+// Done is closed when the service is told to stop (api.Service).
+func (s *Server) Done() <-chan struct{} { return s.shutdown }

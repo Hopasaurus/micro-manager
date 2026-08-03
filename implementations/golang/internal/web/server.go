@@ -119,6 +119,14 @@ type Server struct {
 	// broker fans fingerprint changes out to SSE subscribers (architecture.md
 	// §4.5). One poller goroutine per open project.
 	broker *broker
+
+	// shutdown is closed when Start's context is cancelled, so long-lived
+	// handlers (the SSE event stream) end their loops instead of holding their
+	// connections open through echo's whole graceful-shutdown window (T-0151).
+	// Written once at construction and only ever closed, so a handler reading
+	// it is never racing a write.
+	shutdown     chan struct{}
+	shutdownOnce sync.Once
 }
 
 // New builds the service. It does not listen; Start does.
@@ -151,6 +159,7 @@ func New(opts Options) (*Server, error) {
 		log:      opts.Logger,
 		renderer: r,
 		registry: newRegistry(opts),
+		shutdown: make(chan struct{}),
 	}
 	s.broker = newBroker(s.registry, time.Duration(opts.Config.UI.PollIntervalMs)*time.Millisecond)
 	s.echo.HTTPErrorHandler = s.errorHandler
@@ -236,6 +245,16 @@ func (s *Server) Start(ctx context.Context) error {
 			return nil
 		},
 	}
+
+	// End the event streams the moment the service is told to stop: echo's
+	// graceful shutdown waits for active connections, and a stream that only
+	// watched its request context stayed open until the 5s GracefulTimeout
+	// expired and "failed to shut down server within given timeout" was logged
+	// (T-0151). Once keeps a second Start from double-closing the channel.
+	go func() {
+		<-ctx.Done()
+		s.shutdownOnce.Do(func() { close(s.shutdown) })
+	}()
 
 	if s.opts.Socket != "" {
 		ln, err := s.listenUnix()

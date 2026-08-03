@@ -41,6 +41,12 @@ type Service interface {
 	// Subscribe opens a per-project event stream. The returned function MUST be
 	// called when the stream closes, or the project's poller runs forever.
 	Subscribe(projectID string) (<-chan Event, func())
+
+	// Done is closed when the service is told to stop. A long-lived handler
+	// (the event stream) selects on it so it ends promptly instead of holding
+	// its connection open through the server's graceful-shutdown window
+	// (T-0151).
+	Done() <-chan struct{}
 }
 
 // Config carries what the API handlers need beyond the service: nothing else is

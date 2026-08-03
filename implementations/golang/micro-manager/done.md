@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0151] Delay in shutdown | prio:med | tags:bug | detail:details/T-0151.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0147] Add 'move to top' & 'move to bottom' to card context menu. | prio:med | tags:new-feature | detail:details/T-0147.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0150] Flicker follow up | prio:med | tags:bug | detail:details/T-0150.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0149] Drops over the drop placeholder silently never fire (upward drags) | prio:med | tags:gui,dnd | detail:details/T-0149.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped

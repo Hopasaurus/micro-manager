@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -144,6 +145,66 @@ func TestStartAndShutdown(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("the service did not shut down")
+	}
+}
+
+// A stream must end when the service stops, not when echo's graceful-shutdown
+// timeout forces it (T-0151). Echo's shutdown waits for active connections to
+// go idle; the events handler watches the service's shutdown channel, so the
+// stream closes within milliseconds and Start returns long before the 5s
+// GracefulTimeout, which used to expire and log "failed to shut down server
+// within given timeout".
+func TestShutdownClosesEventStreams(t *testing.T) {
+	srv, err := New(Options{Bind: "127.0.0.1", Port: 0, Logger: newTestLogger(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- srv.Start(ctx) }()
+
+	addr := waitForAddr(t, srv)
+
+	// A stream for a project the service has not opened stays open and silent
+	// — from the shutdown's point of view it is exactly a browser tab with a
+	// project open: an active connection that must go idle.
+	res, err := http.Get("http://" + addr.String() + "/api/v1/events?project=nonexistent")
+	if err != nil {
+		t.Fatalf("open event stream: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("events stream status = %d", res.StatusCode)
+	}
+
+	// Let the stream register as an active connection.
+	time.Sleep(50 * time.Millisecond)
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("shutdown returned %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("shutdown held the event stream open past the graceful window (T-0151)")
+	}
+
+	// And the stream itself is closed by the server, not left dangling until
+	// the client notices.
+	readDone := make(chan error, 1)
+	go func() {
+		_, err := io.ReadAll(res.Body)
+		readDone <- err
+	}()
+	select {
+	case err := <-readDone:
+		if err != nil {
+			t.Errorf("stream read after shutdown = %v, want EOF", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("the stream stayed open after shutdown")
 	}
 }
 

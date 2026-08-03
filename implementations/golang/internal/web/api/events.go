@@ -73,6 +73,13 @@ func (s *Server) events(c *echo.Context) error {
 			rc.Flush()
 		case <-c.Request().Context().Done():
 			return nil // the tab went away
+		case <-s.svc.Done():
+			// The service is stopping. Returning lets the connection go idle
+			// so echo's graceful shutdown completes instead of waiting out its
+			// whole timeout (T-0151); a stream that only watched the request
+			// context stayed open until the deadline and logged "failed to
+			// shut down server within given timeout".
+			return nil
 		}
 	}
 }

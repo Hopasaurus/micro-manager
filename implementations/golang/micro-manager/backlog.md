@@ -23,11 +23,10 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0151] Delay in shutdown | prio:med | tags:bug | detail:details/T-0151.md | created:2026-08-03
+- [ ] [T-0146] When saving after edit return to board | prio:med | tags:bug | detail:details/T-0146.md | created:2026-08-03
+- [ ] [T-0148] Check if flicker fixes need to be applied to more paths | prio:med | tags:spike | detail:details/T-0148.md | created:2026-08-03
 - [ ] [T-0111] Close the drag-behaviour test gap: non-displacing placeholder and/or a JS test runner (T-0110 follow-up) | tags:gui,test,tech-debt | detail:details/T-0111.md | created:2026-08-01
 - [ ] [T-0139] Conditional polling (D2): poll only while the SSE stream is down | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0139.md | created:2026-08-02
-- [ ] [T-0148] Check if flicker fixes need to be applied to more paths | prio:med | tags:spike | detail:details/T-0148.md | created:2026-08-03
-- [ ] [T-0146] When saving after edit return to board | prio:med | tags:bug | detail:details/T-0146.md | created:2026-08-03
 
 ## Blocked
 
