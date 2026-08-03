@@ -30,12 +30,13 @@
 {{$c := .Column}}{{$p := .Project}}
 <section data-testid="{{$c.Testid}}" class="mm-column{{if $c.IsWorking}} mm-column--working{{end}}{{if $c.IsDone}} mm-column--done{{end}}"
          {{if $c.Section}}data-section="{{$c.Section}}"{{end}}
+         {{if eq $c.Key "someday"}}data-collapsed="{{if $c.Collapsed}}true{{else}}false{{end}}"{{end}}
          data-count="{{$c.Count}}"
          role="list" aria-label="{{$c.Title}}">
   <header data-testid="{{$c.Testid}}-header" class="mm-column__header">
     {{if eq $c.Key "someday"}}
     <button data-testid="board-column-someday-toggle" class="mm-column__toggle"
-            type="button" aria-label="Toggle Someday column">&gt;</button>
+            type="button" aria-label="Toggle Someday column">{{if $c.Collapsed}}v{{else}}&gt;{{end}}</button>
     {{end}}
     <h2 data-testid="{{$c.Testid}}-title" class="mm-column__title">{{$c.Title}}</h2>
     <span data-testid="{{$c.Testid}}-count" class="mm-column__count">{{$c.Count}}</span>

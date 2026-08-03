@@ -63,6 +63,49 @@ func TestBoardColumnsAndOrder(t *testing.T) {
 	}
 }
 
+// §5.5: the someday collapse is a client preference, sent on every htmx
+// request. A refresh must render the column ALREADY collapsed (T-0150):
+// collapsing it after the swap is what lets a full refresh expand the column
+// for a frame and jump it back.
+func TestSomedayCollapseRenderedFromHeader(t *testing.T) {
+	ts, id := boardServer(t, "clean-multi-slot")
+	target := "/p/" + id + "/board?fragment=1"
+
+	// Without the header the column renders expanded, per the canonical §5.5.
+	body := ts.get(target).Body
+	if got := attrOf(t, testid(t, body, "board-column-someday"), "data-collapsed"); got != "false" {
+		t.Errorf("someday data-collapsed = %q without the header, want false", got)
+	}
+	if got := somedayToggle(t, body); got != "&gt;" {
+		t.Errorf("expanded toggle is %q, want &gt;", got)
+	}
+
+	// With the header the fragment is born collapsed, so a swap never expands it.
+	body = ts.get(target, "X-Someday-Collapsed", "true").Body
+	if got := attrOf(t, testid(t, body, "board-column-someday"), "data-collapsed"); got != "true" {
+		t.Errorf("someday data-collapsed = %q with the header, want true", got)
+	}
+	if got := somedayToggle(t, body); got != "v" {
+		t.Errorf("collapsed toggle is %q, want v", got)
+	}
+
+	// The collapse is the someday column's alone: a header must not leak
+	// onto the other columns.
+	if got := attrOf(t, testid(t, body, "board-column-ready"), "data-collapsed"); got != "" {
+		t.Errorf("ready column carries data-collapsed=%q", got)
+	}
+}
+
+// somedayToggle extracts the toggle's visible text from a board fragment.
+func somedayToggle(t *testing.T, body string) string {
+	t.Helper()
+	m := regexp.MustCompile(`<button[^>]*data-testid="board-column-someday-toggle"[^>]*>([^<]*)</button>`).FindStringSubmatch(body)
+	if m == nil {
+		t.Fatalf("no board-column-someday-toggle button in\n%s", body)
+	}
+	return m[1]
+}
+
 // §5.1: the board carries data-wip-used and data-wip-limit; working cards carry
 // data-slot.
 func TestBoardAndWorkingAttributes(t *testing.T) {

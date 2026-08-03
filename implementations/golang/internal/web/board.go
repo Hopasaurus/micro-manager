@@ -38,6 +38,10 @@ type columnData struct {
 	IsSlot    bool
 	IsWorking bool
 	IsDone    bool
+	// Collapsed marks the someday column as collapsed (§5.5). It is a CLIENT
+	// preference - the server never persists it - so it is true only when the
+	// request carries the state (T-0150).
+	Collapsed bool
 	Count     int
 	Items     []itemData
 }
@@ -191,6 +195,9 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 			Title:   string(section),
 			Section: key,
 		}
+		if key == "someday" {
+			col.Collapsed = somedayCollapsed(c)
+		}
 		for _, it := range items {
 			if it.State == mm.StateBacklog && it.Section == section {
 				col.Items = append(col.Items, s.itemView(it, dir, len(col.Items)+1, resolver))
@@ -238,6 +245,16 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 	}
 	data.Empty = total == 0
 	return data, nil
+}
+
+// somedayCollapsed reports the someday column's collapse state (§5.5).
+//
+// The toggle is a client preference, kept in localStorage, so a render cannot
+// know it from the directory. The client sends it on every htmx request;
+// without it a board refresh would render the column expanded for a frame and
+// morph it back a beat later (T-0150).
+func somedayCollapsed(c *echo.Context) bool {
+	return strings.EqualFold(c.Request().Header.Get("X-Someday-Collapsed"), "true")
 }
 
 // sectionKey is the lowercase form the DOM contract uses (§5.1). The library

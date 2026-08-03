@@ -2,7 +2,7 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0151
+next_id: T-0153
 updated: 2026-08-03
 ---
 
@@ -23,17 +23,15 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0149] Drops over the drop placeholder silently never fire (upward drags) | prio:med | tags:gui,dnd | detail:details/T-0149.md | created:2026-08-03
+- [ ] [T-0147] Add 'move to top' & 'move to bottom' to card context menu. | prio:med | tags:new-feature | created:2026-08-03
 - [ ] [T-0111] Close the drag-behaviour test gap: non-displacing placeholder and/or a JS test runner (T-0110 follow-up) | tags:gui,test,tech-debt | detail:details/T-0111.md | created:2026-08-01
-- [ ] [T-0139] Conditional polling (D2): poll only while the SSE stream is down | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0139.md | created:2026-08-02
 - [ ] [T-0142] Theme editor: edit the dark palette (colorDark) alongside the light | prio:med | tags:gui,theme | detail:details/T-0142.md | created:2026-08-03
 - [ ] [T-0143] Spec: name the compiled-in library themes in spec-gui.md §8.7 (micro-manager-lite) | prio:low | tags:format,spec | created:2026-08-03
+- [ ] [T-0139] Conditional polling (D2): poll only while the SSE stream is down | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0139.md | created:2026-08-02
 - [ ] [T-0148] Check if flicker fixes need to be applied to more paths | prio:med | tags:spike | detail:details/T-0148.md | created:2026-08-03
-- [ ] [T-0144] Done only shows the count up to the limit | prio:med | tags:bug | detail:details/T-0144.md | created:2026-08-03
+- [ ] [T-0151] Delay in shutdown | prio:med | tags:bug | detail:details/T-0151.md | created:2026-08-03
 - [ ] [T-0145] Make a way to show all done items | prio:med | tags:new-feature,spike | detail:details/T-0145.md | created:2026-08-03
-- [ ] [T-0147] Add 'move to top' & 'move to bottom' to card context menu. | prio:med | tags:new-feature | created:2026-08-03
 - [ ] [T-0146] When saving after edit return to board | prio:med | tags:bug | detail:details/T-0146.md | created:2026-08-03
-- [ ] [T-0150] Flicker follow up | prio:med | tags:bug | detail:details/T-0150.md | created:2026-08-03
 
 ## Blocked
 
@@ -49,3 +47,5 @@ thing that can be started.
 - [ ] [T-0044] Implement migrate for older directory layouts | prio:low | tags:library,ops | created:2026-07-29
 - [ ] [T-0045] Implement stats: throughput, cycle time, WIP over time | prio:low | tags:library,report | created:2026-07-29
 - [ ] [T-0040] Pin the published module path in go.mod | prio:low | tags:setup | created:2026-07-29 | deferred:the module does not need to be published yet
+- [ ] [T-0144] Done only shows the count up to the limit | prio:med | tags:bug | detail:details/T-0144.md | created:2026-08-03
+- [ ] [T-0152] Should be able to drop on "SOMEDAY" even when collapsed | prio:med | tags:new-feature | detail:details/T-0152.md | created:2026-08-03

@@ -162,48 +162,61 @@ func TestColumnDropZonesShareTheTallestHeight(t *testing.T) {
 	}
 }
 
-// The drop index must be measured against the column WITHOUT the placeholder.
+// The placeholder must be OUT of the column's flow, so the cards are always
+// measured at their natural positions.
 //
-// hoverTarget inserts the placeholder between cards, so every card below it
-// sits one placeholder-height lower. If the next dragover measures while it is
-// still there, that displacement feeds back into the next index: the pointer
-// never reaches the shifted midpoints, the index stays pinned wherever it first
-// landed, and the placeholder never moves again. Dragging an item DOWN then
-// computed a drop index equal to its own position — a no-op the user reads as
-// "drag and drop is broken" (T-0110). Dragging UP was unaffected, because the
-// cards above the placeholder are the ones it does not displace.
+// The first version of this guard (T-0110) asserted that the dragover handler
+// clears the in-flow placeholder before measuring: an in-flow placeholder sits
+// between cards, every card below it drops one placeholder-height, and
+// measuring around it fed that displacement back into the next index — the
+// index pinned wherever it first landed and dragging DOWN was a no-op. T-0149
+// removed the placeholder from the flow entirely, which makes that ordering
+// moot: an absolutely-positioned placeholder displaces nothing, so the natural
+// positions ARE the measured positions and the T-0110 feedback loop cannot
+// recur. It also fixed the worse half of the same bug — an in-flow placeholder
+// shifted the card under the pointer during the last dragover, moving the
+// browser's drop target away and losing the release entirely (T-0141).
 //
-// This is a source-shape assertion in the style of the test below: the gesture
-// itself needs a browser, but the ORDER of these two steps is the whole bug, and
-// a reordering is exactly what would silently bring it back.
-func TestDropIndexIsMeasuredWithoutThePlaceholder(t *testing.T) {
+// Two source-shape assertions in the style of the tests around here: the
+// gesture itself needs a browser, but a re-introduction of an in-flow
+// placeholder is exactly what would silently bring both bugs back.
+func TestPlaceholderIsOutOfTheColumnFlow(t *testing.T) {
+	css, err := os.ReadFile("static/mm.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheet := string(css)
+
+	start := strings.Index(sheet, ".mm-drop-placeholder {")
+	if start < 0 {
+		t.Fatal("mm.css has no .mm-drop-placeholder rule")
+	}
+	rule := sheet[start:]
+	rule = rule[:strings.Index(rule, "}")]
+
+	if !strings.Contains(rule, "position: absolute") {
+		t.Error("the drop placeholder is in the column's flow: inserting it " +
+			"shifts the card under the pointer and the release is lost (T-0149)")
+	}
+	if !strings.Contains(rule, "pointer-events: none") {
+		t.Error("the drop placeholder can be a drag/drop target; it is removed " +
+			"and re-inserted on every dragover, so a release over it targets a " +
+			"detached element (T-0149)")
+	}
+
 	script, err := os.ReadFile("static/mm.js")
 	if err != nil {
 		t.Fatal(err)
 	}
 	js := string(script)
 
-	start := strings.Index(js, "addEventListener('dragover'")
-	if start < 0 {
-		t.Fatal("mm.js has no dragover handler")
+	if !strings.Contains(js, "placeholder.style.top") {
+		t.Error("mm.js does not position the placeholder with style.top; it must " +
+			"be positioned absolutely, out of flow (T-0149)")
 	}
-	end := strings.Index(js[start:], "addEventListener('drop'")
-	if end < 0 {
-		t.Fatal("mm.js has no drop handler after dragover")
-	}
-	handler := js[start : start+end]
-
-	remove := strings.Index(handler, `'[data-testid="drop-placeholder"]'`)
-	measure := strings.Index(handler, "getBoundingClientRect")
-	if remove < 0 {
-		t.Fatal("the dragover handler does not clear the placeholder before measuring (T-0110)")
-	}
-	if measure < 0 {
-		t.Fatal("the dragover handler measures no card geometry")
-	}
-	if remove > measure {
-		t.Error("the dragover handler measures card geometry BEFORE clearing the " +
-			"placeholder, so the placeholder's own height pins the drop index (T-0110)")
+	if strings.Contains(js, "insertBefore(placeholder") {
+		t.Error("mm.js inserts the placeholder into the column's flow; it must " +
+			"be positioned absolutely, out of flow (T-0149)")
 	}
 }
 
@@ -245,8 +258,9 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 
 	// §4.6 of the architecture: keep this file small. If it grows past a few
 	// hundred lines, something belongs on the server that drifted onto the
-	// client.
-	if lines := strings.Count(js, "\n"); lines > 700 {
+	// client. T-0150 added the someday-collapse request header - a few lines of
+	// plumbing the server could not do itself - which is why the ceiling is 720.
+	if lines := strings.Count(js, "\n"); lines > 720 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }

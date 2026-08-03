@@ -343,6 +343,14 @@ body {
   gap: var(--mm-space-2);
   min-height: var(--mm-space-8);
   flex: 1;
+  /* Anchor for the absolutely-positioned drop placeholder (T-0149): the
+     placeholder is out of the column's flow so that inserting or moving it
+     never shifts a card. A card that moves under the pointer during the last
+     dragover takes the browser's drop target with it, and the release is
+     delivered to a position the pointer has left - a silent non-drop that
+     reads as "drag and drop is broken", worst when dragging UP, where the
+     insertion point sits above the pointer. */
+  position: relative;
 }
 
 /* The column colours are the semantic state tokens, which the TUI shares. */
@@ -548,6 +556,14 @@ body {
   height: var(--mm-space-6);
   border: var(--mm-border-width-thick) dashed var(--mm-color-drag-valid);
   border-radius: var(--mm-radius-md);
+  /* Out of the column's flow (T-0149); mm.js sets top to the insertion point.
+     pointer-events: none sends the drag and drop events to the element BEHIND
+     it (a card or the body), which is stable, instead of to this marker that
+     is removed and re-inserted on every dragover. */
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
 }
 
 .mm-drop-placeholder[data-drop-allowed="false"] { border-color: var(--mm-color-drag-invalid); }

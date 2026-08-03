@@ -11,6 +11,8 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0150] Flicker follow up | prio:med | tags:bug | detail:details/T-0150.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
+- [x] [T-0149] Drops over the drop placeholder silently never fire (upward drags) | prio:med | tags:gui,dnd | detail:details/T-0149.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0138] Morph leaks an htmx poll chain per externally-targeted board swap | prio:high | tags:gui,flicker-fix,regression | detail:details/T-0138.md | created:2026-08-02 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0140] TestAuditTestids fails: no report-item-<key> rendered (Appendix A) | prio:high | tags:test,gui | detail:details/T-0140.md | created:2026-08-02 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0141] Drag and drop fails a lot | prio:med | tags:spike | detail:details/T-0141.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped

@@ -457,13 +457,27 @@
     if (verdict.reason) column.setAttribute('data-drop-reason', verdict.reason);
     else column.removeAttribute('data-drop-reason');
 
-    /* The placeholder marks the insertion point (§7.3). */
+    /* The placeholder marks the insertion point (§7.3), absolutely positioned
+       out of the flow (T-0149) so it never shifts the card under the pointer
+       and loses the release; pointer-events: none (mm.css) keeps events on the
+       stable element behind it. */
     const placeholder = document.createElement('div');
     placeholder.setAttribute('data-testid', 'drop-placeholder');
     placeholder.className = 'mm-drop-placeholder';
     placeholder.setAttribute('data-drop-allowed', verdict.allowed ? 'true' : 'false');
-    if (clamped >= cards.length) body.appendChild(placeholder);
-    else body.insertBefore(placeholder, cards[clamped]);
+    body.appendChild(placeholder);
+    const phH = placeholder.offsetHeight;
+    const bodyTop = body.getBoundingClientRect().top;
+    let center;
+    if (clamped === 0) {
+      center = bodyTop + phH / 2;
+    } else if (clamped >= cards.length) {
+      center = cards[cards.length - 1].getBoundingClientRect().bottom + 8;
+    } else {
+      center = (cards[clamped - 1].getBoundingClientRect().bottom +
+                cards[clamped].getBoundingClientRect().top) / 2;
+    }
+    placeholder.style.top = String(center - phH / 2 - bodyTop) + 'px';
 
     announce(`${move.card.getAttribute('data-item-id')} to ${to}, position ${clamped + 1}`);
   }
@@ -555,46 +569,35 @@
     beginMove(card, false);
   });
 
+  /* The insertion index is where the pointer is, not where the card is. Cards
+     are measured at natural positions: the placeholder is out of flow (T-0149)
+     and displaces nothing, so the T-0110 feedback loop cannot recur. */
+  function indexAt(body, clientY) {
+    const cards = cardsIn(body).filter((c) => c !== move.card);
+    for (let i = 0; i < cards.length; i += 1) {
+      const box = cards[i].getBoundingClientRect();
+      if (clientY < box.top + box.height / 2) return i;
+    }
+    return cards.length;
+  }
+
   document.addEventListener('dragover', (event) => {
     if (!move) return;
     const body = event.target.closest('.mm-column__body');
     if (!body) return;
     event.preventDefault();
-
-    /*
-      Measure the column with NO placeholder in it.
-
-      hoverTarget inserts the placeholder between cards, so every card below it
-      sits one placeholder-height lower. Leaving it there while the next
-      dragover measures feeds that displacement back into the next index: the
-      pointer never reaches the shifted midpoints, so the index stays pinned
-      wherever it first landed and the placeholder never moves again.
-
-      Dragging an item DOWN therefore never reordered anything - the drop index
-      came back equal to the card's own position, and the move was a no-op the
-      user read as "drag and drop is broken" (T-0110). Dragging UP happened to
-      work, because the cards above the placeholder are the ones it does not
-      displace.
-    */
-    document.querySelectorAll('[data-testid="drop-placeholder"]').forEach((p) => p.remove());
-
-    /* The insertion index is where the pointer is, not where the card is. */
-    const cards = cardsIn(body).filter((c) => c !== move.card);
-    let index = cards.length;
-    for (let i = 0; i < cards.length; i += 1) {
-      const box = cards[i].getBoundingClientRect();
-      if (event.clientY < box.top + box.height / 2) {
-        index = i;
-        break;
-      }
-    }
-    hoverTarget(body, index);
+    hoverTarget(body, indexAt(body, event.clientY));
     event.dataTransfer.dropEffect = move.allowed ? 'move' : 'none';
   });
 
   document.addEventListener('drop', (event) => {
     if (!move) return;
     event.preventDefault();
+
+    /* The drop's own coordinates are authoritative: a release within a frame
+       of a fast final move can leave move.index one dragover stale (T-0149). */
+    const body = event.target.closest('.mm-column__body');
+    if (body) hoverTarget(body, indexAt(body, event.clientY));
     commitMove();
   });
 
@@ -655,18 +658,26 @@
     }
   });
 
-  /* Collapsible Someday column toggle (§5.5). */
+  /* Collapsible Someday column (§5.5), a client preference in localStorage,
+     sent with every htmx request (T-0150) so a refresh is born collapsed. */
+  function somedayCollapsed() {
+    try {
+      const project = root()?.getAttribute('data-project-id');
+      return project && localStorage.getItem(`mm:someday-collapsed:${project}`) === 'true';
+    } catch (_) { return false; }
+  }
+
+  document.body.addEventListener('htmx:configRequest', (event) => {
+    const headers = event.detail && event.detail.headers;
+    if (headers) headers['X-Someday-Collapsed'] = somedayCollapsed() ? 'true' : 'false';
+  });
+
   function restoreSomedayState() {
     const col = document.querySelector('[data-testid="board-column-someday"]');
     const toggle = document.querySelector('[data-testid="board-column-someday-toggle"]');
-    if (!col || !toggle) return;
-    try {
-      const project = root()?.getAttribute('data-project-id');
-      if (project && localStorage.getItem(`mm:someday-collapsed:${project}`) === 'true') {
-        col.setAttribute('data-collapsed', 'true');
-        toggle.textContent = 'v';
-      }
-    } catch (_) {}
+    if (!col || !toggle || !somedayCollapsed()) return;
+    col.setAttribute('data-collapsed', 'true');
+    toggle.textContent = 'v';
   }
 
   document.body.addEventListener('click', (e) => {
@@ -684,7 +695,8 @@
     } catch (_) {}
   });
 
-  document.body.addEventListener('htmx:afterSettle', restoreSomedayState);
+  /* afterSwap, not afterSettle - before paint (T-0150). */
+  document.body.addEventListener('htmx:afterSwap', restoreSomedayState);
   document.addEventListener('DOMContentLoaded', restoreSomedayState);
 
   setBusy();
