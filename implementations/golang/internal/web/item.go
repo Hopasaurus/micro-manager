@@ -392,6 +392,26 @@ func (s *Server) operate(c *echo.Context, op string) error {
 		}
 		result = mutationResult{Item: &it, Message: string(id) + " moved"}
 
+	case "move-top", "move-end":
+		// T-0147: the menu's "Move to top"/"Move to bottom" are --move
+		// --top/--end (spec-tools.md §5.1.7) without a section: reordering
+		// never changes section, so the destination is the item's own.
+		req := mm.MoveRequest{DryRun: dryRun}
+		if op == "move-top" {
+			req.Top = true
+		} else {
+			req.End = true
+		}
+		it, _, err := store.Move(id, req, date)
+		if err != nil {
+			return err
+		}
+		where := "top"
+		if op == "move-end" {
+			where = "bottom"
+		}
+		result = mutationResult{Item: &it, Message: string(id) + " moved to " + where}
+
 	case "note":
 		text := c.Request().FormValue("text")
 		if strings.TrimSpace(text) == "" {

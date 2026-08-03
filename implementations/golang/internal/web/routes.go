@@ -57,20 +57,22 @@ func (s *Server) routes() {
 	s.echo.POST("/p/:projectId/settings", s.saveSettingsProject)
 	s.echo.GET("/p/:projectId/dialog/:name", s.dialog)
 
-	// The mutating operations of §6.1. Each is one library call; the response is
-	// the board plus whatever the change invalidated.
+	// The mutating operations of §6.1 (plus T-0147's move-top/move-end
+	// accelerators for --move --top/--end, which the CLI and the menu share
+	// the vocabulary of). Each is one library call; the response is the board
+	// plus whatever the change invalidated.
 	s.echo.POST("/p/:projectId/items", s.addItem)
 	s.echo.PATCH("/p/:projectId/items/:itemId", s.editItem)
 	s.echo.DELETE("/p/:projectId/items/:itemId", s.removeItem)
-	for _, op := range []string{"start", "pause", "finish", "block", "unblock", "move", "note"} {
+	for _, op := range []string{"start", "pause", "finish", "block", "unblock", "move", "move-top", "move-end", "note"} {
 		s.echo.POST("/p/:projectId/items/:itemId/"+op, s.operation(op))
 	}
 
 	s.echo.StaticFS("/static", staticFS())
 }
 
-// operation adapts one operation name to a handler, so the seven routes above
-// are seven registrations of one code path rather than seven near-copies.
+// operation adapts one operation name to a handler, so the nine routes above
+// are nine registrations of one code path rather than nine near-copies.
 func (s *Server) operation(op string) echo.HandlerFunc {
 	return func(c *echo.Context) error { return s.operate(c, op) }
 }

@@ -403,6 +403,12 @@ func actionsFor(it mm.Item, dir mm.Directory) []actionData {
 			action("block", "Block", it.Blocked == "", conflictUnless(it.Blocked == "")),
 			action("unblock", "Unblock", it.Blocked != "", conflictUnless(it.Blocked != "")),
 			action("move", "Move", true, ""),
+			// T-0147: convenience accelerators for --move --top/--end
+			// (spec-tools.md §5.1.7). Legal for every backlog item: the library
+			// no-ops a same-position move rather than refusing it, exactly as
+			// the CLI does.
+			action("move-top", "Move to top", true, ""),
+			action("move-end", "Move to bottom", true, ""),
 			action("note", "Note", true, ""),
 			action("edit", "Edit", true, ""),
 			action("remove", "Remove", true, ""),
@@ -416,6 +422,8 @@ func actionsFor(it mm.Item, dir mm.Directory) []actionData {
 			action("unblock", "Unblock", false, codeConflict),
 			// §5.1.7 of the tools spec: move repositions a BACKLOG item.
 			action("move", "Move", false, codeConflict),
+			action("move-top", "Move to top", false, codeConflict),
+			action("move-end", "Move to bottom", false, codeConflict),
 			action("note", "Note", true, ""),
 			action("edit", "Edit", true, ""),
 			// The library refuses to remove an item that is in progress.
@@ -430,6 +438,8 @@ func actionsFor(it mm.Item, dir mm.Directory) []actionData {
 			action("block", "Block", false, codeConflict),
 			action("unblock", "Unblock", false, codeConflict),
 			action("move", "Move", false, codeConflict),
+			action("move-top", "Move to top", false, codeConflict),
+			action("move-end", "Move to bottom", false, codeConflict),
 			action("note", "Note", true, ""),
 			action("edit", "Edit", true, ""),
 			action("remove", "Remove", true, ""),

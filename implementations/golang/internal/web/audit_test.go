@@ -198,7 +198,7 @@ func auditViews(t *testing.T, ts *testServer, id string) string {
 // produce when rendered against the fixture. Every pattern in Appendix A is
 // here; an unhandled pattern fails the audit rather than being ignored.
 func patternInstances(projectID string) map[string][]string {
-	ops := []string{"start", "pause", "finish", "block", "unblock", "move", "note", "edit", "remove"}
+	ops := []string{"start", "pause", "finish", "block", "unblock", "move", "move-top", "move-end", "note", "edit", "remove"}
 	keys := []string{"someday", "ready", "blocked", "working", "done"}
 	column := func(suffix string, skipAdd bool) []string {
 		var out []string

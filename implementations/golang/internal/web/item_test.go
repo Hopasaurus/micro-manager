@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -117,6 +118,59 @@ func TestCardMenuPanelOpsOpenThePanel(t *testing.T) {
 	if !strings.Contains(working, "disabled") {
 		t.Errorf("move on a working item is not disabled: %s", working)
 	}
+}
+
+// T-0147: the card menu (and the panel, which shares the actions list) offers
+// "Move to top" and "Move to bottom" - sugar for --move --top/--end
+// (spec-tools.md §5.1.7). Reordering never changes section.
+func TestMoveTopAndBottomActions(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+	body := ts.get("/p/" + id + "/board").expectStatus(http.StatusOK).Body
+
+	// Ready items (clean-full: T-0001, T-0002): both actions present and
+	// enabled - a same-position move is a legal no-op, as on the CLI.
+	for _, op := range []string{"move-top", "move-end"} {
+		if entry := testid(t, body, "item-T-0001-action-"+op); strings.Contains(entry, "disabled") {
+			t.Errorf("move on a ready item is disabled: %s", entry)
+		}
+	}
+	// A working item cannot be moved at all: both are present and disabled
+	// with the same conflict reason as move itself.
+	for _, op := range []string{"move-top", "move-end"} {
+		entry := testid(t, body, "item-T-0003-action-"+op)
+		if !strings.Contains(entry, "disabled") {
+			t.Errorf("%s on a working item is not disabled: %s", op, entry)
+		}
+		if got := attrOf(t, entry, "data-reason"); got != codeConflict {
+			t.Errorf("%s data-reason = %q, want %s", op, got, codeConflict)
+		}
+	}
+
+	// Move to top: T-0002 lands before T-0001 in Ready.
+	ts.form(http.MethodPost, "/p/"+id+"/items/T-0002/move-top", url.Values{}).expectStatus(http.StatusOK)
+	if got := strings.Join(readyOrder(t, ts.get("/p/"+id+"/board").Body), ","); got != "T-0002,T-0001" {
+		t.Errorf("after move-top the ready order is %s, want T-0002,T-0001", got)
+	}
+
+	// Move to bottom: T-0002 goes back to the end of Ready.
+	ts.form(http.MethodPost, "/p/"+id+"/items/T-0002/move-end", url.Values{}).expectStatus(http.StatusOK)
+	if got := strings.Join(readyOrder(t, ts.get("/p/"+id+"/board").Body), ","); got != "T-0001,T-0002" {
+		t.Errorf("after move-end the ready order is %s, want T-0001,T-0002", got)
+	}
+}
+
+// readyOrder lists a column's cards in render order, which is the section's
+// order: data-position is computed per column, so reading the cards in DOM
+// order is reading the file order.
+func readyOrder(t *testing.T, body string) []string {
+	t.Helper()
+	col := columnBody(t, body, "board-column-ready")
+	re := regexp.MustCompile(`data-testid="item-(T-\d{4})"`)
+	var ids []string
+	for _, m := range re.FindAllStringSubmatch(col, -1) {
+		ids = append(ids, m[1])
+	}
+	return ids
 }
 
 // spec-tools.md §5.1.6: a remove MUST either delete the item's detail file in
