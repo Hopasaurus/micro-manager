@@ -94,7 +94,7 @@ compound command lines frozen as literal strings:
 
 ```
 Bash(cd implementations/golang && go test ./... 2>&1 | tail -3 && echo "--- test count ---" && …)
-Bash(git -C /Users/dlh/para/Projects/Manager check-ignore -v implementations/golang/mm/mm)
+Bash(git -C /path/to/repo check-ignore -v implementations/golang/mm/mm)
 Bash(echo "exit=$?")
 Bash(grep -Ei "\.\(exe|so|test\)$|/bin/|settings\.local")
 ```
