@@ -537,12 +537,19 @@ instead, for editing templates without recompiling.
 2. **Where `--dry-run` surfaces in the UI** — the API requires it; the HTML
    views have no obvious place for it. Possibly a preview in destructive
    dialogs. Undecided.
-3. **Event granularity** — `board`, `status`, `check`, `theme` is a guess at the
-   right split (§4.5). If board re-fetches turn out to dominate, a per-column
-   event may be worth it. Measure before splitting.
 4. **Multi-project streams** — one `EventSource` per tab is scoped to the open
    project. The Home and `/projects` views show many projects at once and
    currently poll. Whether they warrant a stream is unresolved.
 
 Resolved, recorded so they are not re-litigated: Echo v5 is released and is the
 target (§3); SSE is in scope from the start (§4.5).
+
+**Event granularity** (was open question 3) — resolved 2026-08-02 by the T-0131
+measurement, `research-app-fllicker.md` §8. The event set stays
+`board`, `status`, `check`, `theme`; it is **not** split per column. Board
+re-fetches do dominate, but because the `every 30s` backstop is unconditional,
+not because the event is too coarse: an idle project produces zero SSE events
+and 240 byte-identical fetches/hour, and `ui.board.doneLimit` already caps the
+board fragment at ~6 KB gzip whatever the project's age. A finer event would
+make none of those fetches go away. The follow-up is conditional polling
+(T-0139), not per-column events.

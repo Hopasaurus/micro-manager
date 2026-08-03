@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0131] Measure refresh traffic after Phase 1 ships; record the Phase 2 go/no-go | prio:med | tags:gui,flicker-fix,phase-1 | detail:details/T-0131.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0130] Suppress refresh echoes in mm.js: own mutations and in-flight drags | prio:high | tags:gui,flicker-fix,phase-1 | detail:details/T-0130.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0129] Morph the board, status and check refreshes (hx-swap=morph) | prio:high | tags:gui,flicker-fix,phase-1 | detail:details/T-0129.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
 - [x] [T-0128] Vendor idiomorph.js for morphing swaps (pin version, record licence) | prio:high | tags:gui,flicker-fix,phase-1 | detail:details/T-0128.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped

@@ -332,3 +332,125 @@ still feels abrupt; shell morph if a theme edit measurably loses state.
 - **Fragment parity** (T-0054's guarantee) is unaffected: every option renders
   the same partials through the same handlers; only the client's swap verb or
   the trigger wiring changes.
+
+## 8. Measurement after Phase 1 (T-0131)
+
+Phase 1 shipped in b2d4bb3 (T-0128 idiomorph, T-0129 morph swaps, T-0130 echo
+and drag suppression). This section is the gate §6 asked for, and the answer to
+`architecture.md` §4.5 open question 3. Measured 2026-08-02 on darwin/arm64,
+Chrome, against generated fixtures and a 300-item board.
+
+Reproduce the server-side half with:
+
+```
+go test ./internal/web/ -run 'TestRefreshFetch|TestIdleFetchBudget' -v
+go test ./internal/web/ -bench 'BenchmarkRefreshFragment|BenchmarkBrokerFingerprintPoll' -benchmem -run '^$'
+```
+
+### 8.1 Fetches by cause — the backstop is all of it
+
+| Window | Board fetches | Status fetches | SSE events |
+|---|---|---|---|
+| idle project, 33 min | — | 65 (one per 30 s) | **0** |
+| idle project, 130 s, fresh tab | 4 (t=18,49,79,109) | 4 (t=18,48,78,108) | 0 |
+
+On a project nobody is writing to, **100% of refresh traffic is the
+unconditional `every 30s` backstop and 0% is event-driven**. The budget is
+2 regions x 120 fetches/hour = **240 fetches/hour per idle board tab**, plus
+120/hour for an open check tab.
+
+### 8.2 How much of it changes anything — none of it
+
+`TestRefreshFetchIsIdenticalWhenNothingChanged`: 20/20 refetches of board,
+status and check were **byte-identical** on a quiescent directory. This is a
+proof rather than a sample — the fragment is a pure function of the files — and
+the paired assertion confirms a real write does change the bytes, so the
+backstop is not measuring nothing.
+
+### 8.3 Payload — `DoneLimit` already caps it
+
+| `done.md` | board fragment (default `doneLimit:20`) | cards | uncapped (`doneLimit:0`) |
+|---|---|---|---|
+| 20 | 134,322 B raw / 5,966 B gzip | 32 | same |
+| 200 | 134,322 B raw / 5,965 B gzip | 32 | 876,126 B raw / 29,742 B gzip (212 cards) |
+| 1000 | 134,322 B raw / 5,966 B gzip | 32 | 4,173,730 B raw / 133,767 B gzip (1012 cards) |
+
+The board fragment **does not grow with the project** at the default config.
+"Board re-fetches dominate as the board ages" is already answered by
+`ui.board.doneLimit`. Status is ~676 B raw / ~323 B gzip.
+
+The uncapped column is the one real payload risk: a user who sets
+`doneLimit:0` is asking for a 4 MB re-render every 30 seconds.
+
+### 8.4 Server cost — capped output, uncapped work
+
+| | `done.md`=20 | =200 | =1000 |
+|---|---|---|---|
+| `board?fragment=1` | 3.49 ms, 2.1 MB alloc | 4.21 ms, 3.1 MB | 8.66 ms, 7.9 MB |
+| `status` | 0.42 ms | 0.96 ms | 3.39 ms |
+| broker `Fingerprint()` | 27.4 us | — | 27.4 us |
+
+`DoneLimit` caps the bytes but **not the parse**: the store reads all of
+`done.md` per request, so cost grows with the file even though the response is
+constant. Status is a 676 B response that costs 3.4 ms at 1000 done items.
+
+The broker poll is **negligible and flat** — 27 us, 720/hour, ~20 ms of CPU per
+hour per open project. Per-file stamps (T-0132) would save nothing here.
+
+### 8.5 Swap cost — morph is faster at the default, ~7% slower uncapped
+
+Swap only, response already in hand, median of 11–15 runs, identical content
+(the backstop's worst case for a differ: everything to compare, nothing to
+change).
+
+| Board | `outerHTML` | `morph` |
+|---|---|---|
+| 32 cards / 134 KB (default cap) | 11.9 ms (6.7–34.6) | **6.7 ms (6.1–9.7)** |
+| 312 cards / 1.29 MB (uncapped) | 69.5 ms (66.8–89.8) | 74.4 ms (67.7–111.4) |
+
+At the default cap morph is **faster and far more consistent** — it skips
+destroying and rebuilding 32 subtrees that did not change. The feared diff cost
+only appears on a pathological uncapped board, and even there it is ~7%.
+
+### 8.6 A regression found while measuring
+
+Morph leaks an htmx polling chain on every swap that targets the board *from
+another element* — i.e. every mutation. Idle traffic becomes
+`(1 + mutations) x 120 fetches/hour` and grows for the life of the tab. Filed
+as **T-0138** with the reproduction and cause; it is on `main`.
+
+This matters to the numbers above: §8.1 was measured on tabs with no mutations.
+A working session is worse than the 240 fetches/hour quoted.
+
+### 8.7 Go / no-go for Phase 2 — **NO-GO**
+
+Phase 2 is C (per-file stamps, fewer and more precise events) then B
+(per-column fragment routes, smaller payloads). Against the numbers:
+
+- **C targets events. There are no events.** Zero SSE events on an idle project
+  (§8.1); the broker poll it would optimise costs 27 us (§8.4). C's savings on
+  the measured dominant case are nil.
+- **B targets payload. Payload is already capped** at 6 KB gzip by `doneLimit`
+  (§8.3), and B would *increase* request count by splitting one fetch into five.
+- **Morph already paid off the swap cost** — faster than the code it replaced at
+  the default cap (§8.5). The teardown Phase 2 was partly meant to avoid is gone.
+
+The traffic that actually exists is 240 fetches/hour of provably identical
+bytes, caused by the unconditional backstop. Nothing in Phase 2 removes a single
+one of them. **D2 removes all of them**, in `mm.js`, with no library change, no
+new routes and no growth of the event set.
+
+Decision:
+
+- **T-0132, T-0133, T-0134 — no-go.** Left blocked, to be cancelled unless a
+  future measurement on a *write-heavy, multi-writer* project shows event
+  traffic that matters. Their premise is not wrong, it is unmet.
+- **T-0139 (D2, conditional polling) — the Phase 2 that should happen**, filed
+  from §3 D.
+- **T-0138 first.** It is a live regression and it inflates exactly the number
+  D2 is meant to reduce.
+
+Answering `architecture.md` §4.5 open question 3 directly: **board re-fetches do
+dominate, but not for the reason the question assumed.** They dominate because
+they are unconditional, not because the event is too coarse. Splitting the event
+is the wrong fix; not polling when the stream is healthy is the right one.

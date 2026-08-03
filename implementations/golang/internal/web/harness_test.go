@@ -24,7 +24,7 @@ import (
 // testServer is a service wired to fixture directories.
 type testServer struct {
 	*Server
-	t          *testing.T
+	t          testing.TB
 	ConfigHome string
 	Root       string // the configured scan root; every fixture sits under it
 	Dirs       []string
@@ -116,7 +116,7 @@ func underRoot(path, root string) bool {
 
 // response is one round trip, kept as bytes so a test may read it twice.
 type response struct {
-	t      *testing.T
+	t      testing.TB
 	Status int
 	Header http.Header
 	Body   string

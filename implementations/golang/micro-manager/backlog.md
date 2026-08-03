@@ -2,7 +2,7 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0137
+next_id: T-0141
 updated: 2026-08-02
 ---
 
@@ -23,16 +23,19 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0131] Measure refresh traffic after Phase 1 ships; record the Phase 2 go/no-go | prio:med | tags:gui,flicker-fix,phase-1 | detail:details/T-0131.md | created:2026-08-02
+- [ ] [T-0138] Morph leaks an htmx poll chain per externally-targeted board swap | prio:high | tags:gui,flicker-fix,regression | detail:details/T-0138.md | created:2026-08-02
 - [ ] [T-0111] Close the drag-behaviour test gap: non-displacing placeholder and/or a JS test runner (T-0110 follow-up) | tags:gui,test,tech-debt | detail:details/T-0111.md | created:2026-08-01
+- [ ] [T-0137] Theme editor updates | prio:med | tags:spike | detail:details/T-0137.md | created:2026-08-02
+- [ ] [T-0139] Conditional polling (D2): poll only while the SSE stream is down | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0139.md | created:2026-08-02
+- [ ] [T-0140] TestAuditTestids fails: no report-item-<key> rendered (Appendix A) | prio:high | tags:test,gui | created:2026-08-02
 
 ## Blocked
 
-- [ ] [T-0132] Library: expose per-file stamps for region-level change detection | prio:med | tags:library,flicker-fix,phase-2 | detail:details/T-0132.md | created:2026-08-02 | blocked:report Phase 2; gate on T-0131 saying region-level diffing is justified
-- [ ] [T-0133] Broker: publish per-column events from a per-file diff; detail-body edits fire nothing | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0133.md | created:2026-08-02 | blocked:needs T-0132 and the T-0131 go
-- [ ] [T-0134] Per-column fragment routes and hx-triggers (gated on T-0131) | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0134.md | created:2026-08-02 | blocked:needs T-0133; only if T-0131 shows board re-fetches dominate
 - [ ] [T-0135] CSS transition polish on swap (fade .htmx-added content) | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0135.md | created:2026-08-02 | blocked:report Phase 3; only if Phase 1 still feels abrupt
 - [ ] [T-0136] Morph the theme shell swap to preserve focus and scroll | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0136.md | created:2026-08-02 | blocked:report Phase 3; needs idiomorph (T-0128); measure shell-swap cost first
+- [ ] [T-0132] Library: expose per-file stamps for region-level change detection | prio:med | tags:library,flicker-fix,phase-2 | detail:details/T-0132.md | created:2026-08-02 | blocked:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
+- [ ] [T-0133] Broker: publish per-column events from a per-file diff; detail-body edits fire nothing | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0133.md | created:2026-08-02 | blocked:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
+- [ ] [T-0134] Per-column fragment routes and hx-triggers (gated on T-0131) | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0134.md | created:2026-08-02 | blocked:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
 
 ## Someday
 

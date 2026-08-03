@@ -9,12 +9,12 @@ import (
 // newTestLogger hands the service a logger whose records go to t.Log, so a
 // warning raised during a test is attached to that test instead of scrolling
 // past in the terminal.
-func newTestLogger(t *testing.T) *slog.Logger {
+func newTestLogger(t testing.TB) *slog.Logger {
 	return slog.New(&testHandler{t: t})
 }
 
 type testHandler struct {
-	t     *testing.T
+	t     testing.TB
 	attrs []slog.Attr
 }
 
