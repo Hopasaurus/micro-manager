@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"micromanager/mm"
 )
@@ -168,18 +169,32 @@ func finish(env Env, stdout io.Writer, err error) int {
 }
 
 // requestedSwitch scans the raw arguments, because an output mode has to survive
-// a parse error in the same command line that asked for it.
+// a parse error in the same command line that asked for it. Last wins, exactly
+// as in the parser (§3.3 rule 5): --json --json=false disables the mode even
+// though a naive scan would enable it on the first mention. The value spellings
+// are the parser's own, case-insensitively (true/yes/1, false/no/0).
 func requestedSwitch(args []string, name string) bool {
+	on := false
 	for _, a := range args {
 		if a == "--" {
-			return false
+			return on
 		}
-		switch a {
-		case "--" + name, "--" + name + "=true", "--" + name + "=yes", "--" + name + "=1":
-			return true
+		s, value, hasValue := strings.Cut(a, "=")
+		if s != "--"+name {
+			continue
+		}
+		if !hasValue {
+			on = true
+			continue
+		}
+		switch strings.ToLower(value) {
+		case "true", "yes", "1":
+			on = true
+		case "false", "no", "0":
+			on = false
 		}
 	}
-	return false
+	return on
 }
 
 // report writes an error to stderr and returns its exit code.

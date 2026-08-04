@@ -23,10 +23,6 @@ thing that can be started.
 ## Ready
 
 
-- [ ] [T-0157] CLI: stop silently dropping extra positionals for --add/--search | prio:med | tags:cli,review | detail:details/T-0157.md | created:2026-08-04
-- [ ] [T-0158] CLI: tighten the switch scanner: --json --json=false must disable; --prio -- must not take -- as a value | prio:med | tags:cli,review | created:2026-08-04
-- [ ] [T-0159] CLI: launch the editor from the project root, not the details/ directory | prio:low | tags:cli,review | created:2026-08-04
-- [ ] [T-0160] CLI: searchUpward must not fall back to the process cwd when cwd is empty | prio:low | tags:cli,review | created:2026-08-04
 - [ ] [T-0146] When saving after edit return to board | prio:med | tags:bug | detail:details/T-0146.md | created:2026-08-03
 - [ ] [T-0148] Check if flicker fixes need to be applied to more paths | prio:med | tags:spike | detail:details/T-0148.md | created:2026-08-03
 - [ ] [T-0111] Close the drag-behaviour test gap: non-displacing placeholder and/or a JS test runner (T-0110 follow-up) | tags:gui,test,tech-debt | detail:details/T-0111.md | created:2026-08-01

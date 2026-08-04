@@ -179,6 +179,12 @@ func TestParseMissingValue(t *testing.T) {
 	if !strings.Contains(err.Error(), "needs a value") {
 		t.Errorf("%v", err)
 	}
+	// -- ends switch parsing and is never a value either: --prio -- must not
+	// set prio to "--" (code-review-007 F8).
+	err = parseErr(t, "--add", "x", "--prio", "--")
+	if !strings.Contains(err.Error(), "needs a value") {
+		t.Errorf("%v", err)
+	}
 	// But a negative number is a value, so --position -1 stays possible.
 	in := mustParse(t, "--move", "1", "--position", "-1")
 	if in.Value("position") != "-1" {

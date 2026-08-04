@@ -211,13 +211,29 @@ func runInit(env Env, in *Invocation) error {
 	return nil
 }
 
-func runAdd(env Env, in *Invocation, s *mm.Store) error {
-	title := in.Subject
-	if title == "" && len(in.Rest) > 0 {
-		title = strings.Join(in.Rest, " ")
+// subjectValue resolves an operation's subject from its own value, or from
+// the positionals after "--" when the value is absent — the documented form
+// mm --add -- "Title with spaces". A subject AND surplus positionals is a
+// typo — an unquoted multi-word query, say — and is refused, never silently
+// dropped (code-review-007 F6).
+func subjectValue(in *Invocation, op, what string) (string, error) {
+	if in.Subject != "" {
+		if len(in.Rest) > 0 {
+			return "", usagef("--%s takes one %s; %q was not expected", op, what,
+				strings.Join(in.Rest, " "))
+		}
+		return in.Subject, nil
 	}
-	if title == "" {
-		return usagef("--add needs a title")
+	if len(in.Rest) > 0 {
+		return strings.Join(in.Rest, " "), nil
+	}
+	return "", usagef("--%s needs a %s", op, what)
+}
+
+func runAdd(env Env, in *Invocation, s *mm.Store) error {
+	title, err := subjectValue(in, "add", "title")
+	if err != nil {
+		return err
 	}
 
 	req := mm.AddRequest{
@@ -268,7 +284,7 @@ func runAdd(env Env, in *Invocation, s *mm.Store) error {
 	// written and validated, and losing that over a misconfigured $EDITOR would
 	// be the tool destroying good work over a preference.
 	if item.Detail != "" && wantsEditor(in, env, env.Interactive) {
-		if err := openEditor(env, filepath.Join(s.Path(), item.Detail)); err != nil {
+		if err := openEditor(env, s.Path(), filepath.Join(s.Path(), item.Detail)); err != nil {
 			fmt.Fprintf(env.Stderr, "mm: could not open an editor: %v\n", err)
 		}
 	}
@@ -867,12 +883,9 @@ func runNext(env Env, in *Invocation, s *mm.Store) error {
 // ?q= filter use, because the library owns the matcher and the front ends only
 // pass a query (T-0042).
 func runSearch(env Env, in *Invocation, s *mm.Store) error {
-	query := in.Subject
-	if query == "" && len(in.Rest) > 0 {
-		query = strings.Join(in.Rest, " ")
-	}
-	if query == "" {
-		return usagef("--search needs a query")
+	query, err := subjectValue(in, "search", "query")
+	if err != nil {
+		return err
 	}
 
 	req := mm.SearchRequest{

@@ -351,7 +351,9 @@ func takeValue(name string, args []string, i *int, inline string, hasInline bool
 		return "", usagef("--%s needs a value", name)
 	}
 	next := args[*i+1]
-	if isSwitch(next) {
+	// -- ends switch parsing and is never a value, exactly as in the
+	// operation-value path: --prio -- must not set prio to "--".
+	if next == "--" || isSwitch(next) {
 		return "", usagef("--%s needs a value, but the next argument is %s", name, next)
 	}
 	*i++

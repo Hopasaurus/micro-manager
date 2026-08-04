@@ -33,12 +33,12 @@ func TestEditorIsNotRunThroughAShell(t *testing.T) {
 	var gotArgs []string
 	env := Env{
 		Editor: "myeditor --wait; rm -rf /",
-		Launch: func(program string, args []string) error {
+		Launch: func(dir, program string, args []string) error {
 			gotProgram, gotArgs = program, args
 			return nil
 		},
 	}
-	if err := openEditor(env, "/tmp/x/details/T-0001.md"); err != nil {
+	if err := openEditor(env, "/tmp/x", "/tmp/x/details/T-0001.md"); err != nil {
 		t.Fatal(err)
 	}
 	if gotProgram != "myeditor" {
@@ -89,22 +89,26 @@ func TestWantsEditor(t *testing.T) {
 	}
 }
 
-// --add --detail opens the file it just created, and passes the real path.
+// --add --detail opens the file it just created, passes the real path, and
+// starts the editor in the project root — not the details/ folder (F9).
 func TestAddDetailOpensTheEditor(t *testing.T) {
 	r, dir := newProject(t)
 
-	var opened string
+	var opened, cwd string
 	env := Env{
 		Editor:      "vim",
 		Interactive: true,
-		Launch: func(program string, args []string) error {
-			opened = args[len(args)-1]
+		Launch: func(d, program string, args []string) error {
+			cwd, opened = d, args[len(args)-1]
 			return nil
 		},
 	}
 	got := r.runWith(env, "--add", "Needs a description", "--detail")
 	if got.Code != ExitOK {
 		t.Fatalf("%s", got)
+	}
+	if cwd != dir {
+		t.Errorf("editor should start in the project root %q, got %q", dir, cwd)
 	}
 	if !strings.HasSuffix(opened, "details/T-0001.md") {
 		t.Errorf("opened %q", opened)
@@ -132,7 +136,7 @@ func TestEditorFailureDoesNotFailTheOperation(t *testing.T) {
 	env := Env{
 		Editor:      "definitely-not-a-real-editor",
 		Interactive: true,
-		Launch: func(string, []string) error {
+		Launch: func(string, string, []string) error {
 			return errors.New("exec: not found")
 		},
 	}

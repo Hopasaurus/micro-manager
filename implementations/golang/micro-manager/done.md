@@ -11,6 +11,10 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0160] CLI: searchUpward must not fall back to the process cwd when cwd is empty | prio:low | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0159] CLI: launch the editor from the project root, not the details/ directory | prio:low | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0158] CLI: tighten the switch scanner: --json --json=false must disable; --prio -- must not take -- as a value | prio:med | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0157] CLI: stop silently dropping extra positionals for --add/--search | prio:med | tags:cli,review | detail:details/T-0157.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0156] CLI: porcelain hygiene: remove the dead porcelainOut.op field, pin --fix columns in the freeze test | prio:med | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0155] CLI: JSON error envelope must record an id only when the subject is one (--wip 100 --json names T-0100) | prio:high | tags:cli,review | detail:details/T-0155.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0154] CLI: reject --init --slots 0 and --slot-width 0 (the library treats 0 as unset) | prio:high | tags:cli,review | detail:details/T-0154.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped

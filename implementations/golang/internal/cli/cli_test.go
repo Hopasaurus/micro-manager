@@ -245,6 +245,16 @@ func TestDirectoryResolution(t *testing.T) {
 	}
 }
 
+// F10 (code-review-007): an empty cwd (getwd failed) means there is nothing
+// to walk up from; the search must not fall back to reading the process's
+// actual working directory.
+func TestSearchUpwardWithEmptyCwd(t *testing.T) {
+	got, err := searchUpward("")
+	if got != "" || err != nil {
+		t.Errorf("searchUpward(\"\") = %q, %v; want \"\", nil", got, err)
+	}
+}
+
 // Ambiguity is never resolved by guessing: the candidates are listed so the
 // user can name one.
 func TestAmbiguousResolutionListsCandidates(t *testing.T) {
@@ -371,6 +381,33 @@ func TestMachineModesDoNotDegradeIntoProse(t *testing.T) {
 	}
 }
 
+// F7 (code-review-007): the machine-mode scan honours last wins, exactly like
+// the parser. --json --json=false must disable the mode (human output instead
+// of an envelope), and a later =true re-enables it.
+func TestMachineModeSwitchLastWins(t *testing.T) {
+	r, _ := newProject(t)
+	r.run("--add", "Something")
+
+	got := r.run("--list", "--json", "--json=false")
+	if got.Code != ExitOK {
+		t.Fatalf("%s", got)
+	}
+	if strings.Contains(got.Stdout, `"ok"`) || !strings.Contains(got.Stdout, "# Test Project") {
+		t.Errorf("--json --json=false must fall back to the human listing:\n%s", got.Stdout)
+	}
+
+	got = r.run("--list", "--json=false", "--json")
+	if !strings.Contains(got.Stdout, `"ok": true`) {
+		t.Errorf("--json=false --json must emit the envelope:\n%s", got.Stdout)
+	}
+
+	// The value spellings are the parser's own, case-insensitively.
+	got = r.run("--list", "--json=TRUE")
+	if !strings.Contains(got.Stdout, `"ok": true`) {
+		t.Errorf("--json=TRUE must emit the envelope:\n%s", got.Stdout)
+	}
+}
+
 // --quiet suppresses commentary, not the one value the caller cannot get any
 // other way, and not errors.
 func TestQuiet(t *testing.T) {
@@ -419,6 +456,30 @@ func readAll(t *testing.T, dir string) string {
 		t.Fatal(err)
 	}
 	return b.String()
+}
+
+// F6 (code-review-007): a surplus positional is a typo — an unquoted
+// multi-word title or query — and is refused rather than silently dropped.
+// The "--"-protected form, where the positionals ARE the subject, still works.
+func TestSurplusPositionalsAreRefused(t *testing.T) {
+	r, _ := newProject(t)
+
+	for _, args := range [][]string{
+		{"--add", "Title", "surplus"},
+		{"--search", "query", "surplus"},
+		{"--add", "Title", "--", "surplus"},
+	} {
+		if got := r.run(args...); got.Code != ExitUsage {
+			t.Errorf("%v: exit %d, want %d\n%s", args, got.Code, ExitUsage, got)
+		}
+	}
+
+	if got := r.run("--add", "--", "A title with spaces"); got.Code != ExitOK {
+		t.Errorf("--add -- TITLE: %s", got)
+	}
+	if got := r.run("--search", "--", "a query with spaces"); got.Code != ExitOK {
+		t.Errorf("--search -- QUERY: %s", got)
+	}
 }
 
 // §5.2: --block and --unblock are sugar over --move, and --note is the

@@ -92,6 +92,10 @@ structure.md. Without --dir, creates ./micro-manager.
 Appends to the BOTTOM of the section by default: a new item is not automatically
 more important than everything already queued.
 
+TITLE is exactly one argument — quote it if it has spaces (mm --add "Fix the
+deploy script"). A surplus positional is a usage error, not a silent second
+title; mm --add -- TITLE is the spelling for a title that starts with a dash.
+
   --top                     insert at the top instead
   --section ready|blocked|someday
   --blocked REASON          implies --section blocked
@@ -242,6 +246,10 @@ Porcelain columns: oldId newId file detail
 Substring or regex match over titles, tags and detail bodies, reporting state
 and location per hit. A plain query is a case-insensitive substring; a regex is
 matched exactly as written, so ask for case-insensitivity with (?i).
+
+QUERY is exactly one argument — quote it if it has spaces (mm --search "fix the
+deploy"). A surplus positional is a usage error: an unquoted multi-word query
+would otherwise silently search only its first word.
 
   --regex                   treat QUERY as a regular expression
   --field title|tags|detail narrow where to look; repeats (default: all three)

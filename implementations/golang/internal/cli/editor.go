@@ -3,7 +3,6 @@ package cli
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 )
 
@@ -20,7 +19,9 @@ import (
 // user's file as an argument.
 
 // Editor is how the wrapper launches one, injected so tests do not spawn vi.
-type Editor func(program string, args []string) error
+// dir is the working directory the editor starts in — the project root, not
+// the details/ folder the file lives in.
+type Editor func(dir, program string, args []string) error
 
 // resolveEditor picks the editor, or "" when there is none.
 //
@@ -59,11 +60,16 @@ func wantsEditor(in *Invocation, env Env, hasTerminal bool) bool {
 
 // openEditor launches the editor on a path and waits for it.
 //
+// dir is the project root: an editor that shows relative paths or buffers
+// against its cwd should show the project, not one folder of it. Launching
+// from the details/ directory would make every buffer look like a loose file
+// in a folder (code-review-007 F9).
+//
 // A failure to launch is NOT an operation failure: the item and its detail file
 // are already written and validated. Losing that because a misconfigured
 // $EDITOR could not start would be the tool destroying good work over a
 // preference, so the caller reports and carries on.
-func openEditor(env Env, path string) error {
+func openEditor(env Env, dir, path string) error {
 	command := resolveEditor(env.Visual, env.Editor)
 	if len(command) == 0 {
 		return nil
@@ -71,10 +77,10 @@ func openEditor(env Env, path string) error {
 	program, args := command[0], append(command[1:], path)
 
 	if env.Launch != nil {
-		return env.Launch(program, args)
+		return env.Launch(dir, program, args)
 	}
 	cmd := exec.Command(program, args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	cmd.Dir = filepath.Dir(path)
+	cmd.Dir = dir
 	return cmd.Run()
 }

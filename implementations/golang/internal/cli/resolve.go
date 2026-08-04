@@ -92,6 +92,13 @@ func resolveDir(dirFlag, mmDir, cwd string) (Resolution, error) {
 // two todo directories side by side is a real situation and neither is more
 // correct than the other.
 func searchUpward(cwd string) (string, error) {
+	// An empty cwd means the process could not report its directory (getwd
+	// failed). There is nothing to walk up from — and filepath.Dir("") is ".",
+	// which would silently read the process's actual working directory, the one
+	// global this function exists to avoid (code-review-007 F10).
+	if cwd == "" {
+		return "", nil
+	}
 	dir := cwd
 	for {
 		entries, err := os.ReadDir(dir)
