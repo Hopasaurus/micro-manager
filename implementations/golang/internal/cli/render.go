@@ -45,6 +45,35 @@ func renderInit(env Env, in *Invocation, path, project string, res mm.TxResult) 
 	}
 }
 
+// renderArchive reports what left done.md, and always states the cutoff — it
+// can come from a default or from --age, so an operation whose boundary is
+// invisible is one the caller cannot check.
+//
+// The warnings go to stderr and are NOT suppressed by --quiet. §5.3 makes the
+// ID-pool warning mandatory: this is the one operation that takes data out of
+// the validated set, and quiet asks for less commentary, not for less of the
+// one thing the specification insists is said out loud.
+func renderArchive(env Env, in *Invocation, res mm.ArchiveResult) {
+	if !in.Quiet {
+		if res.Items == 0 {
+			out(env, "%snothing to archive: no month group before %s\n",
+				prefix(in), res.Cutoff)
+		} else {
+			out(env, "%sarchived %d item(s) from %d month(s) before %s\n",
+				prefix(in), res.Items, len(res.Months), res.Cutoff)
+			for _, m := range res.Months {
+				out(env, "  %s\n", m)
+			}
+			for _, f := range res.Files {
+				out(env, "  wrote %s\n", f)
+			}
+		}
+	}
+	for _, w := range res.Warnings {
+		fmt.Fprintf(env.Stderr, "mm: warning: %s\n", w)
+	}
+}
+
 // renderFix reports each renumbering and the next_id the repair wrote. A
 // directory with nothing to repair says so: an empty fix is a success worth
 // stating, because a scripted merge flow gates on it.

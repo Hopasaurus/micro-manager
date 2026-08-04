@@ -117,7 +117,7 @@ func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
 	files := map[string]string{
 		"backlog.md": renderInitBacklog(project, today, g),
 		"done.md":    renderInitDone(today),
-		templateName:  initTemplate,
+		templateName: initTemplate,
 	}
 	if !req.NoStructure {
 		files["structure.md"] = renderInitStructure(project, today)

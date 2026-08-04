@@ -33,8 +33,8 @@ Working today:
 - **The file format**, and `check.sh` / `find.sh` at the repository root.
 - **The `mm` CLI**, in `implementations/golang`. Every operation of
   `spec-tools.md` §5.1 is implemented, plus `--block`, `--unblock`, `--note`,
-  `--wip` and `--find`. `--dry-run`, `--json` and `--porcelain` work on
-  everything.
+  `--wip`, `--find` and the optional `--archive`. `--dry-run`, `--json` and
+  `--porcelain` work on everything.
 
 Not built: the **UI service** of `spec-gui.md`, the **TUI** of `spec-tui.md`, and
 the Python, TypeScript and Erlang implementations.
@@ -236,7 +236,17 @@ mm --report --group-by outcome                 # defaults to last complete ISO w
 mm --wip 3                                     # adds or removes slot files
 mm --check --all
 mm --find
+
+mm --archive --before 2026-01                  # roll old months into done-YYYY.md
+mm --archive --age 30                          # the same cutoff as a policy
 ```
+
+`--archive` is the one operation that takes data OUT of the validated set:
+archived items leave the ID pool, so I1 and I2 stop seeing them. Today it also
+strands their detail files in `details/`, which the checker then reports —
+`spec-file-format.md` §5.6 requires them to move to `details-YYYY/` and the Go
+library does not do that yet. Both costs are printed on every run, including
+under `--quiet`. Dry-run it first.
 
 `mm --help` lists everything; `mm --help --start` prints one operation's page.
 

@@ -41,7 +41,7 @@ func (m *dirModel) checkIDs() []Violation {
 		}
 		if !g.ValidID(string(it.ID)) {
 			// The parsers reject these as malformed lines; this is the same
-		// rule stated as an invariant, so a hand-built model cannot dodge it.
+			// rule stated as an invariant, so a hand-built model cannot dodge it.
 			vs = append(vs, Violation{
 				Invariant: invFormat, At: it.Source,
 				Message: fmt.Sprintf("%s is not a %s id in the declared grammar", it.ID, g),

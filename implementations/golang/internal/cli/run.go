@@ -105,6 +105,8 @@ func dispatch(env Env, in *Invocation) error {
 		return runSearch(env, in, store)
 	case OpFix:
 		return runFix(env, in, store)
+	case OpArchive:
+		return runArchive(env, in, store)
 	}
 	return usagef("--%s is not implemented", in.Op)
 }
@@ -723,8 +725,9 @@ func runReport(env Env, in *Invocation, s *mm.Store) error {
 		return err
 	}
 	opts := mm.ReportOptions{
-		IncludeWip:     in.Bool("include-wip"),
-		IncludeBacklog: in.Bool("include-backlog"),
+		IncludeWip:      in.Bool("include-wip"),
+		IncludeBacklog:  in.Bool("include-backlog"),
+		IncludeArchives: in.Bool("include-archives"),
 	}
 	if v := in.Value("group-by"); v != "" {
 		g, err := mm.ParseGroupBy(v)
@@ -733,10 +736,6 @@ func runReport(env Env, in *Invocation, s *mm.Store) error {
 		}
 		opts.GroupBy = g
 	}
-	if in.Bool("include-archives") {
-		return usagef("--include-archives is not implemented yet (T-0043)")
-	}
-
 	rep, err := s.Report(period, opts)
 	if err != nil {
 		return err
@@ -952,6 +951,70 @@ func runFix(env Env, in *Invocation, s *mm.Store) error {
 		env.porcelain.row(string(c.OldID), string(c.NewID), c.File, c.Detail)
 	}
 	renderFix(env, in, res, tx)
+	return nil
+}
+
+// runArchive wires spec-tools.md §5.3.1, the first of the optional operations
+// to reach the CLI.
+//
+// The two spellings of the cutoff resolve to the one thing the library takes, a
+// Before month: --age is turned into it by mm.ArchiveCutoff, which is in the
+// library because a UI running this on a schedule must reach the same answer
+// from the same policy.
+func runArchive(env Env, in *Invocation, s *mm.Store) error {
+	req := mm.ArchiveRequest{DryRun: in.DryRun}
+
+	switch {
+	case in.Has("before") && in.Has("age"):
+		return usagef("--before and --age are two spellings of one cutoff; give one")
+
+	case in.Has("before"):
+		v := in.Value("before")
+		text := v
+		if len(text) == 7 {
+			// A month is the switch's own grain (§5.3.1). A full date is
+			// accepted and its day ignored, so --before 2026-07-23 keeps all of
+			// July rather than being refused.
+			text += "-01"
+		}
+		d, err := mm.ParseDate(text)
+		if err != nil {
+			return usagef("--before takes YYYY-MM, or a full date whose day is "+
+				"ignored; got %q", v)
+		}
+		req.Before = d
+
+	case in.Has("age"):
+		v := in.Value("age")
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return usagef("--age takes a number of days, got %q", v)
+		}
+		d, err := mm.ArchiveCutoff(env.Today, n)
+		if err != nil {
+			return err
+		}
+		req.Before = d
+	}
+
+	res, tx, err := s.Archive(req, env.Today)
+	if err != nil {
+		return err
+	}
+	env.json.setChanges(tx)
+	env.json.setResult(toJSONArchive(res))
+	// One record per item moved, from the change set rather than from a name
+	// this layer would have to construct: the library already knows which
+	// archive each item landed in.
+	for _, c := range tx.Changes {
+		if c.Kind == mm.ChangeMoved {
+			env.porcelain.row(string(c.ID), c.File)
+		}
+	}
+	for _, w := range res.Warnings {
+		env.json.warn(w)
+	}
+	renderArchive(env, in, res)
 	return nil
 }
 

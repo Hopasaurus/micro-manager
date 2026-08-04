@@ -1,7 +1,10 @@
 package mm
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -44,6 +47,15 @@ type ReportOptions struct {
 
 	// IncludeBacklog appends the top of ## Ready as "next".
 	IncludeBacklog bool
+
+	// IncludeArchives also reads the done-YYYY.md files (spec-tools.md
+	// §5.1.11). Without it a period that has been archived reads as a period in
+	// which nothing was closed, which is why the warning below exists; with it,
+	// the archived months are searched too and there is nothing to warn about.
+	//
+	// Reading an archive is NOT validating it: the files stay outside the format
+	// spec (§10.5) and their parse findings are discarded here.
+	IncludeArchives bool
 
 	// BacklogLimit caps that list. Zero means 5 - "the top few", not all of it.
 	BacklogLimit int
@@ -104,6 +116,19 @@ func (s *Store) Report(p Period, opts ReportOptions) (Report, error) {
 			}
 		}
 	}
+	archives := 0
+	if opts.IncludeArchives {
+		archived, n, err := s.archivedItems(m)
+		if err != nil {
+			return Report{}, err
+		}
+		archives = n
+		for _, it := range archived {
+			if p.Unbounded() || p.Contains(it.Done) {
+				rep.Done = append(rep.Done, it)
+			}
+		}
+	}
 	// Newest first. done.md is already in that order, and a stable sort keeps
 	// the file's ordering among items closed on the same day.
 	sort.SliceStable(rep.Done, func(i, j int) bool {
@@ -138,8 +163,51 @@ func (s *Store) Report(p Period, opts ReportOptions) (Report, error) {
 		}
 	}
 
-	rep.Warnings = append(rep.Warnings, archiveWarning(m, p)...)
+	// The warning is about work the report could not see. Once the archives have
+	// been read there is none, so it would be false; with the option set and no
+	// archive on disk, nothing was read and the warning still applies.
+	if archives == 0 {
+		rep.Warnings = append(rep.Warnings, archiveWarning(m, p)...)
+	}
 	return rep, nil
+}
+
+// archivedItems reads every done-YYYY.md in the directory, newest year first,
+// and returns their items and the number of archives read.
+//
+// load() deliberately does not read these files - nothing validates them, and a
+// --check that walked them would contradict §10.5 - so a report that wants them
+// reads them itself. Parse findings are discarded for the same reason: a report
+// is not a checker, and inventing violations for a file --check will never look
+// at would give the format a rule it does not have.
+func (s *Store) archivedItems(m *dirModel) ([]Item, int, error) {
+	var names []string
+	for _, name := range m.entries {
+		if isDoneArchiveName(name) {
+			names = append(names, name)
+		}
+	}
+	// done-2026.md before done-2025.md: newest first, like done.md itself.
+	sort.Sort(sort.Reverse(sort.StringSlice(names)))
+
+	g := m.grammar()
+	var out []Item
+	read := 0
+	for _, name := range names {
+		data, err := os.ReadFile(filepath.Join(s.path, name))
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue // it vanished between the listing and the read
+			}
+			return nil, 0, fmt.Errorf("%w: reading %s: %v", ErrIO, name, err)
+		}
+		read++
+		d, _ := parseDoneG(name, data, g)
+		for _, it := range d.Items {
+			out = append(out, *it)
+		}
+	}
+	return out, read, nil
 }
 
 // archiveWarning reports a period that reaches back past what done.md still

@@ -19,10 +19,10 @@ func TestParseID(t *testing.T) {
 		{" T-0042 ", "T-0042", true},
 		{"", "", false},
 		{"T-", "", false},
-		{"t-0042", "", false},   // case deviation is rejected, not repaired (§3.3.2 rule 2)
-		{"T-42", "", false},     // width mismatch (§3.3.2 rule 3)
-		{"T-00042", "", false},  // too wide
-		{"X-0042", "", false},   // a prefix the default grammar does not declare
+		{"t-0042", "", false},  // case deviation is rejected, not repaired (§3.3.2 rule 2)
+		{"T-42", "", false},    // width mismatch (§3.3.2 rule 3)
+		{"T-00042", "", false}, // too wide
+		{"X-0042", "", false},  // a prefix the default grammar does not declare
 		{"T-004x", "", false},
 		{"00042", "", false}, // a bare number that cannot fit the width
 		{"nope", "", false},
@@ -62,7 +62,7 @@ func TestParseIDAgainstDeclaredGrammar(t *testing.T) {
 		{"mm-001", "", false}, // case deviation
 		{"M-001", "", false},  // wrong prefix
 		{"MMM-001", "", false},
-		{"MM-1", "", false},  // wrong width
+		{"MM-1", "", false}, // wrong width
 		{"MM-0001", "", false},
 		{"T-001", "", false}, // an ID from the default grammar does not belong here
 	}

@@ -165,6 +165,39 @@ func toJSONFix(r mm.FixResult) jsonFix {
 	return out
 }
 
+// jsonArchive is the --archive result. The cutoff is included because it can
+// come from a default or from --age, and detailOrphans because the files it
+// names are the directory's new I9 findings.
+type jsonArchive struct {
+	Cutoff        string   `json:"cutoff"`
+	Months        []string `json:"months"`
+	Items         int      `json:"items"`
+	Files         []string `json:"files"`
+	DetailOrphans []string `json:"detailOrphans"`
+}
+
+func toJSONArchive(r mm.ArchiveResult) jsonArchive {
+	out := jsonArchive{
+		Cutoff:        r.Cutoff,
+		Months:        r.Months,
+		Items:         r.Items,
+		Files:         r.Files,
+		DetailOrphans: r.DetailOrphans,
+	}
+	// §9.2: a list is always a list. An absent one would make a caller test for
+	// null before iterating, on a field that means "none".
+	if out.Months == nil {
+		out.Months = []string{}
+	}
+	if out.Files == nil {
+		out.Files = []string{}
+	}
+	if out.DetailOrphans == nil {
+		out.DetailOrphans = []string{}
+	}
+	return out
+}
+
 func toJSONDirectory(d mm.Directory) *jsonDirectory {
 	return &jsonDirectory{
 		Path:      d.Path,

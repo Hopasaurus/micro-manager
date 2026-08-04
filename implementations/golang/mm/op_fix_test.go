@@ -48,7 +48,7 @@ Some long form.
 func mergedBoard(t *testing.T) string {
 	t.Helper()
 	return newDir(t, map[string]string{
-		"backlog.md":     mergedBacklog,
+		"backlog.md":        mergedBacklog,
 		"details/T-0043.md": betaDetail,
 	})
 }
@@ -286,7 +286,7 @@ func TestFixWinnerAdoptsTheDetailFile(t *testing.T) {
 	// the reference — the survivor of a merge whose content came from the
 	// winner's branch.
 	dir := newDir(t, map[string]string{
-		"backlog.md": backlog,
+		"backlog.md":        backlog,
 		"details/T-0043.md": strings.Replace(betaDetail, "title: Beta", "title: Alpha", 1),
 	})
 	s := mustOpen(t, dir)
@@ -321,7 +321,7 @@ func TestFixRenameDropsTheWinnersClaim(t *testing.T) {
 		"- [ ] [T-0043] Alpha | created:2026-07-31\n- [ ] [T-0043] Beta | created:2026-08-01 | detail:details/T-0043.md",
 		"- [ ] [T-0043] Alpha | created:2026-07-31 | detail:details/T-0043.md\n- [ ] [T-0043] Beta | created:2026-08-01 | detail:details/T-0043.md", 1)
 	dir := newDir(t, map[string]string{
-		"backlog.md": backlog,
+		"backlog.md":        backlog,
 		"details/T-0043.md": betaDetail, // title Beta, matching the loser
 	})
 	s := mustOpen(t, dir)

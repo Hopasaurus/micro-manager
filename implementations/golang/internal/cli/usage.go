@@ -40,6 +40,7 @@ Operations:
   --search QUERY            substring or regex match over titles, tags, details
   --find                    list discovered micro-manager directories
   --fix                     repair duplicate IDs after a merge
+  --archive                 roll old month groups out of done.md
   --help, --version
 
 Global modifiers:
@@ -240,6 +241,35 @@ both items named. Refuses while anything else is wrong (conflict markers, a
 dangling detail); safe to run twice, the second run is a no-op.
 
 Porcelain columns: oldId newId file detail
+`,
+	OpArchive: `mm --archive [--before YYYY-MM | --age DAYS] [--dry-run]
+
+Moves whole month groups out of done.md into done-YYYY.md. Whole groups only: a
+month is the finest grain done.md records.
+
+This is the one operation that takes data OUT of the validated set. Archived
+items leave the ID pool — I1 and I2 stop seeing them — and a report over an
+archived period finds nothing without --include-archives. It says so on every
+run, including under --quiet.
+
+Detail files are LEFT BEHIND today: an archived item's detail file stays in
+details/ with nothing referencing it, which --check reports as an I9 orphan
+from then on. Each run names the files it stranded. spec-file-format.md §5.6
+requires them to move to details-YYYY/ instead; this implementation does not do
+that yet, so on a board with detail files, expect findings after a run.
+
+  --before YYYY-MM          archive every group older than this month; the month
+                            itself stays. A full date is accepted and its day
+                            ignored. Default: the current month, so a bare
+                            --archive rolls up everything before the month the
+                            board is living in
+  --age DAYS                the same cutoff as a policy: archive a group once
+                            DAYS days have passed since its last day. --age 0
+                            takes every complete month; --age 30 keeps each
+                            month a further thirty days. This is the form a
+                            scheduled run uses: it needs no editing each month
+
+Porcelain columns: id file
 `,
 	OpSearch: `mm --search QUERY [--regex] [--field F]... [--state S] [--limit N]
 

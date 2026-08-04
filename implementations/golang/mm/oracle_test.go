@@ -360,6 +360,61 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 		}
 	})
 
+	// Archiving is the one operation that takes items OUT of the validated
+	// world, so it is the one most likely to make the two validators disagree:
+	// neither reads done-YYYY.md, and both have to agree that the items which
+	// left are simply gone rather than missing.
+	t.Run("after an archive", func(t *testing.T) {
+		dir := newDir(t, map[string]string{"done.md": archiveDone})
+		s := mustOpen(t, dir)
+		compareValidators(t, "before archiving", dir)
+
+		res, _, err := s.Archive(ArchiveRequest{Before: Date{2026, 7, 1}}, today)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Items == 0 {
+			t.Fatal("the fixture archived nothing; the comparison would be vacuous")
+		}
+		compareValidators(t, "after archiving two month groups", dir)
+
+		// And with everything gone, including the last group: an emptied done.md
+		// is a shape neither validator sees anywhere else.
+		if _, _, err := s.Archive(ArchiveRequest{Before: Date{2027, 1, 1}}, today); err != nil {
+			t.Fatal(err)
+		}
+		compareValidators(t, "after archiving every month group", dir)
+	})
+
+	// The deliberate-violation path, second case: an archived item's detail file
+	// stays in details/ and becomes an orphan. check.sh globs details/*.md and
+	// knows nothing about archives, so it must find exactly the orphans this
+	// implementation reported - no more, and no fewer.
+	t.Run("after an archive that strands a detail file", func(t *testing.T) {
+		dir := newDir(t, map[string]string{
+			"done.md": strings.Replace(archiveDone,
+				"- [x] [T-0008] June | prio:low",
+				"- [x] [T-0008] June | prio:low | detail:details/T-0008.md", 1),
+			"details/T-0008.md": "---\ndoc: detail\nid: T-0008\ntitle: June\n---\n\n# T-0008 — June\n",
+		})
+		s := mustOpen(t, dir)
+		compareValidators(t, "before archiving", dir)
+
+		res, _, err := s.Archive(ArchiveRequest{Before: Date{2026, 7, 1}}, today)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.DetailOrphans) != 1 {
+			t.Fatalf("orphans = %v, want the one detail file", res.DetailOrphans)
+		}
+		compareValidators(t, "archive with a stranded detail file", dir)
+
+		// Both must actually be reporting it, or the agreement is vacuous.
+		if len(goFindings(t, dir)) == 0 || len(runCheckSh(t, dir)) == 0 {
+			t.Error("the stranded detail file was reported by neither validator")
+		}
+	})
+
 	// The deliberate-violation path: --remove leaves an orphan detail file by
 	// default and says so. Both validators must then report the same orphan.
 	t.Run("after a remove that orphans a detail file", func(t *testing.T) {

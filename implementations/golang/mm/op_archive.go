@@ -1,0 +1,437 @@
+package mm
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+// Archiving: rolling old month groups out of done.md (spec-tools.md §5.3,
+// spec-file-format.md §5.3).
+//
+// done.md is the one file items are never removed from, so it grows without
+// bound. The format's answer is done-YYYY.md — "when the file grows unwieldy,
+// trailing years MAY be moved" — and those files are deliberately OUTSIDE the
+// specification: no validator reads them, this library included.
+//
+// That makes this the one operation whose whole purpose is to take data out of
+// the validated world, and everything awkward about it follows from that:
+//
+//   - Archived IDs LEAVE THE POOL. I1 stops seeing them, so nothing would
+//     notice a second item claiming an archived ID. I2 still holds — next_id is
+//     never decremented — but it no longer proves anything about the numbers
+//     below it. §5.3 requires the tool to say so out loud, which is why this
+//     returns warnings and not just a change set.
+//   - A DETAIL FILE STAYS WHERE IT IS. §5.4 fixes detail files at
+//     details/<ID>.md for their whole life and never deletes them on
+//     completion, so archiving can neither take one along nor throw it away:
+//     the file remains, nothing references it, and I9 reports it as an orphan.
+//     That finding is accepted deliberately and REPORTED, never left silent —
+//     the rule §5.1.6 states for --remove, applied here for the same reason.
+//   - A report over an archived period reads nothing unless it is asked to
+//     include archives (ReportOptions.IncludeArchives).
+//
+// The move is a cut and paste in that order (§7 rule 4): the archive is written
+// BEFORE done.md loses the group, so an interruption between the two writes
+// leaves the closed work in both files rather than in neither. Re-running the
+// operation then heals it, because insertion skips an ID the archive already
+// holds instead of writing a second copy.
+
+// ArchiveRequest selects which month groups leave done.md.
+type ArchiveRequest struct {
+	// Before is the cutoff: every month group STRICTLY OLDER than this month
+	// moves, and the month itself stays.
+	//
+	// Only the year and month are read. The switch is --before YYYY-MM and a
+	// month group is the finest grain done.md records, so a full date is
+	// rounded down to its month rather than refused.
+	//
+	// The zero value means the month of today: a bare Archive keeps the month
+	// the directory is living in and rolls everything before it.
+	Before Date
+
+	DryRun bool
+}
+
+// ArchiveCutoff turns an age in days into the Before a request carries
+// (spec-tools.md §5.3.1).
+//
+// --age DAYS is the same month-granular cutoff as --before, said as a policy
+// instead of a date: a month group is archived once DAYS days have passed since
+// its LAST day. --age 0 archives every group whose month is complete; --age 30
+// keeps each month for a further thirty days.
+//
+// It lives here rather than in the CLI because it is a rule, not a translation:
+// a UI that grows a scheduled archive must compute the same cutoff from the
+// same policy, and two implementations of "which months are old enough" would
+// eventually disagree by a day.
+//
+// The condition is monotone in the month — an older group's last day is
+// earlier — so it reduces to one exclusive month, which is what Archive takes.
+func ArchiveCutoff(today Date, ageDays int) (Date, error) {
+	if ageDays < 0 {
+		return Date{}, fmt.Errorf("%w: age:%d is negative", ErrInvalidArgument, ageDays)
+	}
+	limit := today.AddDays(-ageDays)
+	first := Date{Year: limit.Year, Month: limit.Month, Day: 1}
+	end := dateOf(first.time().AddDate(0, 1, -1)) // the last day of limit's month
+	if !limit.Before(end) {
+		// The month containing the limit is itself old enough, so the cutoff is
+		// the month after it. Reached exactly when limit IS the last day.
+		return dateOf(first.time().AddDate(0, 1, 0)), nil
+	}
+	return first, nil
+}
+
+// ArchiveResult reports what an archive run moved.
+type ArchiveResult struct {
+	// Cutoff is the month archived before, as YYYY-MM. It is reported because
+	// it can come from the default: an operation whose boundary is invisible is
+	// one the caller cannot check.
+	Cutoff string
+
+	// Months are the groups that moved, newest first, and Items counts the item
+	// lines removed from done.md.
+	Months []string
+	Items  int
+
+	// Files are the archives written, relative to the directory: one
+	// done-YYYY.md per year touched.
+	Files []string
+
+	// DetailOrphans are detail files whose item has left done.md. They still
+	// hold the long-form record and are still on disk; nothing references them
+	// any more, so I9 reports each one until it is deleted or its item is
+	// restored.
+	DetailOrphans []string
+
+	// Warnings state what the archive cost, per §5.3. A caller that drops them
+	// is the one not conforming.
+	Warnings []string
+}
+
+// Archive rolls month groups older than a cutoff out of done.md into
+// done-YYYY.md (spec-tools.md §5.3).
+//
+// Whole groups move, heading included. An empty group is simply dropped: a
+// month heading with no items under it has nothing to archive, and the format
+// requires every "## " heading in done.md to be a month, not that a month hold
+// anything.
+//
+// A heading that is NOT a month is left exactly where it is. It names no year
+// to file under and is already reported as a violation; repairing it is Fix's
+// job, not this operation's.
+func (s *Store) Archive(req ArchiveRequest, today Date) (ArchiveResult, TxResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var zero ArchiveResult
+	before := req.Before
+	if before.IsZero() {
+		before = Date{Year: today.Year, Month: today.Month, Day: 1}
+	}
+	if before.Year < 0 || before.Month < 1 || before.Month > 12 {
+		return zero, TxResult{}, fmt.Errorf(
+			"%w: before:%04d-%02d is not a month (YYYY-MM)",
+			ErrInvalidArgument, before.Year, before.Month)
+	}
+	cutoff := fmt.Sprintf("%04d-%02d", before.Year, before.Month)
+	res := ArchiveResult{Cutoff: cutoff}
+
+	t, err := s.begin()
+	if err != nil {
+		return zero, TxResult{}, err
+	}
+	d, de, err := t.done()
+	if err != nil {
+		return zero, TxResult{}, err
+	}
+
+	// The groups that move, in file order — newest first, the order the file is
+	// already in.
+	var moving []*monthSpan
+	for _, m := range d.Months {
+		if m.Month != "" && m.Month < cutoff {
+			moving = append(moving, m)
+		}
+	}
+
+	// Line ranges are computed against the file AS READ, before any splice
+	// moves a line.
+	type span struct{ head, end int } // 1-based lines; end is exclusive
+	spans := make([]span, 0, len(moving))
+	for _, m := range moving {
+		spans = append(spans, span{head: m.HeadLine, end: groupEnd(d, de, m)})
+	}
+
+	// Bottom-up, so removing the lowest group cannot shift the range of one
+	// above it.
+	for i := len(spans) - 1; i >= 0; i-- {
+		for n := spans[i].end - 1; n >= spans[i].head; n-- {
+			de.DeleteLine(n)
+		}
+	}
+	if len(moving) > 0 {
+		dropTrailingBlank(de)
+		touchUpdated(de, today)
+	}
+
+	// Now the paste, into one archive per year. This runs AFTER the splice
+	// because InsertItem rewrites each item's Source to its position in the
+	// archive, and a done.md splice would then shift a line number that no
+	// longer refers to done.md at all.
+	targets := map[int]*archiveTarget{}
+	var years []int // first-use order, so the write order is stable
+	duplicates := 0
+
+	for _, m := range moving {
+		year, err := yearOfMonth(m.Month)
+		if err != nil {
+			return zero, TxResult{}, err
+		}
+		tgt, ok := targets[year]
+		if !ok {
+			if tgt, err = s.openArchive(year, t.model.grammar(), today); err != nil {
+				return zero, TxResult{}, err
+			}
+			targets[year] = tgt
+			years = append(years, year)
+		}
+
+		res.Months = append(res.Months, m.Month)
+		res.Items += len(m.Items)
+
+		// Oldest first: InsertItem always inserts at the TOP of the group, so
+		// replaying the group backwards reproduces the order it had.
+		for i := len(m.Items) - 1; i >= 0; i-- {
+			it := m.Items[i]
+			if tgt.ids[it.ID] {
+				// The archive already holds this ID: a previous run was
+				// interrupted between the two writes. Do not write a second
+				// copy — removing the done.md line is what completes the move.
+				duplicates++
+				continue
+			}
+			tgt.ids[it.ID] = true
+			line := RenderItemLine(it)
+			tgt.file.InsertItem(tgt.edit, m.Month, it)
+			t.record(Change{Kind: ChangeMoved, ID: it.ID, File: tgt.name,
+				Before: line, After: line})
+		}
+	}
+
+	res.DetailOrphans = t.acceptArchiveOrphans(moving)
+
+	// Archives first, done.md second (§7 rule 4): the copy exists before the
+	// original goes away.
+	for _, y := range years {
+		tgt := targets[y]
+		touchUpdated(tgt.edit, today)
+		if !tgt.edit.Dirty() {
+			continue // every item in the group was already archived
+		}
+		t.ws.Add(filepath.Join(s.path, tgt.name), tgt.edit.Bytes(), tgt.stamp)
+		res.Files = append(res.Files, tgt.name)
+	}
+	t.stage("done.md")
+
+	res.Warnings = archiveWarnings(res, duplicates)
+
+	txr, err := t.commit(req.DryRun)
+	if err != nil {
+		return zero, txr, err
+	}
+	return res, txr, nil
+}
+
+// archiveWarnings states the cost of the run. §5.3 makes the ID-pool warning
+// mandatory; the other two exist because a caller cannot see either condition
+// from the change set alone.
+func archiveWarnings(res ArchiveResult, duplicates int) []string {
+	if res.Items == 0 {
+		return nil
+	}
+	var out []string
+	out = append(out, fmt.Sprintf(
+		"%s left the ID pool: an archive is outside the format spec and is not "+
+			"validated, so I1 and I2 no longer see them (spec-file-format.md §10.5), "+
+			"and a report over an archived period needs IncludeArchives to find them",
+		plural(res.Items, "archived item", "archived items")))
+	if n := len(res.DetailOrphans); n > 0 {
+		out = append(out, fmt.Sprintf(
+			"%s no longer referenced by any item and reported by I9 until deleted "+
+				"or the item is restored: %s",
+			plural(n, "detail file is", "detail files are"),
+			strings.Join(res.DetailOrphans, ", ")))
+	}
+	if duplicates > 0 {
+		out = append(out, fmt.Sprintf(
+			"%s already present in the archive and not written twice; a previous "+
+				"run was interrupted between its two writes",
+			plural(duplicates, "item was", "items were")))
+	}
+	return out
+}
+
+// acceptArchiveOrphans finds the detail files the move strands, whitelists the
+// I9 finding for each so the write is not blocked, and returns them.
+//
+// Whitelisting is what makes the violation DELIBERATE rather than accidental:
+// the transaction refuses anything it introduced that was not already wrong
+// (tx.commit), so a finding that is meant to happen has to be added to the
+// baseline — and then reported, because §5.1.6 forbids leaving an invalid
+// directory silently.
+func (t *tx) acceptArchiveOrphans(moving []*monthSpan) []string {
+	leaving := map[*Item]bool{}
+	for _, m := range moving {
+		for _, it := range m.Items {
+			leaving[it] = true
+		}
+	}
+	// A detail file two items claim is a violation already; when one of them
+	// leaves, the survivor still claims the file and it is not an orphan.
+	claimed := map[string]bool{}
+	for _, it := range t.model.items() {
+		if !leaving[it] && it.Detail != "" {
+			claimed[it.Detail] = true
+		}
+	}
+
+	var out []string
+	seen := map[string]bool{}
+	for _, m := range moving {
+		for _, it := range m.Items {
+			path := it.Detail
+			if path == "" || claimed[path] || seen[path] {
+				continue
+			}
+			if _, exists := t.model.details[path]; !exists {
+				continue // a detail: that resolves to nothing is I8's finding
+			}
+			seen[path] = true
+			out = append(out, path)
+			t.baseline[violationKey(Violation{
+				Invariant: "I9", At: Location{File: path},
+				Message: "orphan — no item references it",
+			})] = struct{}{}
+		}
+	}
+	return out
+}
+
+// archiveTarget is one done-YYYY.md being written.
+type archiveTarget struct {
+	name  string
+	file  *doneFile
+	edit  *fileEdit
+	stamp stamp
+	ids   map[ID]bool // what the archive already held
+}
+
+// openArchive parses an existing done-YYYY.md, or seeds a fresh one.
+//
+// An archive is NOT part of the directory model: load() deliberately does not
+// read it, because nothing validates it and a --check that walked the archives
+// would contradict §10.5. So it is read here, and staged with the stamp it was
+// read under — the same concurrent-modification check every other file gets
+// (§7 rule 5).
+func (s *Store) openArchive(year int, g IDGrammar, today Date) (*archiveTarget, error) {
+	name := fmt.Sprintf("done-%04d.md", year)
+	path := filepath.Join(s.path, name)
+
+	// Stamp before reading, never after: a write that lands in between then
+	// makes the stamp too old and the commit fails loudly, where the other
+	// order would silently overwrite it.
+	st := stampOf(path)
+	data, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+	case errors.Is(err, os.ErrNotExist):
+		// A fresh archive is seeded with the shape done.md has and then parsed
+		// back, so one insertion path serves both cases.
+		data = []byte(renderArchive(year, today))
+		st = stamp{missing: true}
+	default:
+		return nil, fmt.Errorf("%w: reading %s: %v", ErrIO, name, err)
+	}
+
+	// Parse violations are discarded on purpose. An archive is unvalidated
+	// (§10.5); reporting findings from a file --check will never look at would
+	// invent a rule the format does not have.
+	f, _ := parseDoneG(name, data, g)
+	tgt := &archiveTarget{name: name, file: f, edit: f.Edit(), stamp: st, ids: map[ID]bool{}}
+	for _, it := range f.Items {
+		tgt.ids[it.ID] = true
+	}
+	return tgt, nil
+}
+
+// renderArchive is the seed for a new done-YYYY.md.
+//
+// It is deliberately the shape of done.md: a person opening an archive finds
+// the file they already know how to read, and the same parser can read it back.
+// The prose says what the format spec says, because the file itself is the only
+// place a reader will look.
+func renderArchive(year int, today Date) string {
+	fm := NewFrontmatter()
+	fm.Set("doc", "done")
+	fm.Set("version", "1")
+	fm.Set("updated", today.String())
+	return fm.Render() + "\n# Done " + strconv.Itoa(year) + `
+
+Closed items rolled out of done.md, newest month first. This file is outside
+the format spec and is not validated: its items have left the ID pool, so I1
+and I2 no longer cover them (spec-file-format.md §5.3, §10.5).
+`
+}
+
+// groupEnd returns the line one past the last line of a month group.
+func groupEnd(d *doneFile, e *fileEdit, m *monthSpan) int {
+	for _, other := range d.Months {
+		if other.HeadLine > m.HeadLine {
+			return other.HeadLine
+		}
+	}
+	// The last group runs to the end of the file. splitLines gives a file that
+	// ends in a newline a final EMPTY element, and that element IS the
+	// newline: including it in the range would strip the file's last newline.
+	if n := len(e.lines); n > 0 && e.lines[n-1] == "" {
+		return n
+	}
+	return len(e.lines) + 1
+}
+
+// dropTrailingBlank removes a blank line left at the end of the file by a group
+// that used to follow it.
+//
+// Removing a group leaves the blank that separated it from the group above,
+// which is correct in the middle of the file and untidy at the end of it. This
+// is the same collapse fileEdit.RemoveItem does for a single line.
+func dropTrailingBlank(e *fileEdit) {
+	for n := len(e.lines); n >= 2 && e.lines[n-1] == "" && e.lines[n-2] == ""; n-- {
+		e.DeleteLine(n - 1)
+	}
+}
+
+// yearOfMonth reads the year of a YYYY-MM heading.
+func yearOfMonth(month string) (int, error) {
+	if !isMonth(month) {
+		return 0, fmt.Errorf("%w: %q is not a month heading (YYYY-MM)", ErrInvalidArgument, month)
+	}
+	year, err := strconv.Atoi(month[:4])
+	if err != nil {
+		return 0, fmt.Errorf("%w: %q has no year", ErrInvalidArgument, month)
+	}
+	return year, nil
+}
+
+// plural renders "1 item" and "2 items" without the caller composing it.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return strconv.Itoa(n) + " " + many
+}

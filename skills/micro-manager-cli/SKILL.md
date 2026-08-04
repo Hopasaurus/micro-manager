@@ -65,6 +65,7 @@ positional word: `mm --add "…"`, not `mm add "…"`.
 | `mm --wip N` | set the WIP limit by adding/removing slot files — the file count *is* the limit |
 | `mm --check [--all]` | validate against the ten invariants |
 | `mm --fix` | repair duplicate IDs left by a git merge |
+| `mm --archive [--before YYYY-MM \| --age DAYS]` | roll old month groups out of `done.md` into `done-YYYY.md` |
 
 Run `mm --help` for the full list and `mm --help --OPERATION` for one
 operation's exact switches — trust that over anything paraphrased here.
@@ -105,6 +106,13 @@ Notes worth internalizing:
   including ones `mm` itself doesn't parse. Unregistered fields are the
   format's extension point and must never be dropped — `mm` already handles
   this; don't hand-edit around it.
+- **`--archive` moves data out of the checked set.** Archived months live in
+  `done-YYYY.md`, which nothing validates: their IDs leave the pool, and a
+  `--report` over an archived period needs `--include-archives` to find
+  anything. It warns about both on every run, even under `--quiet`, and today
+  it also leaves each archived item's detail file behind in `details/` where
+  `--check` will report it. Dry-run it first, and don't reach for it until
+  `done.md` is genuinely unwieldy.
 
 ## Scripting against it
 

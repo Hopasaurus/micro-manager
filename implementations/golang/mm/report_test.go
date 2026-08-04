@@ -2,6 +2,8 @@ package mm
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -243,5 +245,101 @@ func TestReportWarnsAboutArchivedPeriods(t *testing.T) {
 	rep, _ = s.Report(p, ReportOptions{})
 	if len(rep.Warnings) != 0 {
 		t.Errorf("unexpected warning: %v", rep.Warnings)
+	}
+}
+
+// IncludeArchives is the other half of Archive: work that has been rolled out of
+// done.md is unreachable without it (spec-tools.md §5.1.11).
+func TestReportIncludeArchives(t *testing.T) {
+	s := reportDir(t)
+	archive := "---\ndoc: done\nversion: 1\n---\n\n# Done 2025\n\n## 2025-12\n\n" +
+		"- [x] [T-0002] Ancient history | tags:library | created:2025-11-01 | done:2025-12-24 | outcome:shipped\n"
+	if err := os.WriteFile(filepath.Join(s.Path(), "done-2025.md"), []byte(archive), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := ParsePeriod("2025-12", Date{2026, 7, 29})
+
+	// Without the option the period reads as a month in which nothing was
+	// closed, which is exactly what the warning exists to explain.
+	rep, err := s.Report(p, ReportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Done) != 0 {
+		t.Errorf("archives must not be read unless asked for: %v", reportIDs(rep.Done))
+	}
+	if len(rep.Warnings) != 1 {
+		t.Errorf("want the archived-period warning, got %v", rep.Warnings)
+	}
+
+	// With it, the archived month is found and there is nothing left to warn
+	// about: the report is no longer incomplete.
+	rep, err = s.Report(p, ReportOptions{IncludeArchives: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reportIDs(rep.Done); len(got) != 1 || got[0] != "T-0002" {
+		t.Errorf("done = %v, want the archived item", got)
+	}
+	if len(rep.Warnings) != 0 {
+		t.Errorf("nothing is hidden any more, so nothing should be warned about: %v", rep.Warnings)
+	}
+
+	// The archive does not leak into a period it does not belong to, and
+	// done.md's own items still arrive newest first alongside it.
+	all, _ := ParsePeriod("all", Date{2026, 7, 29})
+	rep, _ = s.Report(all, ReportOptions{IncludeArchives: true})
+	got := reportIDs(rep.Done)
+	if len(got) != 7 || got[0] != "T-0008" || got[len(got)-1] != "T-0002" {
+		t.Errorf("done = %v, want every item newest first with the archive last", got)
+	}
+}
+
+// A directory with no archives must behave as if the option were not given: the
+// warning is still the truth about a period done.md cannot cover.
+func TestReportIncludeArchivesWithNoArchives(t *testing.T) {
+	s := reportDir(t)
+	p, _ := ParsePeriod("2026-03", Date{2026, 7, 29})
+
+	rep, err := s.Report(p, ReportOptions{IncludeArchives: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Done) != 0 {
+		t.Errorf("done = %v", reportIDs(rep.Done))
+	}
+	if len(rep.Warnings) != 1 {
+		t.Errorf("want the warning, got %v", rep.Warnings)
+	}
+}
+
+// The two halves meeting: what Archive wrote, a report reads back.
+func TestReportReadsBackWhatArchiveWrote(t *testing.T) {
+	_, s := archiveDir(t)
+	p, _ := ParsePeriod("2025-12", today)
+
+	before, err := s.Report(p, ReportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reportIDs(before.Done); len(got) != 1 || got[0] != "T-0007" {
+		t.Fatalf("the fixture should hold the December item before archiving: %v", got)
+	}
+
+	if _, _, err := s.Archive(ArchiveRequest{Before: Date{2026, 1, 1}}, today); err != nil {
+		t.Fatal(err)
+	}
+
+	after, err := s.Report(p, ReportOptions{IncludeArchives: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reportIDs(after.Done); len(got) != 1 || got[0] != "T-0007" {
+		t.Errorf("done = %v, want the same item the report found before archiving", got)
+	}
+	// Byte-identical, unregistered field included: the archive is a move, not a
+	// re-rendering.
+	if got, want := RenderItemLine(&after.Done[0]), RenderItemLine(&before.Done[0]); got != want {
+		t.Errorf("the item changed on the way through the archive:\n got %s\nwant %s", got, want)
 	}
 }

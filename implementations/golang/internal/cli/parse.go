@@ -48,6 +48,7 @@ const (
 	OpNext    Op = "next"
 	OpSearch  Op = "search"
 	OpFix     Op = "fix"
+	OpArchive Op = "archive"
 )
 
 // takesValue reports whether an operation switch consumes the argument after it
@@ -70,6 +71,10 @@ var operations = map[string]Op{
 	"block": OpBlock, "unblock": OpUnblock, "note": OpNote,
 	"status": OpStatus, "next": OpNext, "search": OpSearch,
 	"fix": OpFix,
+	// §5.3, optional. --archive takes no subject: its cutoff is a modifier,
+	// because there are two spellings of it and neither is the thing being
+	// archived.
+	"archive": OpArchive,
 }
 
 // Invocation is one parsed command line.
@@ -129,6 +134,7 @@ var valueModifiers = map[string]bool{
 	"period": true, "week": true, "since": true, "until": true,
 	"group-by": true, "state": true, "limit": true,
 	"reason": true, "closing-note": true,
+	"age": true,
 }
 
 // modifiers that accumulate rather than replace.

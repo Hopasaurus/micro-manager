@@ -118,10 +118,10 @@ func clamp01(v float64) float64 {
 // are the classic terminal traffic colours, so a generated palette reads the
 // way the built-in does: blocked red, working yellow, done green, ready blue.
 const (
-	hueBlocked = 0    // red
-	hueWorking = 55   // yellow
-	hueDone    = 120  // green
-	hueReady   = 240  // blue
+	hueBlocked = 0   // red
+	hueWorking = 55  // yellow
+	hueDone    = 120 // green
+	hueReady   = 240 // blue
 )
 
 // HarmonizedPalette derives the complete color.* token set from a base

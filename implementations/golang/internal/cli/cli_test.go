@@ -313,6 +313,41 @@ func TestReportPeriodPrecedence(t *testing.T) {
 	}
 }
 
+// --include-archives was a usage error until the library could read a
+// done-YYYY.md (T-0043). The switch now reaches the option, and the report's
+// "this period has been archived" warning goes quiet once it does.
+func TestReportIncludeArchives(t *testing.T) {
+	r, dir := newProject(t)
+
+	archive := "---\ndoc: done\nversion: 1\n---\n\n# Done 2025\n\n## 2025-12\n\n" +
+		"- [x] [T-0001] Ancient history | created:2025-11-01 | done:2025-12-24 | outcome:shipped\n"
+	if err := os.WriteFile(filepath.Join(dir, "done-2025.md"), []byte(archive), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := r.run("--report", "--period", "2025-12")
+	if got.Code != ExitOK {
+		t.Fatalf("report failed: %s", got)
+	}
+	if strings.Contains(got.Stdout, "T-0001") {
+		t.Errorf("the archive must not be read unless asked for:\n%s", got.Stdout)
+	}
+
+	got = r.run("--report", "--period", "2025-12", "--include-archives")
+	if got.Code != ExitOK {
+		t.Fatalf("--include-archives should be accepted now: %s", got)
+	}
+	if !strings.Contains(got.Stdout, "T-0001") {
+		t.Errorf("the archived item should be in the report:\n%s", got.Stdout)
+	}
+
+	// And through the machine modes, where a caller reads fields rather than prose.
+	got = r.run("--report", "--period", "2025-12", "--include-archives", "--porcelain")
+	if got.Code != ExitOK || !strings.Contains(got.Stdout, "T-0001") {
+		t.Errorf("porcelain report: %s", got)
+	}
+}
+
 func TestHelpAndVersion(t *testing.T) {
 	r := runner{cwd: t.TempDir()}
 
