@@ -632,7 +632,9 @@ Content:
 - `--include-archives` also reads `done-YYYY.md` files. Without it, a report
   covering an archived period silently returns nothing, so the tool MUST warn
   when the requested period predates the oldest month group present in
-  `done.md`.
+  `done.md`. An archived item's detail file is found through its own `detail`
+  field, which names `details-YYYY/` (format spec §5.6); a reader MUST follow
+  the field rather than assume `details/`.
 - `--all` reports across every discovered directory, grouped by `project`.
 
 An item's detail file is not inlined; the report SHOULD reference it.
@@ -680,11 +682,52 @@ MAY be provided.
 
 | Switch | Behavior |
 |---|---|
-| `--archive [--before YYYY-MM]` | Move old month groups from `done.md` to `done-YYYY.md`. MUST warn that archived items leave the ID pool and stop being covered by I1/I2 (format spec §10.5). |
+| `--archive [--before YYYY-MM \| --age DAYS]` | Move old month groups from `done.md` to `done-YYYY.md`, and their detail files to `details-YYYY/` (format spec §5.6). MUST warn that archived items leave the ID pool and stop being covered by I1/I2 (format spec §10.5). |
 | `--migrate` | Bring a directory to the current format version: rename `working.md` → `working.01.md`, add a missing `project`, normalize `tags` from a YAML flow sequence to a `TAGLIST`. MUST be dry-runnable and MUST report every change. |
 | `--stats [--since DATE]` | Throughput, cycle time from `started` to `done`, WIP over time, tag distribution. |
 | `--export [--format json\|csv]` | Whole-directory dump for external tooling. |
 | `--top-up` | Interactive triage over `## Someday`, promoting items to `## Ready`. |
+
+#### 5.3.1 `--archive` in detail
+
+The only optional operation that moves data out of the validated set, so what
+it does is normative even though providing it is not.
+
+**The cutoff is month-granular**, because a month group is the finest grain
+`done.md` records (format spec §5.3). Two ways to express it, mutually
+exclusive:
+
+- `--before YYYY-MM` archives every group older than that month; the named
+  month stays. A day component, if one is given, is ignored rather than
+  refused. Absent both switches, the cutoff is the current month, so a bare
+  `--archive` rolls up everything before the month the board is living in.
+- `--age DAYS` states the same cutoff as a policy: a month group is archived
+  once `DAYS` days have passed since its last day. `--age 0` archives every
+  group whose month is complete; `--age 30` keeps each month for a further
+  thirty days. This is the form a scheduled run uses, because it does not have
+  to be edited every month.
+
+**Detail files move with their items** and the archived `detail` fields are
+rewritten to `details-YYYY/<ID>.md` (format spec §5.6 rule 3). An
+implementation that moves one without the other is not conforming: leaving the
+file in `details/` strands it as an I9 orphan in a directory that was clean,
+and rewriting the field without moving the file writes an archive that points
+at nothing. The write ordering of §7 rule 4 covers both halves — the archive
+file and `details-YYYY/` are written before `done.md` and `details/` give
+anything up, so an interruption leaves a duplicate to re-run over rather than a
+hole.
+
+**`next_id` is not touched** (format spec §5.6 rule 5), and neither is any
+archive that already exists beyond the group being merged into it.
+
+**Nothing archives on its own initiative.** A tool MAY run this on a schedule,
+but only from configuration that names the policy — the `DAYS` of `--age` —
+and MUST report what it moved. The default everywhere is manual: an operation
+whose effect is that the checker stops seeing part of the record is not one to
+perform quietly.
+
+Errors: `InvalidArgument` (a month component outside `01`–`12`, `DAYS` below
+zero, or both switches given at once).
 
 ## 6. Library API
 
@@ -976,7 +1019,7 @@ mm --check --all
 | `--pause` | working file, `backlog.md`, `details/` | **I1**, I4, I5 |
 | `--finish` | working file, `done.md`, `details/` | **I1**, I3, I4, I6 |
 | `--wip` | working files | **I10** |
-| `--archive` | `done.md`, `done-YYYY.md` | I1, I2 (items leave the pool) |
+| `--archive` | `done.md`, `done-YYYY.md`, `details/`, `details-YYYY/` | I1, I2 (items leave the pool); **I9 (a detail file left behind in `details/`)** |
 | `--report`, `--list`, `--show`, `--check` | nothing | — |
 
 Bold entries are the ones where a partial write loses data rather than producing

@@ -33,9 +33,14 @@ A **micro-manager directory** contains:
 | `details/<ID>.md` | no | §5.4 |
 | `details/_*.md` | no | §5.4.1 |
 | `structure.md` | no | §5.5 |
+| `done-YYYY.md` | no | §5.6 |
+| `details-YYYY/<ID>.md` | no | §5.6 |
 
 Directory naming is specified in Appendix B. Any other file in the directory is
 outside this specification and MUST be ignored by conforming readers.
+
+The two archive entries are specified but **not validated**: §5.6 says what
+they hold and how they are written, and no invariant of §7 reads them.
 
 ## 2. Terminology
 
@@ -464,9 +469,9 @@ Every item line in this file MUST:
 
 Cancelled and obsolete work is recorded here, not deleted (§7, note under I1).
 
-When the file grows unwieldy, trailing years MAY be moved to `done-YYYY.md` in
-the same directory. Those files are outside this specification and are not
-validated.
+When the file grows unwieldy, trailing month groups MAY be archived to
+`done-YYYY.md` in the same directory, together with the detail files of the
+items in them. §5.6 defines the layout and what it costs.
 
 ### 5.4 `details/<ID>.md`
 
@@ -495,6 +500,11 @@ A detail file's lifetime is independent of its item's location: the item line
 moves between `backlog.md`, a working file, and `done.md` while the detail file
 stays at a fixed path. Detail files are never deleted on completion.
 
+The one path out of `details/` is archiving. When an item's month group leaves
+`done.md`, its detail file leaves with it, to `details-YYYY/` (§5.6) — moved,
+not deleted, and still readable by anything that follows the archived item's
+own `detail` field.
+
 #### 5.4.1 Template files
 
 A file in `details/` whose name begins with `_` is a template. Templates are
@@ -505,6 +515,71 @@ conventional.
 
 Human documentation. Not validated, not parsed, no required format. Its presence
 is optional; its absence changes nothing for a reader.
+
+### 5.6 Archives: `done-YYYY.md` and `details-YYYY/`
+
+`done.md` is the file nothing ever leaves. Every finish, cancellation and
+abandonment lands there and stays, which is the point (§7, I1) and also means
+the file only grows. A directory MAY therefore **archive** completed months:
+whole month groups move out of `done.md` into `done-YYYY.md`, and the detail
+files of the items in them move out of `details/` into `details-YYYY/`, both in
+the same directory.
+
+```
+micro-manager/
+  done.md          2026-08, 2026-07 …   the live record
+  done-2025.md     2025-12 … 2025-01    archived month groups
+  details/         T-0198.md …          detail files of live items
+  details-2025/    T-0007.md …          detail files of archived items
+```
+
+`YYYY` is four ASCII digits and is taken from the month heading being moved,
+never from today's date: the group `2025-03` goes to `done-2025.md` and its
+detail files to `details-2025/`, whenever the archive is run.
+
+1. **An archive file has `done.md`'s schema** (§5.3): the same frontmatter with
+   `doc: done`, month groups newest first, closed item lines carrying `done`
+   and `outcome`. A person opening one finds the file they already know how to
+   read, and one parser serves both.
+
+2. **Archives are not validated.** `done-YYYY.md` and `details-YYYY/` are
+   outside I1–I10 (§7). A checker MUST NOT read them, and specifically MUST NOT
+   report a file in `details-YYYY/` as an I9 orphan or an archived `detail`
+   value as an I8 violation. This costs no new checker code, and that is not an
+   accident: I8 and I9 name `details/` exactly, so `details-2025/` is already
+   invisible to a checker that reads the spec literally.
+
+3. **A detail file travels with its item, and its `detail` field is rewritten.**
+   An archived item carrying `detail:details/<ID>.md` MUST end up with the file
+   at `details-YYYY/<ID>.md` and the archived line reading
+   `detail:details-YYYY/<ID>.md`, in the same operation. Half a move — a line
+   in `done-2025.md` pointing into `details/` where the file no longer is, or a
+   file in `details-2025/` that no line names — is a broken archive, and by
+   rule 2 nothing will tell you.
+
+   Moving the file is what keeps the *live* directory clean: leaving it in
+   `details/` when its item is gone from `done.md` is an I9 orphan, reported
+   for as long as the archive exists.
+
+4. **Restoring is the same move backwards, and fails loudly.** Pasting a group
+   back into `done.md` MUST be accompanied by moving each
+   `details-YYYY/<ID>.md` back to `details/<ID>.md` and rewriting `detail`.
+   Doing only half of it is caught, because the restored line is validated
+   again: I8 reports a `detail` that is not `details/<ID>.md`, or one that is
+   and names a file that is not there. Archiving is reversible by hand; it is
+   not reversible by *half* a hand, and that is the cost rule 3 buys with.
+
+5. **Archiving never recycles an ID.** An archive MUST NOT change `next_id`.
+   Archived IDs are retired exactly as I2 requires, and a tool that derives
+   `next_id` from what it can see MUST read the archives too — otherwise it
+   hands out an ID that a `done-YYYY.md` already holds, and by rule 2 no
+   checker will ever notice (§10.5).
+
+6. **Archiving is a policy, not a schedule the format sets.** The format says
+   what an archive looks like and nothing about when to make one. Cutoffs and
+   automation belong to a tool (`spec-tools.md` §5.3), which MUST NOT archive
+   without being asked: the operation moves data out of the checked set, and
+   that is not something to discover after the fact.
 
 ## 6. Field registry
 
@@ -522,7 +597,7 @@ accept it, and a writer moving an item between files MUST preserve it verbatim
 | `done` | `DATE` | **yes** in `done.md` | done | |
 | `outcome` | `shipped` / `cancelled` / `obsolete` | **yes** in `done.md` | done | |
 | `blocked` | free text, no `|` | **yes** in `## Blocked` | backlog | Forbidden in `## Ready` and `## Someday`. |
-| `detail` | `DETAILPATH` | no | all | MUST equal `details/<this item's ID>.md`. |
+| `detail` | `DETAILPATH` | no | all | MUST equal `details/<this item's ID>.md`. In an archived file it is `details-YYYY/<ID>.md` instead (§5.6); archived files are not validated. |
 
 `refs` names items in *other* directories — each element is a target board's
 `board` slug (§5.1), a colon, and the target item's ID. The ID half uses the
@@ -579,6 +654,8 @@ ten; the identifiers match the numbering in `structure.md`.
 - **I9 — Detail files are claimed exactly once.** Every file in `details/` not
   beginning with `_` is referenced by exactly one item, and its frontmatter `id`
   and `title` match that item's ID and title exactly.
+  I8 and I9 name the live files and only those: `done-YYYY.md` is not read and
+  `details-YYYY/` is not `details/`, so an archive is outside both (§5.6).
 - **I10 — The working file set is well formed.** At least one working file
   exists; slot numbers are the contiguous sequence 1..N; every slot number uses
   the same digit width; no file is named `working.md` (§5.2.1).
@@ -655,8 +732,16 @@ without a spec revision.
 4. **Ordering is a convention, not a constraint.** Nothing verifies that
    `## Ready` is in priority order, that month groups in `done.md` descend, or
    that items within a group descend.
-5. **`done-YYYY.md` archives are unvalidated.** Once a month group is moved out
-   of `done.md`, its items leave the ID pool, and I1 and I2 no longer see them.
+5. **Archives are unvalidated, and archived IDs leave the pool.** Once a month
+   group is moved out of `done.md` (§5.6), its items are invisible to the
+   checker: I1 no longer notices an ID that exists both in the archive and in
+   `backlog.md`, and I2 no longer counts one against `next_id`. Their detail
+   files do not become I9 orphans, because §5.6 moves them to `details-YYYY/`
+   and out of I8 and I9's reach — but that is the same invisibility, not an
+   exemption from it: nothing checks that an archived line and its archived
+   detail file still agree, or that the file is there at all. Archiving trades
+   checking for size, and the trade stays safe only while `next_id` keeps
+   rising (I2, §5.6 rule 5), the one rule that still spans both halves.
 6. **A subtask cannot be validated.** Because `- [` lines in a working file are
    unstructured by design (§5.2), a malformed one is indistinguishable from
    prose.
@@ -702,6 +787,9 @@ SLUG            ^[a-z][a-z0-9-]{0,15}$
 LINKLIST        ^[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15}(,[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15})*$
 DETAILPATH      ^details/T-[0-9]{4}\.md$
 working file    ^working\.[0-9]+\.md$        (uniform width per directory)
+archive file    ^done-[0-9]{4}\.md$          (informative; never validated)
+archive detail  ^details-[0-9]{4}/T-[0-9]{4}\.md$
+                                             (informative; never validated)
 prio            ^(high|med|low)$
 outcome         ^(shipped|cancelled|obsolete)$
 frontmatter end ^---$
@@ -718,6 +806,10 @@ prefix for `T` and the declared width for `4` — `ID` becomes `^P-[0-9]{W}$`
 with the declared `P` (one to four letters) and `W` (one to fifteen digits),
 and the same substitution applies to the item
 line, item capture, and `DETAILPATH` patterns.
+
+The last two patterns are given for readers that follow an archived item into
+`done-YYYY.md` (§5.6). They are informative: no checker matches them, because
+no checker reads those files.
 
 The width bound is the reference checker's arithmetic. check.sh runs on mawk's
 double, which is exact for every integer of up to 15 digits

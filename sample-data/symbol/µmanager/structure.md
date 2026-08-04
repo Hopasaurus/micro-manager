@@ -242,7 +242,11 @@ title or a `why:` field. The record of what you decided not to do is worth as
 much as the record of what you shipped.
 
 When the file gets unwieldy, cut trailing months into `done-YYYY.md` in the same
-directory and leave the current year here.
+directory and leave the current year here. Take their detail files with them,
+into `details-YYYY/`, and rewrite the archived `detail:` fields to match — a
+detail file left in `details/` after its item is gone from `done.md` is an
+orphan the checker will report from then on. Archives are not validated, so
+neither half is checked once it has left; restoring is the same move backwards.
 
 ## Operations
 

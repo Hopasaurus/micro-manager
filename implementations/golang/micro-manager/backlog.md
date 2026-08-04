@@ -2,7 +2,7 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0168
+next_id: T-0169
 updated: 2026-08-04
 ---
 
@@ -24,8 +24,8 @@ thing that can be started.
 
 - [ ] [T-0044] Implement migrate for older directory layouts | prio:low | tags:library,ops | created:2026-07-29
 - [ ] [T-0045] Implement stats: throughput, cycle time, WIP over time | prio:low | tags:library,report | created:2026-07-29
-- [ ] [T-0166] Spec: say what coverage archiving costs — a stranded detail file breaks I9, and §10.5 names only I1/I2 | prio:med | tags:format,spec | detail:details/T-0166.md | created:2026-08-04
 - [ ] [T-0167] CLI: wire the optional operations from spec-tools.md §5.3, starting with --archive [--before YYYY-MM] | prio:low | tags:cli | created:2026-08-04
+- [ ] [T-0168] Library: archive MUST move detail files into details-YYYY/, not strand them (spec-file-format.md §5.6) | prio:med | tags:library,ops | detail:details/T-0168.md | created:2026-08-04
 
 ## Blocked
 
