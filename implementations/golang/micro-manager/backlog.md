@@ -2,7 +2,7 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0163
+next_id: T-0164
 updated: 2026-08-04
 ---
 
@@ -22,6 +22,7 @@ thing that can be started.
 
 ## Ready
 
+- [ ] [T-0163] gofmt the five drifting files in mm/ and guard against drift | prio:low | tags:setup | detail:details/T-0163.md | created:2026-08-04
 - [ ] [T-0043] Implement archive for rolling months into done-YYYY.md | prio:low | tags:library,ops | created:2026-07-29
 - [ ] [T-0044] Implement migrate for older directory layouts | prio:low | tags:library,ops | created:2026-07-29
 - [ ] [T-0045] Implement stats: throughput, cycle time, WIP over time | prio:low | tags:library,report | created:2026-07-29
