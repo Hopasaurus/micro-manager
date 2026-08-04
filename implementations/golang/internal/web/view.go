@@ -8,7 +8,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // The view models the templates render from (spec-gui.md §5).

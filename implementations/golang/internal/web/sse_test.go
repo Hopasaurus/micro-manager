@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // SSE tests (project/architecture.md §7).

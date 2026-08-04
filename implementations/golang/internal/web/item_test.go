@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // form posts an urlencoded body, which is what every form and every htmx

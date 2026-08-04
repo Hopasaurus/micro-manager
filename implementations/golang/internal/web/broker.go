@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"micromanager/internal/web/api"
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/internal/web/api"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // The SSE broker (project/architecture.md §4.5).

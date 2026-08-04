@@ -6,7 +6,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // The event stream (spec-gui.md §2.3, project/architecture.md §4.5).

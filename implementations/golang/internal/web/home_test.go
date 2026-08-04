@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // §5.4 fixes Home's testids, and empty lists MUST render the container with

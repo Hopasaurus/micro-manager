@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // T-0071: --status, --next and --search (spec-tools.md §5.2).

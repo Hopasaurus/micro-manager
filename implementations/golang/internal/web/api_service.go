@@ -3,8 +3,8 @@ package web
 import (
 	"time"
 
-	"micromanager/internal/web/api"
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/internal/web/api"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // The JSON API's view of the web server (internal/web/api.Service).

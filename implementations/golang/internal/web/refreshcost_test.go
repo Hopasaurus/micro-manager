@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // Refresh-cost measurement (T-0131), the gate between Phase 1 and Phase 2 of

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // --check (spec-tools.md §5.1.12).

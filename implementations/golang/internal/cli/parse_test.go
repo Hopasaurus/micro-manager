@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 func mustParse(t *testing.T, args ...string) *Invocation {

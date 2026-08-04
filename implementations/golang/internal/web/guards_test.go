@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // spec-gui.md §9.6 rules 2 and 3. The service has unauthenticated read and write

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // The app shell of spec-gui.md §5.2 is present on EVERY route, so the error

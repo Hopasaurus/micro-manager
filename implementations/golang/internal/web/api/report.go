@@ -3,7 +3,7 @@ package api
 import (
 	"github.com/labstack/echo/v5"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // Reports, validation and WIP (spec-tools.md §5.1.11, §5.1.12, §5.2).

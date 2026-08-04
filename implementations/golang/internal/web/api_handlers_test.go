@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // Integration tests for the JSON API of §4.2, driven through the same harness

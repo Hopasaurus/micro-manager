@@ -29,7 +29,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // writeRefsBoard writes a minimal valid board at root/<sub>/micro-manager:

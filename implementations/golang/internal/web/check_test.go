@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // §5.8 fixes these testids, and data-invariant MUST carry the I1-I10 identifier

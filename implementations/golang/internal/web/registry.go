@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // The project registry (spec-gui.md §3.1, §5.3, §9.5, §10).

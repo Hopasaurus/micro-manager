@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // Directory resolution (spec-tools.md §4).

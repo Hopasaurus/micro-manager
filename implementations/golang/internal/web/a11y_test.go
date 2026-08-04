@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // Accessibility (spec-gui.md §11). Most of the section is structure that a

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // Human output (spec-tools.md §9.1).

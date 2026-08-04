@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // The --json envelope (spec-tools.md §9.2).

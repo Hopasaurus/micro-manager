@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 var testDay = mm.Date{Year: 2026, Month: 7, Day: 30}

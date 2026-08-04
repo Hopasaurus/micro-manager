@@ -10,8 +10,8 @@ import (
 	"os"
 	"time"
 
-	"micromanager/internal/cli"
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/internal/cli"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // isTerminal reports whether a file is a character device, which is the cheap

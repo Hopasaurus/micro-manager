@@ -1,7 +1,7 @@
 package web
 
 import (
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // Cross-board refs (plan-board-links.md, T-0127).

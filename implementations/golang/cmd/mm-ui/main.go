@@ -19,8 +19,8 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"micromanager/internal/web"
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/internal/web"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 const usage = `mm-ui — the micro-manager web interface

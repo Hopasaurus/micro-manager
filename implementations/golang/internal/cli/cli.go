@@ -11,7 +11,7 @@ import (
 	"io"
 	"strings"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // Exit codes, from spec-tools.md §10.

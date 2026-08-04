@@ -7,7 +7,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // Items: the §5.1 operations of spec-tools.md, over HTTP (spec-gui.md §4.2).

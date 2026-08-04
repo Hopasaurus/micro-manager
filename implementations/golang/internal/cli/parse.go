@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // The switch parser (spec-tools.md §3).

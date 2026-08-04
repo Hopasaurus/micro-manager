@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // reportServer pins the clock, because every period this view resolves is

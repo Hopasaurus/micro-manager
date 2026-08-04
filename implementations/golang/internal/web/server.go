@@ -24,7 +24,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // DefaultPort is spec-gui.md §9.6 rule 1. A user who bookmarks :7717 should find

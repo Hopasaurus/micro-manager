@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // newTestRegistry builds a registry over copies of the named fixtures under one

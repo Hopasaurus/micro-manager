@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // --porcelain (spec-tools.md §9.3).

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // boardServer opens one fixture and returns the server plus its project id.

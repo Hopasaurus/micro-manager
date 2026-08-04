@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // Error to exit code mapping (spec-tools.md §10).

@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // grammarServer opens the non-default fixture and returns the server plus its

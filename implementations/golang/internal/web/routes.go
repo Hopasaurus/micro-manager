@@ -5,7 +5,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"micromanager/internal/web/api"
+	"github.com/Hopasaurus/micro-manager/internal/web/api"
 )
 
 // The route table (spec-gui.md §4).

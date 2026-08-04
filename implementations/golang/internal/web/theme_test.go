@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromanager/mm"
+	"github.com/Hopasaurus/micro-manager/mm"
 )
 
 // §8 / T-0064 / T-0137 Theme view tests.
