@@ -335,9 +335,14 @@ func BenchmarkBrokerFingerprintPoll(b *testing.B) {
 	}
 }
 
-// TestIdleFetchBudget records the arithmetic the go/no-go rests on, so the
-// numbers in research-app-fllicker.md §8 have a source that fails loudly if
-// the trigger wiring changes underneath them.
+// TestIdleFetchBudget records the arithmetic the T-0131 go/no-go rests on, so
+// the numbers in research-app-fllicker.md §8 have a source that fails loudly
+// if the trigger wiring changes underneath them.
+//
+// T-0139 (D2) changed that wiring deliberately: the unconditional `every 30s`
+// clause is gone, so a healthy stream costs ZERO idle fetches. The backstop is
+// now mm.js's SSE-down interval, which exists only while the stream is down
+// and stops again on reconnect.
 func TestIdleFetchBudget(t *testing.T) {
 	dir := bigDoneFixture(t, t.TempDir(), 12, 40)
 	ts := serverOver(t, dir, nil)
@@ -345,32 +350,33 @@ func TestIdleFetchBudget(t *testing.T) {
 
 	board := ts.get("/p/" + id + "/board").expectStatus(200).Body
 
-	// Every region that carries an unconditional `every 30s` costs 120
-	// fetches/hour per open tab, forever, whether or not anything changed.
-	const backstop = 30 * time.Second
-	perHour := int(time.Hour / backstop)
-
-	regions := 0
+	// D2: no region carries an unconditional htmx `every` clause. Idle traffic
+	// on a healthy stream is zero; the budget line for the stream-down case is
+	// the mm.js interval, and the regions it polls are exactly these triggers.
 	for _, trigger := range []string{
-		`hx-trigger="sse:board from:body, every 30s"`,
-		`hx-trigger="sse:status from:body, every 30s"`,
+		`hx-trigger="sse:board from:body"`,
+		`hx-trigger="sse:status from:body"`,
 	} {
 		if !strings.Contains(board, trigger) {
 			t.Errorf("board page no longer carries %s: the idle budget below is stale", trigger)
-			continue
 		}
-		regions++
+	}
+	if strings.Contains(board, "every 30s") || strings.Contains(board, "every 5s") {
+		t.Error("a region still carries an htmx `every` clause; D2 moved the backstop to mm.js")
 	}
 
 	check := ts.get("/p/" + id + "/check").expectStatus(200).Body
-	checkRegions := 0
-	if strings.Contains(check, `hx-trigger="sse:check from:body, every 30s"`) {
-		checkRegions = 1
+	if !strings.Contains(check, `hx-trigger="sse:check from:body"`) {
+		t.Error("check view no longer carries its sse:check trigger: the idle budget below is stale")
 	}
 
-	t.Logf("idle board tab: %d regions x %d fetches/hour = %d fetches/hour, all byte-identical",
-		regions, perHour, regions*perHour)
-	t.Logf("idle check tab: %d regions x %d fetches/hour = %d fetches/hour, all byte-identical",
-		checkRegions, perHour, checkRegions*perHour)
+	// The numbers research-app-fllicker.md §8 records were the OLD model: 120
+	// fetches/hour per region, forever. The D2 model: 0 fetches/hour per tab
+	// while the stream is open, and 3 regions x 720/hour = 2160/hour ONLY
+	// while it is down (and only until the extension reconnects).
+	const downInterval = 5 * time.Second
+	perHour := int(time.Hour / downInterval)
+	t.Logf("healthy stream: 0 fetches/hour per tab (D2)")
+	t.Logf("stream down: 3 regions x %d fetches/hour = %d fetches/hour until reconnect", perHour, 3*perHour)
 	t.Logf("broker fingerprint poll: %d/hour per OPEN PROJECT regardless of tabs", int(time.Hour/(5*time.Second)))
 }

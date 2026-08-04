@@ -1,0 +1,11 @@
+{
+  "name": "micro-manager-mmjs-suite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Behavioural suite for internal/web/static/mm.js, driven by internal/web/client_test.go under `node --test` (T-0111).",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "devDependencies": {
+    "jsdom": "^30.0.1"
+  }
+}

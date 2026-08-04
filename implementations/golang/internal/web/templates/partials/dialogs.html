@@ -27,14 +27,13 @@
     only branch that leaves the directory valid. The testid is x- prefixed:
     §5.1 permits an implementation to ADD testids only under that prefix.
   */}}
-  {{/* outerHTML, NOT morph (T-0138). Morphing the board from an element
-       OUTSIDE it leaks an htmx polling chain: htmx's scheduler overwrites its
-       timer handle without clearing the old one and relies on the swapped-out
-       element leaving the DOM to stop it, which morph — by preserving the
-       element — prevents. Every mutation would add another `every 30s` chain
-       for the life of the tab. The board's OWN sse/backstop refresh still
-       morphs (partials/board.html); that path does not compound, and it is
-       where the flicker was. */}}
+  {{/* outerHTML, NOT morph. The htmx poll chains T-0138 existed to protect
+       against are gone (T-0139 moved the backstop out of the triggers into
+       mm.js's SSE-down interval), but the swap rule stands: a mutation
+       REPLACES the board it invalidated, and nothing outside a region may
+       morph it. The board's OWN refresh (its hx-get, whether SSE-triggered
+       or polled) still morphs (partials/board.html); that path does not
+       compound, and it is where the flicker was. */}}
   <form hx-delete="/p/{{$p.ID}}/items/{{$id}}?force=true"
         hx-target="[data-testid='board']" hx-swap="outerHTML">
     {{if $detail}}

@@ -259,8 +259,10 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 	// §4.6 of the architecture: keep this file small. If it grows past a few
 	// hundred lines, something belongs on the server that drifted onto the
 	// client. T-0150 added the someday-collapse request header - a few lines of
-	// plumbing the server could not do itself - which is why the ceiling is 720.
-	if lines := strings.Count(js, "\n"); lines > 720 {
+	// plumbing the server could not do itself - and T-0139 moved the polling
+	// backstop from the templates' triggers into mm.js (the SSE-down interval),
+	// which is why the ceiling is now 780.
+	if lines := strings.Count(js, "\n"); lines > 780 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }

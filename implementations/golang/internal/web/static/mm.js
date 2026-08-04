@@ -699,5 +699,60 @@
   document.body.addEventListener('htmx:afterSwap', restoreSomedayState);
   document.addEventListener('DOMContentLoaded', restoreSomedayState);
 
+  /* --------------------------------------------------- SSE-down polling */
+
+  /*
+    T-0139 (D2). The freshness backstop used to be an unconditional `every 30s`
+    clause on every region's trigger. The T-0131 measurement showed that on an
+    idle project with a healthy stream that is 100% of the refresh traffic and
+    100% waste — 65 fetches, zero SSE events, 20/20 byte-identical. The
+    backstop only needs to exist while the stream is DOWN, so the triggers'
+    `every 30s` clause is gone and this interval takes over on sseClose /
+    sseError, stopping again on sseOpen (the extension fires sseOpen on
+    reconnect, and on the shell swap that follows a re-theme).
+
+    The regions self-describe: each carries its own hx-get and an hx-trigger
+    naming its sse: event, and swaps morph — the marker of a region that
+    refreshes itself from a fragment. The app root's outerHTML theme shell is
+    deliberately NOT polled: a full app re-render every 5 s is exactly the
+    waste this exists to avoid. The morph extension resolves because each
+    region declares hx-ext itself (TestMorphSwapsDeclareOwnExtension).
+  */
+  const POLL_INTERVAL_MS = 5000;
+  let pollTimer = null;
+
+  function sseRegions() {
+    const found = document.querySelectorAll('[hx-trigger*="sse:"], [data-hx-trigger*="sse:"]');
+    return Array.from(found).filter((el) =>
+      (el.getAttribute('hx-swap') || el.getAttribute('data-hx-swap')) === 'morph');
+  }
+
+  function pollRegion(el) {
+    const url = el.getAttribute('hx-get') || el.getAttribute('data-hx-get');
+    if (!url) return;
+    htmx.ajax('GET', url, { target: el, swap: 'morph', source: el });
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(() => {
+      sseRegions().forEach(pollRegion);
+    }, POLL_INTERVAL_MS);
+    // Converge immediately: spec-gui.md §2.3's polling-alone guarantee must
+    // not wait half a window.
+    sseRegions().forEach(pollRegion);
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  document.body.addEventListener('htmx:sseClose', startPolling);
+  document.body.addEventListener('htmx:sseError', startPolling);
+  document.body.addEventListener('htmx:sseOpen', stopPolling);
+
   setBusy();
 })();

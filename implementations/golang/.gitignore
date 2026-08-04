@@ -10,3 +10,6 @@
 /mm-ui
 /mm-tui
 *.test
+
+# The mm.js test suite's JS dependencies (internal/web/jstest).
+/internal/web/jstest/node_modules/

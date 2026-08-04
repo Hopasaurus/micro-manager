@@ -225,7 +225,7 @@ Rules:
 | Status bar, WIP counts | out-of-band swap (`hx-swap-oob`) on every mutating response |
 | Toasts | `HX-Trigger` response header, or an OOB swap into `toast-region` |
 | Live updates | SSE via `/api/v1/events` — see §4.5 |
-| Freshness backstop | a slow `every 30s` poll on the same trigger, in case the stream dies |
+| Freshness backstop | an mm.js interval that polls only while the stream is down (T-0139, D2) |
 
 `hx-push-url` is what satisfies §4.1 rule 1 — every reachable view state must be
 addressable. Opening an item, filtering, and choosing a report period all change
@@ -340,19 +340,22 @@ children subscribe by name:
 <div data-testid="app" hx-ext="sse" sse-connect="/api/v1/events?project={{.ProjectID}}">
   <section data-testid="board"
            hx-get="/p/{{.ProjectID}}/board?fragment=1"
-           hx-trigger="sse:board from:body, every 30s"
-           hx-swap="outerHTML">…</section>
+           hx-trigger="sse:board from:body"
+           hx-swap="morph">…</section>
   <footer data-testid="app-status"
           hx-get="/p/{{.ProjectID}}/status"
-          hx-trigger="sse:status from:body, every 30s"
-          hx-swap="outerHTML">…</footer>
+          hx-trigger="sse:status from:body"
+          hx-swap="morph">…</footer>
 </div>
 ```
 
-The `every 30s` clause is the backstop: if the stream dies and the extension's
-exponential-backoff reconnect has not yet recovered, the view still converges.
-When SSE is disabled by config the same elements render with `every 5s` and
-nothing else changes.
+The triggers carry no `every` clause (T-0139, D2): while the stream is open
+SSE events are the only refresh, and the backstop is an interval inside mm.js
+that exists only while the stream is DOWN — `htmx:sseClose`/`htmx:sseError`
+start a 5 s poll of the regions' own `hx-get`s, `htmx:sseOpen` stops it. The
+T-0131 measurement made that trade: idle traffic on a healthy stream was 100%
+backstop and 100% waste. spec-gui.md §2.3's polling-alone guarantee still
+holds — a dead stream is exactly when the poll runs.
 
 Event names are a small closed set — `board`, `status`, `check`, `theme` — so a
 change touches only the region it affects. The broker derives them from what
@@ -564,3 +567,7 @@ and 240 byte-identical fetches/hour, and `ui.board.doneLimit` already caps the
 board fragment at ~6 KB gzip whatever the project's age. A finer event would
 make none of those fetches go away. The follow-up is conditional polling
 (T-0139), not per-column events.
+
+T-0139 shipped 2026-08-04: the unconditional backstop is gone, so the
+"240 byte-identical fetches/hour" premise no longer holds on a healthy stream
+— idle traffic is zero, and the poll runs only while the stream is down.

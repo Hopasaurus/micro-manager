@@ -133,7 +133,7 @@
 <footer data-testid="app-status" class="mm-status"
         {{with .App.Project}}
         hx-get="/p/{{.ID}}/status" hx-ext="morph"
-        hx-trigger="sse:status from:body, every 30s"
+        hx-trigger="sse:status from:body"
         hx-swap="morph" hx-disinherit="*"
         {{end}}>
   {{with .App.Status}}

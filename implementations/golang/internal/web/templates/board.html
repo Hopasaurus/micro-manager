@@ -39,7 +39,7 @@
 <footer data-testid="app-status" class="mm-status" hx-swap-oob="outerHTML:[data-testid='app-status']"
         {{with .App.Project}}
         hx-get="/p/{{.ID}}/status" hx-ext="morph"
-        hx-trigger="sse:status from:body, every 30s"
+        hx-trigger="sse:status from:body"
         hx-swap="morph"
         {{end}}>
   {{with .App.Status}}

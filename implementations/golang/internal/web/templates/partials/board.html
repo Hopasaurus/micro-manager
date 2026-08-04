@@ -18,7 +18,7 @@
          aria-live="polite"
          {{with .App.Project}}
          hx-get="/p/{{.ID}}/board?fragment=1" hx-ext="morph"
-         hx-trigger="sse:board from:body, every 30s"
+         hx-trigger="sse:board from:body"
          hx-swap="morph"
          {{end}}>
   {{$project := .App.Project}}

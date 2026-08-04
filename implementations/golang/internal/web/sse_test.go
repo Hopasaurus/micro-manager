@@ -276,17 +276,21 @@ func TestSSEStreamAttributesInShell(t *testing.T) {
 	ts := newTestServer(t, "clean-full")
 	id := projectIDOf(t, ts, ts.Dirs[0])
 
-	// The app shell wires the stream: sse-connect on the app root, the
-	// 30s polling backstop on the regions (§2.3, architecture.md §4.5).
+	// The app shell wires the stream: sse-connect on the app root. The
+	// regions' triggers name their sse: event with NO polling clause: the
+	// backstop is the SSE-down interval in mm.js (T-0139), not htmx's `every`.
 	body := ts.get("/p/" + id + "/board").expectStatus(200).Body
 	if !strings.Contains(body, `sse-connect="/api/v1/events?project=`+id+`"`) {
 		t.Fatal("app root has no sse-connect")
 	}
-	if !strings.Contains(body, `hx-trigger="sse:board from:body, every 30s"`) {
-		t.Fatal("board has no sse:board trigger with the polling backstop")
+	if !strings.Contains(body, `hx-trigger="sse:board from:body"`) {
+		t.Fatal("board has no sse:board trigger")
 	}
-	if !strings.Contains(body, `hx-trigger="sse:status from:body, every 30s"`) {
-		t.Fatal("status bar has no sse:status trigger with the polling backstop")
+	if strings.Contains(body, "every 30s") || strings.Contains(body, "every 5s") {
+		t.Fatal("a region still carries an htmx `every` polling clause; the backstop is the SSE-down interval in mm.js (T-0139)")
+	}
+	if !strings.Contains(body, `hx-trigger="sse:status from:body"`) {
+		t.Fatal("status bar has no sse:status trigger")
 	}
 	if !strings.Contains(body, `hx-trigger="sse:theme from:body"`) {
 		t.Fatal("app root has no sse:theme trigger")
@@ -331,13 +335,43 @@ func TestSSEStreamAttributesInShell(t *testing.T) {
 	}
 }
 
-// TestRefreshRegionsSwapWithMorph — T-0129. The 30s backstop, the SSE echo of
-// a tab's own mutation, and the mutation swap itself all tear down and
-// rebuild the region under outerHTML; morph diffs instead, so all three
-// become invisible. Every region that self-refreshes on sse:board/status/check
-// must swap with morph, and so must every element that swaps the board as a
-// mutation response (the second, identical swap around a write is the one
-// morph makes a no-op).
+// TestSSEDownPollingIsInTheClient — T-0139 (D2). The freshness backstop is
+// the SSE-down interval in mm.js, not an htmx `every` clause: sseOpen stops
+// it, sseClose/sseError start it, the interval issues the region's own hx-get
+// through htmx.ajax with the morph swap, and the regions it polls are exactly
+// the ones that self-refresh — a trigger naming an sse: event plus a morph
+// swap (the app root's outerHTML theme shell is excluded).
+func TestSSEDownPollingIsInTheClient(t *testing.T) {
+	ts := newTestServer(t, "clean-full")
+	js := ts.get("/static/mm.js").expectStatus(200).Body
+
+	if !strings.Contains(js, `addEventListener('htmx:sseClose', startPolling)`) {
+		t.Error("mm.js does not start polling on htmx:sseClose")
+	}
+	if !strings.Contains(js, `addEventListener('htmx:sseError', startPolling)`) {
+		t.Error("mm.js does not start polling on htmx:sseError")
+	}
+	if !strings.Contains(js, `addEventListener('htmx:sseOpen', stopPolling)`) {
+		t.Error("mm.js does not stop polling on htmx:sseOpen")
+	}
+	if !strings.Contains(js, "POLL_INTERVAL_MS = 5000") {
+		t.Error("mm.js polls on no 5s interval")
+	}
+	if !strings.Contains(js, `swap: 'morph', source: el`) {
+		t.Error("mm.js polls with neither the morph swap nor the region as source")
+	}
+	if !strings.Contains(js, `[hx-trigger*="sse:"]`) {
+		t.Error("mm.js does not discover its regions from their sse: triggers")
+	}
+}
+
+// TestRefreshRegionsSwapWithMorph — T-0129. The SSE echo of a tab's own
+// mutation, and the mutation swap itself, all tear down and rebuild the
+// region under outerHTML; morph diffs instead, so the echo becomes a no-op.
+// Every region that self-refreshes on sse:board/status/check must swap with
+// morph, and so must every element that swaps the board as a mutation
+// response (the second, identical swap around a write is the one morph makes
+// a no-op).
 func TestRefreshRegionsSwapWithMorph(t *testing.T) {
 	ts := newTestServer(t, "clean-full")
 	id := projectIDOf(t, ts, ts.Dirs[0])
@@ -359,22 +393,22 @@ func TestRefreshRegionsSwapWithMorph(t *testing.T) {
 	board := ts.get("/p/" + id + "/board").expectStatus(200).Body
 
 	boardTag := openTag(t, board, "board")
-	if !strings.Contains(boardTag, `hx-trigger="sse:board from:body, every 30s"`) ||
+	if !strings.Contains(boardTag, `hx-trigger="sse:board from:body"`) ||
 		!strings.Contains(boardTag, `hx-swap="morph"`) {
-		t.Errorf("board region does not morph on its sse:board/backstop refresh:\n%s", boardTag)
+		t.Errorf("board region does not morph on its sse:board refresh:\n%s", boardTag)
 	}
 
 	statusTag := openTag(t, board, "app-status")
-	if !strings.Contains(statusTag, `hx-trigger="sse:status from:body, every 30s"`) ||
+	if !strings.Contains(statusTag, `hx-trigger="sse:status from:body"`) ||
 		!strings.Contains(statusTag, `hx-swap="morph"`) {
-		t.Errorf("status footer does not morph on its sse:status/backstop refresh:\n%s", statusTag)
+		t.Errorf("status footer does not morph on its sse:status refresh:\n%s", statusTag)
 	}
 
 	check := ts.get("/p/" + id + "/check").expectStatus(200).Body
 	checkTag := openTag(t, check, "check")
-	if !strings.Contains(checkTag, `hx-trigger="sse:check from:body, every 30s"`) ||
+	if !strings.Contains(checkTag, `hx-trigger="sse:check from:body"`) ||
 		!strings.Contains(checkTag, `hx-swap="morph"`) {
-		t.Errorf("check region does not morph on its sse:check/backstop refresh:\n%s", checkTag)
+		t.Errorf("check region does not morph on its sse:check refresh:\n%s", checkTag)
 	}
 
 	// board.html's app-status-oob is a SEPARATE template from layout.html's
@@ -534,10 +568,16 @@ func TestBoardMutationsSwapOuterHTML(t *testing.T) {
 
 	// mm.js issues the same mutation through htmx.ajax and must agree.
 	js := ts.get("/static/mm.js").expectStatus(200).Body
-	if strings.Contains(js, "swap: 'morph'") {
-		t.Error("mm.js still issues a morph swap; its ajax calls target the board (T-0138)")
-	}
 	if n := strings.Count(js, "swap: 'outerHTML'"); n != 2 {
 		t.Errorf("mm.js has %d outerHTML ajax swaps, want 2 (card-menu op and drag commit)", n)
+	}
+	// The ONE morph swap is the SSE-down poll of T-0139, and it is aimed at
+	// the polling region ITSELF (target: el, source: el) — the T-0138 rule:
+	// nothing may morph a region from outside it.
+	if n := strings.Count(js, "swap: 'morph'"); n != 1 {
+		t.Errorf("mm.js has %d morph swaps, want exactly 1 (the SSE-down poll, which targets its own region)", n)
+	}
+	if !strings.Contains(js, "swap: 'morph', source: el") {
+		t.Error("the SSE-down poll does not target and source the region itself")
 	}
 }

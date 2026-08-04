@@ -15,7 +15,8 @@ import (
 // does.
 
 // status serves GET /p/:projectId/status: the status bar alone, for the
-// sse:status trigger and the every-30s backstop on the footer.
+// sse:status trigger and, while the stream is down, the SSE-down poll of
+// mm.js (T-0139) on the footer.
 //
 // The fragment is the SAME app-status template the layout renders in-page, so
 // the swapped-in footer cannot differ from the first-render one (§4.3).
