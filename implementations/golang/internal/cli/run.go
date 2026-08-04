@@ -107,6 +107,8 @@ func dispatch(env Env, in *Invocation) error {
 		return runFix(env, in, store)
 	case OpArchive:
 		return runArchive(env, in, store)
+	case OpMigrate:
+		return runMigrate(env, in, store)
 	}
 	return usagef("--%s is not implemented", in.Op)
 }
@@ -1023,6 +1025,32 @@ func runArchive(env Env, in *Invocation, s *mm.Store) error {
 		env.json.warn(w)
 	}
 	renderArchive(env, in, res)
+	return nil
+}
+
+// runMigrate wires spec-tools.md §5.3's --migrate, the second optional
+// operation to reach the CLI.
+//
+// --project is reused from --init rather than given a name of its own: it means
+// the same thing in both, the human name of the directory, and a second switch
+// for one concept is a second thing to remember.
+func runMigrate(env Env, in *Invocation, s *mm.Store) error {
+	res, tx, err := s.Migrate(mm.MigrateRequest{
+		Project: in.Value("project"),
+		DryRun:  in.DryRun,
+	}, env.Today)
+	if err != nil {
+		return err
+	}
+	env.json.setChanges(tx)
+	env.json.setResult(toJSONMigrate(res))
+	for _, c := range res.Changes {
+		env.porcelain.row(string(c.Kind), c.File, strconv.Itoa(c.Line), c.After)
+	}
+	for _, w := range res.Warnings {
+		env.json.warn(w)
+	}
+	renderMigrate(env, in, res)
 	return nil
 }
 

@@ -33,8 +33,8 @@ Working today:
 - **The file format**, and `check.sh` / `find.sh` at the repository root.
 - **The `mm` CLI**, in `implementations/golang`. Every operation of
   `spec-tools.md` §5.1 is implemented, plus `--block`, `--unblock`, `--note`,
-  `--wip`, `--find` and the optional `--archive`. `--dry-run`, `--json` and
-  `--porcelain` work on everything.
+  `--wip`, `--find` and the optional `--archive` and `--migrate`. `--dry-run`,
+  `--json` and `--porcelain` work on everything.
 
 Not built: the **UI service** of `spec-gui.md`, the **TUI** of `spec-tui.md`, and
 the Python, TypeScript and Erlang implementations.
@@ -239,6 +239,7 @@ mm --find
 
 mm --archive --before 2026-01                  # roll old months into done-YYYY.md
 mm --archive --age 30                          # the same cutoff as a policy
+mm --migrate --project "Acme"                  # bring an older directory up to date
 ```
 
 `--archive` is the one operation that takes data OUT of the validated set:

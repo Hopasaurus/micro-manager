@@ -3,6 +3,7 @@ package mm
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 )
 
 // The transaction envelope, from spec-tools.md §7.
@@ -59,17 +60,44 @@ type tx struct {
 // problem, and must not be blocked by a violation unrelated to the item being
 // touched. Refusing would leave the user unable to use the tool to repair the
 // very thing the tool is complaining about.
+//
+// A git conflict marker is the one exception, and the format spec makes it one
+// (§5.1: "the one reserved exception"): a half-merged file is not a directory
+// with a problem in it, it is two directories that have not been reconciled,
+// and writing on top of one silently discards a side of the merge. Reads stay
+// open — --list, --show and --check are exactly what you want at that moment —
+// but nothing writes until the merge is resolved. --fix refuses on the same
+// grounds, one layer up (op_fix.go).
 func (s *Store) begin() (*tx, error) {
 	m, err := s.load()
 	if err != nil {
 		return nil, err
 	}
+	vs := m.validate()
+	if markers := conflictMarkerFindings(vs); len(markers) > 0 {
+		return nil, &InvariantError{Violations: markers}
+	}
 	return &tx{
 		store:    s,
 		model:    m,
 		dirty:    map[string]*fileEdit{},
-		baseline: violationKeys(m.validate()),
+		baseline: violationKeys(vs),
 	}, nil
+}
+
+// conflictMarkerFindings picks the marker lines out of a validation result.
+//
+// Matching on the message is not lovely, but the alternative — a second
+// invariant code for something the format spec calls a parse error — would put
+// a rule in the checker's vocabulary that the spec does not have.
+func conflictMarkerFindings(vs []Violation) []Violation {
+	var out []Violation
+	for _, v := range vs {
+		if strings.HasPrefix(v.Message, markerMessagePrefix) {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // backlog returns the backlog editor, creating it on first use.
@@ -229,8 +257,40 @@ func (t *tx) reparse() []Violation {
 // violationKey identifies a finding well enough to tell a pre-existing problem
 // from one this change introduced. Line numbers are excluded: a splice moves
 // unrelated findings up or down without making them new.
+//
+// That applies to a line number INSIDE the message too — I1 says "T-0001 is
+// already defined at backlog.md:11" — or the exclusion would only be half
+// done. --migrate found this: inserting a `project:` line into the frontmatter
+// shifts every line below it, so a pre-existing duplicate's message changed
+// from :11 to :12 and the pre-commit check refused a migration for a violation
+// it had not introduced and did not touch.
 func violationKey(v Violation) string {
-	return v.Invariant + "\x00" + v.At.File + "\x00" + v.Message
+	return v.Invariant + "\x00" + v.At.File + "\x00" + maskLineRefs(v.Message)
+}
+
+// maskLineRefs replaces the line number in every "<file>.md:<n>" reference with
+// a placeholder. Only that shape: a bare number in a message ("3 items") is
+// content, not a location.
+func maskLineRefs(msg string) string {
+	const marker = ".md:"
+	out := msg
+	for i := 0; ; {
+		j := strings.Index(out[i:], marker)
+		if j < 0 {
+			return out
+		}
+		start := i + j + len(marker)
+		end := start
+		for end < len(out) && out[end] >= '0' && out[end] <= '9' {
+			end++
+		}
+		if end == start {
+			i = start
+			continue
+		}
+		out = out[:start] + "N" + out[end:]
+		i = start + 1
+	}
 }
 
 func violationKeys(vs []Violation) map[string]struct{} {

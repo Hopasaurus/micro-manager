@@ -41,6 +41,7 @@ Operations:
   --find                    list discovered micro-manager directories
   --fix                     repair duplicate IDs after a merge
   --archive                 roll old month groups out of done.md
+  --migrate                 bring an older directory up to the current format
   --help, --version
 
 Global modifiers:
@@ -273,6 +274,33 @@ that is not there.
                             scheduled run uses: it needs no editing each month
 
 Porcelain columns: id file detail
+`,
+	OpMigrate: `mm --migrate [--project NAME] [--dry-run]
+
+Brings a directory written by an earlier revision of the format up to the
+current one, and reports every change (spec-tools.md §5.3). Three legacy shapes,
+and nothing else — a migration that rewrites what it was not asked to rewrite is
+indistinguishable from corruption in the diff:
+
+  working.md                renamed to the lowest free working.NN.md, at the
+                            digit width the directory already uses
+  no project                backlog.md gains one: --project NAME, or the parent
+                            directory's name, reported either way
+  tags: [infra, ci]         a YAML flow sequence becomes the TAGLIST the format
+                            uses everywhere, infra,ci — on item lines and in
+                            working-file frontmatter alike
+
+Safe to run twice: the second run finds nothing to do. A tags value it cannot
+convert — a space inside a tag — is left exactly as written and named on stderr,
+and the rest of the migration still runs.
+
+Unlike --fix, it does not refuse over a violation it does not own: it is the
+first thing to run on an old directory, and --fix blocks on the very thing this
+clears. It does refuse two writes that would leave a directory --check rejects:
+a working.md whose content is not a working file, and a conversion that would
+reveal a duplicate ID.
+
+Porcelain columns: kind file line after
 `,
 	OpSearch: `mm --search QUERY [--regex] [--field F]... [--state S] [--limit N]
 

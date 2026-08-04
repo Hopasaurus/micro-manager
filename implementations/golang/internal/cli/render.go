@@ -80,6 +80,36 @@ func renderArchive(env Env, in *Invocation, res mm.ArchiveResult) {
 	}
 }
 
+// renderMigrate reports every repair, which §5.3 requires in as many words, and
+// says so plainly when there was nothing to repair: a directory that is already
+// current is the answer to "is this old?", not a silence.
+//
+// The warnings — a tags value it recognized and could not convert — go to
+// stderr and survive --quiet, for the same reason --archive's do: they name
+// something still wrong that the run did not fix.
+func renderMigrate(env Env, in *Invocation, res mm.MigrateResult) {
+	if !in.Quiet {
+		if len(res.Changes) == 0 {
+			out(env, "%snothing to migrate: the directory is already current\n", prefix(in))
+		} else {
+			out(env, "%smigrated %d thing(s)\n", prefix(in), len(res.Changes))
+			for _, c := range res.Changes {
+				switch c.Kind {
+				case mm.MigrateRenamed:
+					out(env, "  renamed %s -> %s\n", c.File, c.After)
+				case mm.MigrateProject:
+					out(env, "  %s: project: %s\n", c.File, c.After)
+				default:
+					out(env, "  %s:%d: %s\n", c.File, c.Line, c.After)
+				}
+			}
+		}
+	}
+	for _, w := range res.Warnings {
+		fmt.Fprintf(env.Stderr, "mm: warning: %s\n", w)
+	}
+}
+
 // renderFix reports each renumbering and the next_id the repair wrote. A
 // directory with nothing to repair says so: an empty fix is a success worth
 // stating, because a scripted merge flow gates on it.

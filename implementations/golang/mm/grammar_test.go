@@ -740,3 +740,36 @@ func TestConflictMarkersBlockMutations(t *testing.T) {
 		t.Fatalf("reads still work: %v", err)
 	}
 }
+
+// The same property, on a fixture whose ONLY finding is the marker.
+//
+// The test above cannot tell the difference between "markers block writes" and
+// "the duplicate IDs on either side of the conflict happen to block writes",
+// and for a long time it was the second: the block came from an I1 message
+// whose line number moved. T-0044 made the rule explicit in tx.begin, and this
+// is the fixture that says which rule is being tested — one marker line, no
+// duplicate, nothing else wrong.
+func TestAConflictMarkerAloneBlocksMutations(t *testing.T) {
+	dir := newDir(t, map[string]string{
+		"backlog.md": strings.Replace(dirBacklog, "## Someday\n",
+			"## Someday\n\n<<<<<<< HEAD\n", 1),
+	})
+	s := mustOpen(t, dir)
+
+	_, _, err := s.Add(AddRequest{Title: "Nope"}, today)
+	var ie *InvariantError
+	if !errors.As(err, &ie) {
+		t.Fatalf("err = %v, want the marker finding", err)
+	}
+	if len(ie.Violations) != 1 || !strings.Contains(ie.Violations[0].Message, "conflict-marker") {
+		t.Errorf("violations = %+v, want exactly the marker", ie.Violations)
+	}
+	// Every write goes through the same door, so one check covers them all.
+	if _, _, err := s.Migrate(MigrateRequest{}, today); !errors.As(err, &ie) {
+		t.Errorf("--migrate on a half-merged directory = %v, want a refusal", err)
+	}
+	// And reading is untouched: --list and --check are what you want here.
+	if vs, err := s.Validate(); err != nil || len(vs) != 1 {
+		t.Errorf("validate = %v, %v; reads must still work", vs, err)
+	}
+}

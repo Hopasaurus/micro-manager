@@ -66,6 +66,7 @@ positional word: `mm --add "…"`, not `mm add "…"`.
 | `mm --check [--all]` | validate against the ten invariants |
 | `mm --fix` | repair duplicate IDs left by a git merge |
 | `mm --archive [--before YYYY-MM \| --age DAYS]` | roll old month groups out of `done.md` into `done-YYYY.md` |
+| `mm --migrate [--project NAME]` | bring a directory written by an older revision up to the current format |
 
 Run `mm --help` for the full list and `mm --help --OPERATION` for one
 operation's exact switches — trust that over anything paraphrased here.
@@ -114,6 +115,11 @@ Notes worth internalizing:
   still passes `--check`; restoring means moving the line AND its detail file
   back, and doing half of it is reported. Dry-run it first, and don't reach for
   it until `done.md` is genuinely unwieldy.
+- **`--migrate` is for an old directory, and runs before `--fix`.** It renames
+  a pre-slot `working.md`, adds a missing `project`, and converts a
+  `tags: [infra, ci]` flow sequence to `tags:infra,ci` — those three shapes and
+  nothing else. It is safe to run twice, and it will not refuse over a
+  violation it does not own, which `--fix` will.
 
 ## Scripting against it
 

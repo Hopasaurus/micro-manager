@@ -113,6 +113,11 @@ func headingName(line string) (string, bool) {
 	return strings.TrimSpace(line[3:]), true
 }
 
+// markerMessagePrefix opens every conflict-marker finding. tx.begin matches on
+// it to refuse a write over a half-merged file, so it is a constant rather than
+// a string repeated in two places.
+const markerMessagePrefix = "git conflict-marker line: "
+
 // markerViolations flags every git conflict-marker line in a data file
 // (spec-file-format.md §5.1). Called before any other parsing so a half-merged
 // file is refused loudly whatever else is in it.
@@ -123,7 +128,7 @@ func markerViolations(name string, lines []string) []Violation {
 			vs = append(vs, Violation{
 				Invariant: invFormat,
 				At:        Location{File: name, Line: i + 1},
-				Message:   "git conflict-marker line: " + line,
+				Message:   markerMessagePrefix + line,
 			})
 		}
 	}

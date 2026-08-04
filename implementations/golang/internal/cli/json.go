@@ -213,6 +213,32 @@ func toJSONArchive(r mm.ArchiveResult) jsonArchive {
 	return out
 }
 
+// jsonMigrate is the --migrate result: every repair, with what it changed and
+// what it changed it to, so a caller can diff a migration without re-reading
+// the files.
+type jsonMigrate struct {
+	Changes []jsonMigrateChange `json:"changes"`
+}
+
+type jsonMigrateChange struct {
+	Kind   string `json:"kind"`
+	File   string `json:"file"`
+	Line   int    `json:"line,omitempty"`
+	Before string `json:"before,omitempty"`
+	After  string `json:"after,omitempty"`
+}
+
+func toJSONMigrate(r mm.MigrateResult) jsonMigrate {
+	out := jsonMigrate{Changes: []jsonMigrateChange{}}
+	for _, c := range r.Changes {
+		out.Changes = append(out.Changes, jsonMigrateChange{
+			Kind: string(c.Kind), File: c.File, Line: c.Line,
+			Before: c.Before, After: c.After,
+		})
+	}
+	return out
+}
+
 func toJSONDirectory(d mm.Directory) *jsonDirectory {
 	return &jsonDirectory{
 		Path:      d.Path,

@@ -49,6 +49,7 @@ const (
 	OpSearch  Op = "search"
 	OpFix     Op = "fix"
 	OpArchive Op = "archive"
+	OpMigrate Op = "migrate"
 )
 
 // takesValue reports whether an operation switch consumes the argument after it
@@ -71,10 +72,10 @@ var operations = map[string]Op{
 	"block": OpBlock, "unblock": OpUnblock, "note": OpNote,
 	"status": OpStatus, "next": OpNext, "search": OpSearch,
 	"fix": OpFix,
-	// §5.3, optional. --archive takes no subject: its cutoff is a modifier,
-	// because there are two spellings of it and neither is the thing being
-	// archived.
-	"archive": OpArchive,
+	// §5.3, optional. Neither takes a subject: --archive's cutoff is a
+	// modifier because there are two spellings of it and neither is the thing
+	// being archived, and --migrate acts on the whole directory.
+	"archive": OpArchive, "migrate": OpMigrate,
 }
 
 // Invocation is one parsed command line.

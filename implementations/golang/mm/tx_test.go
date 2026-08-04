@@ -326,3 +326,32 @@ func TestAddUpdatesTheUpdatedField(t *testing.T) {
 		t.Error("updated: should be refreshed in a file being written")
 	}
 }
+
+// A pre-existing finding must stay recognizable when a splice moves the line it
+// names. violationKey drops the finding's own line number; maskLineRefs drops
+// the one embedded in the message, which is where I1 puts the OTHER copy's
+// location. Found by --migrate: writing a missing project inserts a line into
+// the frontmatter, so every line below it moves.
+func TestViolationKeyIgnoresLineNumbersInMessages(t *testing.T) {
+	before := Violation{Invariant: "I1", At: Location{File: "backlog.md", Line: 13},
+		Message: "T-0001 is already defined at backlog.md:11"}
+	after := Violation{Invariant: "I1", At: Location{File: "backlog.md", Line: 14},
+		Message: "T-0001 is already defined at backlog.md:12"}
+	if violationKey(before) != violationKey(after) {
+		t.Errorf("a shifted finding looks new:\n%q\n%q",
+			violationKey(before), violationKey(after))
+	}
+
+	// A different finding is still a different key.
+	other := Violation{Invariant: "I1", At: Location{File: "backlog.md", Line: 14},
+		Message: "T-0002 is already defined at backlog.md:12"}
+	if violationKey(before) == violationKey(other) {
+		t.Error("two different duplicates collapsed to one key")
+	}
+
+	// A number that is not a line reference is content, and stays.
+	counted := Violation{Message: "3 items are missing outcome"}
+	if got := maskLineRefs(counted.Message); got != counted.Message {
+		t.Errorf("maskLineRefs rewrote content: %q", got)
+	}
+}
