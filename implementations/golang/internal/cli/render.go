@@ -80,6 +80,82 @@ func renderArchive(env Env, in *Invocation, res mm.ArchiveResult) {
 	}
 }
 
+// renderStats prints the four measures §5.3 names, each labelled with what it
+// actually measures.
+//
+// The labels are not decoration. "in flight" rather than "WIP" because the
+// number counts items between started: and done:, not slots occupied — a board
+// that starts and finishes ten things in a day reads as ten in flight that day
+// and never had more than one slot busy. Saying "WIP 10" would be a lie the
+// format cannot even check.
+func renderStats(env Env, in *Invocation, res mm.StatsResult) {
+	if !in.Quiet {
+		out(env, "%s — %s, by %s\n", res.Project, res.Period.String(), res.Bucket)
+
+		out(env, "\nclosed %d", res.Closed)
+		if len(res.ByOutcome) > 0 {
+			out(env, " (%s)", joinCounts(res.ByOutcome))
+		}
+		out(env, "\n")
+
+		if c := res.Cycle; c.N > 0 {
+			out(env, "cycle time, started to done: mean %.1fd, median %.1fd, p90 %.1fd, "+
+				"range %d-%dd, over %d item(s)\n",
+				c.Mean, c.Median, c.P90, c.Min, c.Max, c.N)
+		} else {
+			out(env, "cycle time: nothing measurable\n")
+		}
+		if res.Cycle.Unknown > 0 {
+			out(env, "  %d closed item(s) had no usable started date and are excluded\n",
+				res.Cycle.Unknown)
+		}
+		out(env, "in flight: peak %d", res.WipPeak)
+		if !res.WipPeakOn.IsZero() {
+			out(env, " on %s", res.WipPeakOn)
+		}
+		out(env, ", mean %.1f per day\n", res.WipMean)
+
+		if len(res.Buckets) > 0 {
+			out(env, "\n%-12s %7s %10s %10s\n", "period", "closed", "flight max", "flight avg")
+			for _, b := range res.Buckets {
+				out(env, "%-12s %7d %10d %10.1f\n", b.Label, b.Closed, b.WipPeak, b.WipMean)
+			}
+		}
+		if len(res.Tags) > 0 || res.Untagged > 0 {
+			// The top few only: a mature board has dozens of tags, and forty of
+			// them on one wrapped line is not a distribution anyone reads. The
+			// whole list is in --json and --porcelain, which is where something
+			// that wants all of it should be looking.
+			const shown = 10
+			tags := res.Tags
+			rest := 0
+			if len(tags) > shown {
+				rest = len(tags) - shown
+				tags = tags[:shown]
+			}
+			out(env, "\ntags: %s", joinCounts(tags))
+			if rest > 0 {
+				out(env, ", +%d more", rest)
+			}
+			if res.Untagged > 0 {
+				out(env, ", untagged %d", res.Untagged)
+			}
+			out(env, "\n")
+		}
+	}
+	for _, w := range res.Warnings {
+		fmt.Fprintf(env.Stderr, "mm: warning: %s\n", w)
+	}
+}
+
+func joinCounts(counts []mm.TagCount) string {
+	parts := make([]string, 0, len(counts))
+	for _, c := range counts {
+		parts = append(parts, fmt.Sprintf("%s %d", c.Tag, c.Count))
+	}
+	return strings.Join(parts, ", ")
+}
+
 // renderMigrate reports every repair, which §5.3 requires in as many words, and
 // says so plainly when there was nothing to repair: a directory that is already
 // current is the answer to "is this old?", not a silence.

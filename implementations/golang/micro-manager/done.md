@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0045] Implement stats: throughput, cycle time, WIP over time | prio:low | tags:library,report | detail:details/T-0045.md | created:2026-07-29 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0044] Implement migrate for older directory layouts | prio:low | tags:library,ops | detail:details/T-0044.md | created:2026-07-29 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0168] Library: archive MUST move detail files into details-YYYY/, not strand them (spec-file-format.md §5.6) | prio:med | tags:library,ops | detail:details/T-0168.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0167] CLI: wire the optional operations from spec-tools.md §5.3, starting with --archive [--before YYYY-MM] | prio:low | tags:cli | detail:details/T-0167.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped

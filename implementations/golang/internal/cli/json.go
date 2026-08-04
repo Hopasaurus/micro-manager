@@ -239,6 +239,87 @@ func toJSONMigrate(r mm.MigrateResult) jsonMigrate {
 	return out
 }
 
+// jsonStats is the --stats result. The period and bucket are included because
+// every number below depends on them, and a series with no stated resolution is
+// one a caller can misplot.
+type jsonStats struct {
+	Period    string            `json:"period"`
+	Since     string            `json:"since,omitempty"`
+	Until     string            `json:"until,omitempty"`
+	Bucket    string            `json:"bucket"`
+	Closed    int               `json:"closed"`
+	ByOutcome []jsonCount       `json:"byOutcome"`
+	Buckets   []jsonStatsBucket `json:"buckets"`
+	Cycle     jsonCycleTime     `json:"cycleTime"`
+	Wip       jsonWipSummary    `json:"wip"`
+	Tags      []jsonCount       `json:"tags"`
+	Untagged  int               `json:"untagged"`
+}
+
+type jsonCount struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+type jsonStatsBucket struct {
+	Label   string  `json:"label"`
+	Since   string  `json:"since"`
+	Until   string  `json:"until"`
+	Closed  int     `json:"closed"`
+	WipPeak int     `json:"wipPeak"`
+	WipMean float64 `json:"wipMean"`
+}
+
+type jsonCycleTime struct {
+	N       int     `json:"n"`
+	Unknown int     `json:"unknown"`
+	Mean    float64 `json:"mean"`
+	Median  float64 `json:"median"`
+	P90     float64 `json:"p90"`
+	Min     int     `json:"min"`
+	Max     int     `json:"max"`
+}
+
+type jsonWipSummary struct {
+	Peak   int     `json:"peak"`
+	PeakOn string  `json:"peakOn,omitempty"`
+	Mean   float64 `json:"mean"`
+}
+
+func toJSONStats(r mm.StatsResult) jsonStats {
+	counts := func(in []mm.TagCount) []jsonCount {
+		out := make([]jsonCount, 0, len(in))
+		for _, c := range in {
+			out = append(out, jsonCount{Name: c.Tag, Count: c.Count})
+		}
+		return out
+	}
+	out := jsonStats{
+		Period:    r.Period.String(),
+		Since:     r.Period.Since.String(),
+		Until:     r.Period.Until.String(),
+		Bucket:    string(r.Bucket),
+		Closed:    r.Closed,
+		ByOutcome: counts(r.ByOutcome),
+		Buckets:   []jsonStatsBucket{},
+		Cycle: jsonCycleTime{
+			N: r.Cycle.N, Unknown: r.Cycle.Unknown, Mean: r.Cycle.Mean,
+			Median: r.Cycle.Median, P90: r.Cycle.P90,
+			Min: r.Cycle.Min, Max: r.Cycle.Max,
+		},
+		Wip:      jsonWipSummary{Peak: r.WipPeak, PeakOn: r.WipPeakOn.String(), Mean: r.WipMean},
+		Tags:     counts(r.Tags),
+		Untagged: r.Untagged,
+	}
+	for _, b := range r.Buckets {
+		out.Buckets = append(out.Buckets, jsonStatsBucket{
+			Label: b.Label, Since: b.Since.String(), Until: b.Until.String(),
+			Closed: b.Closed, WipPeak: b.WipPeak, WipMean: b.WipMean,
+		})
+	}
+	return out
+}
+
 func toJSONDirectory(d mm.Directory) *jsonDirectory {
 	return &jsonDirectory{
 		Path:      d.Path,

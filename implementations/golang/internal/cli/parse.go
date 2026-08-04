@@ -50,6 +50,7 @@ const (
 	OpFix     Op = "fix"
 	OpArchive Op = "archive"
 	OpMigrate Op = "migrate"
+	OpStats   Op = "stats"
 )
 
 // takesValue reports whether an operation switch consumes the argument after it
@@ -75,7 +76,7 @@ var operations = map[string]Op{
 	// §5.3, optional. Neither takes a subject: --archive's cutoff is a
 	// modifier because there are two spellings of it and neither is the thing
 	// being archived, and --migrate acts on the whole directory.
-	"archive": OpArchive, "migrate": OpMigrate,
+	"archive": OpArchive, "migrate": OpMigrate, "stats": OpStats,
 }
 
 // Invocation is one parsed command line.
@@ -135,7 +136,7 @@ var valueModifiers = map[string]bool{
 	"period": true, "week": true, "since": true, "until": true,
 	"group-by": true, "state": true, "limit": true,
 	"reason": true, "closing-note": true,
-	"age": true,
+	"age": true, "bucket": true,
 }
 
 // modifiers that accumulate rather than replace.

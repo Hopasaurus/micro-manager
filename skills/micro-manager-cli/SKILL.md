@@ -67,6 +67,7 @@ positional word: `mm --add "…"`, not `mm add "…"`.
 | `mm --fix` | repair duplicate IDs left by a git merge |
 | `mm --archive [--before YYYY-MM \| --age DAYS]` | roll old month groups out of `done.md` into `done-YYYY.md` |
 | `mm --migrate [--project NAME]` | bring a directory written by an older revision up to the current format |
+| `mm --stats [--bucket day\|week\|month]` | throughput, cycle time, work in flight and tag distribution |
 
 Run `mm --help` for the full list and `mm --help --OPERATION` for one
 operation's exact switches — trust that over anything paraphrased here.
@@ -120,6 +121,11 @@ Notes worth internalizing:
   `tags: [infra, ci]` flow sequence to `tags:infra,ci` — those three shapes and
   nothing else. It is safe to run twice, and it will not refuse over a
   violation it does not own, which `--fix` will.
+- **`--stats` measures flight, not slots.** Cycle time is `done:` minus
+  `started:` in whole days, and the in-flight series counts an item from its
+  started date to its done date whatever happened in between — a pause leaves
+  no trace in the files. It defaults to all of history, and an item with no
+  `started:` is counted as unmeasurable rather than guessed at.
 
 ## Scripting against it
 

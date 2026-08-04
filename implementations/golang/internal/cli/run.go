@@ -109,6 +109,8 @@ func dispatch(env Env, in *Invocation) error {
 		return runArchive(env, in, store)
 	case OpMigrate:
 		return runMigrate(env, in, store)
+	case OpStats:
+		return runStats(env, in, store)
 	}
 	return usagef("--%s is not implemented", in.Op)
 }
@@ -758,48 +760,11 @@ func runReport(env Env, in *Invocation, s *mm.Store) error {
 // library because two of the five steps are the environment and a default, and
 // the library is told the answer rather than how it was reached.
 func resolvePeriod(env Env, in *Invocation) (mm.Period, error) {
-	// 1. --since / --until, an explicit range.
-	if in.Has("since") || in.Has("until") {
-		var since, until mm.Date
-		var err error
-		if v := in.Value("since"); v != "" {
-			if since, err = mm.ParseDate(v); err != nil {
-				return mm.Period{}, err
-			}
-		}
-		if v := in.Value("until"); v != "" {
-			if until, err = mm.ParseDate(v); err != nil {
-				return mm.Period{}, err
-			}
-		} else {
-			until = env.Today // --until defaults to today
-		}
-		p, err := mm.PeriodBetween(since, until)
-		if err != nil {
-			return mm.Period{}, err
-		}
-		p.Source = mm.PeriodFromSwitch
-		return p, nil
+	p, given, err := periodFromSwitches(env, in)
+	if err != nil {
+		return mm.Period{}, err
 	}
-
-	// 2. --week, 3. --period / --last-week / --this-week.
-	token := ""
-	switch {
-	case in.Has("week"):
-		token = in.Value("week")
-	case in.Has("period"):
-		token = in.Value("period")
-	case in.Bool("last-week"):
-		token = "last-week"
-	case in.Bool("this-week"):
-		token = "this-week"
-	}
-	if token != "" {
-		p, err := mm.ParsePeriod(token, env.Today)
-		if err != nil {
-			return mm.Period{}, err
-		}
-		p.Source = mm.PeriodFromSwitch
+	if given {
 		return p, nil
 	}
 
@@ -819,12 +784,86 @@ func resolvePeriod(env Env, in *Invocation) (mm.Period, error) {
 
 	// 5. The default is last-week, not this-week: a report over a closed period
 	//    is reproducible and one over an open period is not.
-	p, err := mm.ParsePeriod("last-week", env.Today)
+	p, err = mm.ParsePeriod("last-week", env.Today)
 	if err != nil {
 		return mm.Period{}, err
 	}
 	p.Source = mm.PeriodFromDefault
 	return p, nil
+}
+
+// resolveStatsPeriod is the same switches with a different default and no
+// environment step.
+//
+// MM_REPORT_PERIOD is documented as the default --report period, and stats is
+// not a report: letting it narrow a stats run would mean a variable set for one
+// operation silently changing another. The default is ALL of history, because
+// throughput and cycle time over one week are a sample, and the question
+// --stats answers is usually about the trend.
+func resolveStatsPeriod(env Env, in *Invocation) (mm.Period, error) {
+	p, given, err := periodFromSwitches(env, in)
+	if err != nil {
+		return mm.Period{}, err
+	}
+	if given {
+		return p, nil
+	}
+	p, err = mm.ParsePeriod("all", env.Today)
+	if err != nil {
+		return mm.Period{}, err
+	}
+	p.Source = mm.PeriodFromDefault
+	return p, nil
+}
+
+// periodFromSwitches applies steps 1-3 of §5.1.11 — the ones that are a switch
+// the user typed — and reports whether any of them fired.
+func periodFromSwitches(env Env, in *Invocation) (mm.Period, bool, error) {
+	// 1. --since / --until, an explicit range.
+	if in.Has("since") || in.Has("until") {
+		var since, until mm.Date
+		var err error
+		if v := in.Value("since"); v != "" {
+			if since, err = mm.ParseDate(v); err != nil {
+				return mm.Period{}, false, err
+			}
+		}
+		if v := in.Value("until"); v != "" {
+			if until, err = mm.ParseDate(v); err != nil {
+				return mm.Period{}, false, err
+			}
+		} else {
+			until = env.Today // --until defaults to today
+		}
+		p, err := mm.PeriodBetween(since, until)
+		if err != nil {
+			return mm.Period{}, false, err
+		}
+		p.Source = mm.PeriodFromSwitch
+		return p, true, nil
+	}
+
+	// 2. --week, 3. --period / --last-week / --this-week.
+	token := ""
+	switch {
+	case in.Has("week"):
+		token = in.Value("week")
+	case in.Has("period"):
+		token = in.Value("period")
+	case in.Bool("last-week"):
+		token = "last-week"
+	case in.Bool("this-week"):
+		token = "this-week"
+	}
+	if token != "" {
+		p, err := mm.ParsePeriod(token, env.Today)
+		if err != nil {
+			return mm.Period{}, false, err
+		}
+		p.Source = mm.PeriodFromSwitch
+		return p, true, nil
+	}
+	return mm.Period{}, false, nil
 }
 
 func runFind(env Env, in *Invocation) error {
@@ -1051,6 +1090,42 @@ func runMigrate(env Env, in *Invocation, s *mm.Store) error {
 		env.json.warn(w)
 	}
 	renderMigrate(env, in, res)
+	return nil
+}
+
+// runStats wires spec-tools.md §5.3's --stats, the third optional operation.
+//
+// The period defaults to all of history rather than to last week: throughput
+// and cycle time over seven days are a sample, and the question this answers is
+// usually about the trend.
+func runStats(env Env, in *Invocation, s *mm.Store) error {
+	period, err := resolveStatsPeriod(env, in)
+	if err != nil {
+		return err
+	}
+	bucket, err := mm.ParseBucket(in.Value("bucket"))
+	if err != nil {
+		return err
+	}
+	res, err := s.Stats(period, mm.StatsOptions{
+		Bucket:          bucket,
+		IncludeArchives: in.Bool("include-archives"),
+	}, env.Today)
+	if err != nil {
+		return err
+	}
+	env.json.setResult(toJSONStats(res))
+	// One record per bucket: the series is the part a pipeline plots, and the
+	// totals are all derivable from it.
+	for _, b := range res.Buckets {
+		env.porcelain.row(b.Label, b.Since.String(), b.Until.String(),
+			strconv.Itoa(b.Closed), strconv.Itoa(b.WipPeak),
+			strconv.FormatFloat(b.WipMean, 'f', 2, 64))
+	}
+	for _, w := range res.Warnings {
+		env.json.warn(w)
+	}
+	renderStats(env, in, res)
 	return nil
 }
 

@@ -42,6 +42,7 @@ Operations:
   --fix                     repair duplicate IDs after a merge
   --archive                 roll old month groups out of done.md
   --migrate                 bring an older directory up to the current format
+  --stats                   throughput, cycle time, work in flight, tags
   --help, --version
 
 Global modifiers:
@@ -301,6 +302,40 @@ a working.md whose content is not a working file, and a conversion that would
 reveal a duplicate ID.
 
 Porcelain columns: kind file line after
+`,
+	OpStats: `mm --stats [--period TOKEN | --since DATE [--until DATE] | --week YYYY-Www]
+                [--bucket day|week|month] [--include-archives]
+
+Four measures over a period (spec-tools.md §5.3), from the three dates the
+format records — created, started, done:
+
+  throughput                items closed per bucket, and by outcome
+  cycle time                done minus started, in whole days: mean, median,
+                            p90 and range. An item with no started date is
+                            counted as unmeasurable, never assumed
+  in flight                 items between started and done, per day: peak, the
+                            day it peaked, and the mean
+  tags                      the closed items distributed over their tags, with
+                            the untagged counted separately
+
+The period defaults to ALL of history, not to last week: throughput over seven
+days is a sample, and this is usually a question about the trend. MM_REPORT_PERIOD
+does not apply — it is the default --report period, and stats is not a report.
+
+"In flight" is not "slots occupied". The format records dates, not times
+(spec-file-format.md §10.1), and a pause leaves no trace at all (§5.2), so an
+item counts from its started date to its done date inclusive: a board that
+starts and finishes ten things in one day reads as ten in flight that day, and
+one paused for a month reads as in flight for that month. The WIP LIMIT is not
+recorded historically either (§10.7), so nothing here measures pressure against
+it.
+
+  --bucket day|week|month   resolution of the series (week)
+  --include-archives        read done-YYYY.md too; without it an archived
+                            period reads as one in which nothing closed, and
+                            says so
+
+Porcelain columns: bucket since until closed wipPeak wipMean
 `,
 	OpSearch: `mm --search QUERY [--regex] [--field F]... [--state S] [--limit N]
 
