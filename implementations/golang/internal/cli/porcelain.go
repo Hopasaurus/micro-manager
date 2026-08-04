@@ -53,7 +53,6 @@ var porcelainFields = map[Op][]string{
 // an operation cannot emit as it goes and then discover it failed.
 type porcelainOut struct {
 	enabled bool
-	op      Op
 	rows    [][]string
 }
 

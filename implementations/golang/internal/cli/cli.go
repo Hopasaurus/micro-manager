@@ -104,16 +104,22 @@ func Run(env Env) int {
 		return finish(env, stdout, err)
 	}
 	env.json.operation = string(in.Op)
-	env.porcelain.op = in.Op
 
 	// --help and --version answer without touching a directory, so they work
 	// from anywhere, including somewhere with no project at all.
+	//
+	// They print to the caller's stdout even under --json/--porcelain, where
+	// operation output is discarded: there is no operation result to put in an
+	// envelope, and swallowing the one thing the user asked for would turn a
+	// request into an empty stdout and exit 0. They are meta-answers, not
+	// operations (§3.4), so the §9.2 "one JSON object on stdout" contract does
+	// not apply to them.
 	switch {
 	case in.Help:
-		writeUsage(env.Stdout, in.Op)
+		writeUsage(stdout, in.Op)
 		return ExitOK
 	case in.Version:
-		fmt.Fprintf(env.Stdout, "mm %s (micro-manager format spec %s)\n",
+		fmt.Fprintf(stdout, "mm %s (micro-manager format spec %s)\n",
 			Version, FormatSpecVersion)
 		return ExitOK
 	}

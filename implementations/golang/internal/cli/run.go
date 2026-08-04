@@ -17,6 +17,16 @@ import (
 // is deliberately no logic here that a UI would also need — if something looks
 // like a rule rather than a translation, it belongs in package mm.
 
+// subjectIsID lists the operations whose subject IS an item id, for the JSON
+// envelope's error id (§9.2: "where applicable"). --wip 100 and --search 42
+// have subjects that happen to parse as ids without being one, and labeling a
+// WIP-limit failure with "T-0100" would mislead a machine caller.
+var subjectIsID = map[Op]bool{
+	OpShow: true, OpEdit: true, OpRemove: true, OpMove: true,
+	OpStart: true, OpPause: true, OpFinish: true,
+	OpBlock: true, OpUnblock: true, OpNote: true,
+}
+
 func dispatch(env Env, in *Invocation) error {
 	switch in.Op {
 	case OpInit:
@@ -48,10 +58,14 @@ func dispatch(env Env, in *Invocation) error {
 		env.json.directory = toJSONDirectory(d)
 		g = mm.IDGrammar{Prefix: d.IDPrefix, Width: d.IDWidth}
 	}
-	// §9.2: an error carries the id "where applicable". Recorded once here so
-	// that a failure anywhere below names the item the user asked about.
-	if id, err := parseIDIn(in.Subject, g); err == nil {
-		env.json.subject = string(id)
+	// §9.2: an error carries the id "where applicable" — only when the
+	// operation's subject IS an item id (subjectIsID above). Recorded once
+	// here so that a failure anywhere below names the item the user asked
+	// about, and never a number or a query that merely parses as one.
+	if subjectIsID[in.Op] {
+		if id, err := parseIDIn(in.Subject, g); err == nil {
+			env.json.subject = string(id)
+		}
 	}
 
 	switch in.Op {
@@ -130,12 +144,23 @@ func runInit(env Env, in *Invocation) error {
 		if err != nil {
 			return usagef("--slots takes a number, got %q", v)
 		}
+		// Zero is the library's "not given" value, so it must never reach Init
+		// as an explicit request: --slots 0 would otherwise silently become the
+		// default of one slot.
+		if n < 1 {
+			return usagef("--slots must be at least 1, got %d", n)
+		}
 		req.Wip = n
 	}
 	if v := in.Value("slot-width"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
 			return usagef("--slot-width takes a number, got %q", v)
+		}
+		// Same zero-means-unset trap as --slots: --slot-width 0 would silently
+		// become the default width of 2.
+		if n < 1 {
+			return usagef("--slot-width must be at least 1, got %d", n)
 		}
 		req.SlotWidth = n
 	}

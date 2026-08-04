@@ -325,6 +325,34 @@ func TestHelpAndVersion(t *testing.T) {
 	}
 }
 
+// F1 (code-review-007): --help and --version are answers, not operation
+// output, so a machine mode must not swallow them. An empty stdout with exit
+// 0 would look exactly like a successful run that produced nothing.
+func TestHelpAndVersionUnderMachineModes(t *testing.T) {
+	r := runner{cwd: t.TempDir()}
+
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--help"}, "usage:"},
+		{[]string{"--help", "--start"}, "--slot"},
+		{[]string{"--version"}, Version},
+	}
+	for _, mode := range []string{"--json", "--porcelain"} {
+		for _, c := range cases {
+			args := append(append([]string{}, c.args...), mode)
+			got := r.run(args...)
+			if got.Code != ExitOK {
+				t.Errorf("%v: exit %d, want %d", args, got.Code, ExitOK)
+			}
+			if !strings.Contains(got.Stdout, c.want) {
+				t.Errorf("%v: expected %q in stdout:\n%s", args, c.want, got.Stdout)
+			}
+		}
+	}
+}
+
 // Both machine modes are implemented now (T-0036, T-0038). What must stay true
 // is that a mode never silently degrades into human output: a script would
 // parse prose and get nonsense.

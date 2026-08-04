@@ -11,6 +11,10 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0156] CLI: porcelain hygiene: remove the dead porcelainOut.op field, pin --fix columns in the freeze test | prio:med | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0155] CLI: JSON error envelope must record an id only when the subject is one (--wip 100 --json names T-0100) | prio:high | tags:cli,review | detail:details/T-0155.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0154] CLI: reject --init --slots 0 and --slot-width 0 (the library treats 0 as unset) | prio:high | tags:cli,review | detail:details/T-0154.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0153] CLI: --help/--version must not vanish under --json/--porcelain (empty stdout, exit 0) | prio:high | tags:cli,review | detail:details/T-0153.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0151] Delay in shutdown | prio:med | tags:bug | detail:details/T-0151.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0147] Add 'move to top' & 'move to bottom' to card context menu. | prio:med | tags:new-feature | detail:details/T-0147.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
 - [x] [T-0150] Flicker follow up | prio:med | tags:bug | detail:details/T-0150.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped

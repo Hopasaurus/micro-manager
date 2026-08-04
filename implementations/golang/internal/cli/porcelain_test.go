@@ -33,6 +33,7 @@ func TestPorcelainFieldOrderIsFrozen(t *testing.T) {
 		OpStatus:  "wipUsed wipLimit ready blocked someday done",
 		OpNext:    "id state section prio tags title",
 		OpSearch:  "id state field file line text",
+		OpFix:     "oldId newId file detail",
 	}
 	for op, want := range frozen {
 		got := strings.Join(porcelainFields[op], " ")

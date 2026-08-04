@@ -174,6 +174,13 @@ func TestInitRejectsBadGrammarFlags(t *testing.T) {
 		{"--init", "--project", "P", "--id-width", "0"},
 		{"--init", "--project", "P", "--id-width", "-1"},
 		{"--init", "--project", "P", "--id-width", "abc"},
+		// Zero means unset in the library, so an explicit 0 must never reach
+		// Init as a request (code-review-007 F2): --slots 0 would otherwise
+		// silently become the one-slot default.
+		{"--init", "--project", "P", "--slots", "0"},
+		{"--init", "--project", "P", "--slots", "-1"},
+		{"--init", "--project", "P", "--slot-width", "0"},
+		{"--init", "--project", "P", "--slot-width", "-1"},
 	} {
 		if got := r.run(args...); got.Code != ExitUsage {
 			t.Errorf("%v: want usage error, got %s", args, got)

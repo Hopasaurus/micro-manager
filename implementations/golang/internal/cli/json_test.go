@@ -273,6 +273,44 @@ func TestJSONWarnings(t *testing.T) {
 	}
 }
 
+// F3 (code-review-007): the envelope's error id is only for operations whose
+// subject IS an item id. --wip's subject is a count and --search's is a query;
+// a failure there must not be labeled with the id its subject happens to parse
+// as ("100" -> T-0100).
+func TestJSONErrorIDOnlyForIDSubjects(t *testing.T) {
+	r, _ := newProject(t)
+
+	// A subject that is an ID keeps naming the item.
+	got := r.run("--show", "T-9999", "--json")
+	e := decode(t, got)
+	if got.Code != ExitNotFound {
+		t.Fatalf("show: exit %d, want %d", got.Code, ExitNotFound)
+	}
+	if len(e.Errors) != 1 || e.Errors[0].ID != "T-9999" {
+		t.Errorf("show: want the error to name T-9999, got %+v", e.Errors)
+	}
+
+	// A count that parses as an ID is still a count, not an item.
+	got = r.run("--wip", "100", "--json")
+	e = decode(t, got)
+	if got.Code != ExitUsage {
+		t.Fatalf("wip: exit %d, want %d", got.Code, ExitUsage)
+	}
+	if len(e.Errors) != 1 || e.Errors[0].ID != "" {
+		t.Errorf("wip: the error must not carry an id, got %+v", e.Errors)
+	}
+
+	// A query that parses as an ID is still a query.
+	got = r.run("--search", "42", "--field", "bogus", "--json")
+	e = decode(t, got)
+	if got.Code != ExitUsage {
+		t.Fatalf("search: exit %d, want %d", got.Code, ExitUsage)
+	}
+	if len(e.Errors) != 1 || e.Errors[0].ID != "" {
+		t.Errorf("search: the error must not carry an id, got %+v", e.Errors)
+	}
+}
+
 // §3.4: the two machine modes are mutually exclusive, and --json is no longer
 // refused as unimplemented.
 func TestJSONAndPorcelain(t *testing.T) {
