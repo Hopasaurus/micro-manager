@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0146] When saving after edit return to board | prio:med | tags:bug | detail:details/T-0146.md | created:2026-08-03 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0160] CLI: searchUpward must not fall back to the process cwd when cwd is empty | prio:low | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0159] CLI: launch the editor from the project root, not the details/ directory | prio:low | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0158] CLI: tighten the switch scanner: --json --json=false must disable; --prio -- must not take -- as a value | prio:med | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped

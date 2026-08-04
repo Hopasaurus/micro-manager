@@ -503,6 +503,35 @@ func TestMutationResponseCarriesTheCollateral(t *testing.T) {
 	}
 }
 
+// T-0146: saving an edit returns to the board — the address bar must follow
+// the swap. Every mutation that dismisses the panel or a dialog replaces the
+// transient URL (/p/:id/item/:itemId) with the board's, so a reload after
+// saving shows the board rather than re-opening the panel. "Save and add
+// another" keeps the panel open, so it must NOT replace the URL: the board
+// would lie about what is on screen.
+func TestMutationReturnsToTheBoardURL(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+
+	// The reported bug: saving an edit leaves the URL on the item.
+	r := ts.form(http.MethodPatch, "/p/"+id+"/items/T-0002",
+		url.Values{"title": {"A new title"}}, "HX-Request", "true")
+	r.expectStatus(http.StatusOK)
+	r.expectHeader("HX-Replace-Url", "/p/"+id+"/board")
+
+	// The panel's action buttons take the same path, because afterMutation is
+	// the one place a dismissing mutation renders.
+	r = ts.form(http.MethodPost, "/p/"+id+"/items/T-0002/move",
+		url.Values{"position": {"1"}}, "HX-Request", "true")
+	r.expectStatus(http.StatusOK)
+	r.expectHeader("HX-Replace-Url", "/p/"+id+"/board")
+
+	// ...but add-another keeps the panel open for the next title.
+	r = ts.form(http.MethodPost, "/p/"+id+"/items",
+		url.Values{"title": {"Another"}, "addAnother": {"1"}}, "HX-Request", "true")
+	r.expectStatus(http.StatusOK)
+	r.expectNoHeader("HX-Replace-Url")
+}
+
 // §4.2: every mutating endpoint MUST accept dryRun and return the change set
 // without writing.
 func TestDryRunWritesNothing(t *testing.T) {

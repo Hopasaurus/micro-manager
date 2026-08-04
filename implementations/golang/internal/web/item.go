@@ -624,6 +624,18 @@ func (s *Server) afterMutation(c *echo.Context, store *mm.Store, result mutation
 		Severity: severity,
 		DryRun:   dryRun,
 	}
+
+	// The mutation dismissed whatever overlay opened it — the item panel, the
+	// dialogs — and swapped in the board. The address bar must follow: after
+	// saving an edit the URL is still /p/:id/item/:itemId, and loading that
+	// URI again would re-open the panel over the new state (spec-gui.md §4.1
+	// rule 1: the URI names the view). HX-Replace-Url rather than HX-Push-Url:
+	// the panel URL is a transient editing state, not a destination, and a
+	// mutation launched from the board itself must not stack a duplicate
+	// history entry per action.
+	if v.App.Project != nil {
+		c.Response().Header().Set("HX-Replace-Url", "/p/"+v.App.Project.ID+"/board")
+	}
 	return s.render(c, http.StatusOK, "board", "board-swap", v)
 }
 
