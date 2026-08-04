@@ -271,7 +271,7 @@ test('a menu entry posts its operation through htmx.ajax', (t) => {
   assert.equal(call.method, 'POST');
   assert.equal(call.url, '/p/x/items/T-0001/start');
   assert.equal(call.opts.target, "[data-testid='board']");
-  assert.equal(call.opts.swap, 'outerHTML');
+  assert.equal(call.opts.swap, 'morph');
 });
 
 test('a dialog op fetches its dialog instead of posting', (t) => {
@@ -440,7 +440,7 @@ test('drop commits with the drop\'s own coordinates, not the last dragover', (t)
   assert.equal(call.url, '/p/x/items/T-0002/move');
   assert.equal(call.opts.values.position, '2', 'the drop position comes from the release');
   assert.equal(call.opts.values.section, 'ready');
-  assert.equal(call.opts.swap, 'outerHTML');
+  assert.equal(call.opts.swap, 'morph');
 });
 
 test('dragging into a column makes the column the target and clears the others', (t) => {

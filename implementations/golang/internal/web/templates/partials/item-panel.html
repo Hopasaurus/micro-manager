@@ -31,10 +31,7 @@
         {{else}}
         hx-patch="/p/{{$p.ID}}/items/{{$i.ID}}"
         {{end}}
-        hx-target="[data-testid='board']" hx-swap="outerHTML">
-
-    <label class="mm-field">
-      <span>Title</span>
+        hx-target="[data-testid='board']" hx-swap="morph" hx-ext="morph">
       <input data-testid="item-field-title" name="title" type="text"
              value="{{$i.Title}}" required autocomplete="off">
     </label>
@@ -106,7 +103,7 @@
             data-op="move"
             {{else}}
             hx-post="/p/{{$p.ID}}/items/{{$i.ID}}/{{.Op}}"
-            hx-target="[data-testid='board']" hx-swap="outerHTML"
+            hx-target="[data-testid='board']" hx-swap="morph" hx-ext="morph"
             {{end}}>{{.Label}}</button>
     {{end}}
     {{end}}
@@ -119,7 +116,7 @@
     </ul>
     <form class="mm-note-form"
           hx-post="/p/{{$p.ID}}/items/{{$i.ID}}/note"
-          hx-target="[data-testid='board']" hx-swap="outerHTML">
+          hx-target="[data-testid='board']" hx-swap="morph" hx-ext="morph">
       <input data-testid="item-note-text" name="text" type="text" placeholder="Add a dated note">
       <button data-testid="item-note-add" class="mm-button" type="submit">Note</button>
     </form>

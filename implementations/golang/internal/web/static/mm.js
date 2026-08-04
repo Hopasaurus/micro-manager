@@ -290,11 +290,13 @@
 
     htmx.ajax('POST', `/p/${project}/items/${id}/${op}`, {
       target: "[data-testid='board']",
-      /* outerHTML, not morph (T-0138): a morph aimed at the board from out
-         here preserves the element, and htmx's polling scheduler relies on
-         the swapped-out element leaving the DOM to stop the old `every 30s`
-         chain — so every mutation would leak one. */
-      swap: 'outerHTML',
+      /* morph, not outerHTML (T-0161): diff the fresh board into the old
+         one instead of tearing every card down and rebuilding it (the
+         flicker source the /new and /item report was about). T-0138 made
+         this outerHTML to stop the board's `every 30s` poll chain leaking
+         per mutation; T-0139 removed every `every` clause, so the leak is
+         impossible and the teardown is pure cost. */
+      swap: 'morph',
       // source anchors the morph extension lookup: without it htmx resolves
       // no extension for this request at all (verified empirically) and a
       // "morph" swap silently falls back to innerHTML, nesting the response
@@ -540,11 +542,11 @@
 
     htmx.ajax('POST', `/p/${project}/items/${id}/${op}`, {
       target: "[data-testid='board']",
-      /* outerHTML, not morph (T-0138): a morph aimed at the board from out
-         here preserves the element, and htmx's polling scheduler relies on
-         the swapped-out element leaving the DOM to stop the old `every 30s`
-         chain — so every mutation would leak one. */
-      swap: 'outerHTML',
+      /* morph, not outerHTML (T-0161): same reasoning as the card-menu op
+         above — the T-0138 poll-chain hazard is gone (no `every` clause
+         survives in any template), so a diffed board preserves the drop
+         target's focus and hover instead of rebuilding everything. */
+      swap: 'morph',
       // See the item-action htmx.ajax call above: source is required for the
       // morph extension to resolve for this request at all.
       source: app,
