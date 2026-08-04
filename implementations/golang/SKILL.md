@@ -242,11 +242,12 @@ mm --archive --age 30                          # the same cutoff as a policy
 ```
 
 `--archive` is the one operation that takes data OUT of the validated set:
-archived items leave the ID pool, so I1 and I2 stop seeing them. Today it also
-strands their detail files in `details/`, which the checker then reports —
-`spec-file-format.md` §5.6 requires them to move to `details-YYYY/` and the Go
-library does not do that yet. Both costs are printed on every run, including
-under `--quiet`. Dry-run it first.
+archived items leave the ID pool, so I1 and I2 stop seeing them. Their detail
+files travel with them into `details-YYYY/` and the archived `detail:` fields
+are rewritten to match (§5.6), so nothing is stranded and the directory still
+validates. Restoring is the same move backwards, and half a restore is caught
+by I8. The cost is printed on every run, including under `--quiet`. Dry-run it
+first.
 
 `mm --help` lists everything; `mm --help --start` prints one operation's page.
 

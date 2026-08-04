@@ -60,6 +60,20 @@ func exists(t *testing.T, dir, name string) bool {
 	return err == nil
 }
 
+// writeFile edits a file in place, for the hand-edits these tests stage. It
+// creates the parent directory, because details-YYYY/ is one of the things
+// being staged.
+func writeFile(t *testing.T, dir, name, body string) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestArchiveRollsOldMonthsIntoYearFiles(t *testing.T) {
 	dir, s := archiveDir(t)
 
@@ -300,10 +314,47 @@ func TestArchiveHealsAnInterruptedRun(t *testing.T) {
 	}
 }
 
-// The detail file of an archived item is the one thing archiving cannot take
-// with it (§5.4). It becomes an I9 orphan, and that MUST be reported rather
-// than left silent (§5.1.6).
-func TestArchiveReportsTheDetailFilesItStrands(t *testing.T) {
+// The same interruption, one write later: the archive AND the detail copy are
+// there, and only the two deletions are outstanding.
+//
+// The detail half is why the move is attempted for every item leaving done.md,
+// including one the archive already holds. Skipping it for a duplicate would
+// take the done.md line away and leave details/T-0008.md behind it — the exact
+// orphan this operation exists not to create.
+func TestArchiveHealsAnInterruptedDetailMove(t *testing.T) {
+	dir, s := detailArchiveDir(t)
+
+	archived := strings.Replace(juneItem, "prio:low",
+		"prio:low | detail:details-2026/T-0008.md", 1)
+	writeFile(t, dir, "done-2026.md", "---\ndoc: done\nversion: 1\nupdated: 2026-07-29\n---\n\n"+
+		"# Done 2026\n\n## 2026-06\n\n"+archived+"\n")
+	writeFile(t, dir, "details-2026/T-0008.md", readFile(t, dir, "details/T-0008.md"))
+
+	res, _, err := s.Archive(ArchiveRequest{Before: Date{2026, 7, 1}}, today)
+	if err != nil {
+		t.Fatalf("the re-run must complete the move: %v", err)
+	}
+	if len(res.DetailsMoved) != 1 {
+		t.Errorf("moves = %+v, want the outstanding one", res.DetailsMoved)
+	}
+	if exists(t, dir, "details/T-0008.md") {
+		t.Error("details/T-0008.md survived the re-run, with no item to claim it")
+	}
+	if !exists(t, dir, "details-2026/T-0008.md") {
+		t.Error("the archived copy was removed")
+	}
+	if n := strings.Count(readFile(t, dir, "done-2026.md"), "[T-0008]"); n != 1 {
+		t.Errorf("the archive holds the item %d times, want 1", n)
+	}
+	if vs, _ := s.Validate(); len(vs) != 0 {
+		t.Errorf("the healed directory should be clean:\n%s", violationMessages(vs))
+	}
+}
+
+// detailArchiveDir is archiveDone with a detail file on the June item, the
+// group that moves.
+func detailArchiveDir(t *testing.T) (string, *Store) {
+	t.Helper()
 	detail := "---\ndoc: detail\nid: T-0008\ntitle: June\nupdated: 2026-06-30\n---\n\n# T-0008 — June\n"
 	dir := newDir(t, map[string]string{
 		"done.md": strings.Replace(archiveDone,
@@ -315,27 +366,160 @@ func TestArchiveReportsTheDetailFilesItStrands(t *testing.T) {
 	if vs, _ := s.Validate(); len(vs) != 0 {
 		t.Fatalf("fixture should start clean:\n%s", violationMessages(vs))
 	}
+	return dir, s
+}
+
+// §5.6 rule 3: the detail file travels with its item and the archived line's
+// detail: field is rewritten to match — one operation, not two.
+//
+// T-0043 shipped the other choice (leave the file, accept the I9 orphan,
+// report it); T-0166 decided the format question the other way, and this is
+// that decision. The directory is CLEAN afterwards, which is the whole point.
+func TestArchiveTakesTheDetailFileWithIt(t *testing.T) {
+	dir, s := detailArchiveDir(t)
 
 	res, _, err := s.Archive(ArchiveRequest{Before: Date{2026, 7, 1}}, today)
 	if err != nil {
-		t.Fatalf("archive must not be blocked by the orphan it creates: %v", err)
+		t.Fatalf("archive: %v", err)
 	}
-	if got := strings.Join(res.DetailOrphans, ","); got != "details/T-0008.md" {
-		t.Errorf("orphans = %q, want the archived item's detail file", got)
+
+	if len(res.DetailsMoved) != 1 {
+		t.Fatalf("moves = %+v, want the June item's detail file", res.DetailsMoved)
 	}
-	if !hasWarning(res.Warnings, "no longer referenced") {
-		t.Errorf("the orphan should be warned about: %q", res.Warnings)
+	mv := res.DetailsMoved[0]
+	if mv.ID != "T-0008" || mv.From != "details/T-0008.md" || mv.To != "details-2026/T-0008.md" {
+		t.Errorf("move = %+v, want T-0008 details/ -> details-2026/", mv)
 	}
-	// The file is still there: it holds the long-form record and deleting it
-	// would be the data loss this operation exists to avoid.
-	if !exists(t, dir, "details/T-0008.md") {
-		t.Fatal("the detail file was deleted")
+	if len(res.DetailOrphans) != 0 {
+		t.Errorf("orphans = %v, want none: the file travelled", res.DetailOrphans)
 	}
-	// And the finding is real, not hidden: exactly one I9 orphan, nothing else.
-	vs, _ := s.Validate()
-	if len(vs) != 1 || vs[0].Invariant != "I9" || vs[0].At.File != "details/T-0008.md" {
-		t.Errorf("want exactly one I9 orphan finding, got:\n%s", violationMessages(vs))
+	if !hasWarning(res.Warnings, "details-YYYY/") {
+		t.Errorf("the move should be stated: %q", res.Warnings)
 	}
+
+	// The file is in its new home, byte for byte, and gone from the old one.
+	if exists(t, dir, "details/T-0008.md") {
+		t.Error("the file is still in details/, so I9 has an orphan to report")
+	}
+	moved := readFile(t, dir, "details-2026/T-0008.md")
+	if !strings.Contains(moved, "id: T-0008") || !strings.Contains(moved, "title: June") {
+		t.Errorf("the archived detail file lost its frontmatter:\n%s", moved)
+	}
+
+	// The archived line points at the new path; nothing in the live directory
+	// mentions the old one.
+	archive := readFile(t, dir, "done-2026.md")
+	if !strings.Contains(archive, "detail:details-2026/T-0008.md") {
+		t.Errorf("the archived line was not rewritten:\n%s", archive)
+	}
+	if strings.Contains(archive, "detail:details/T-0008.md") {
+		t.Errorf("the archived line still points into details/:\n%s", archive)
+	}
+
+	// And the directory validates: no orphan, no dangling reference.
+	if vs, _ := s.Validate(); len(vs) != 0 {
+		t.Errorf("the directory must stay clean:\n%s", violationMessages(vs))
+	}
+}
+
+// §5.6 rule 4: restoring is the same move backwards, and half a restore is
+// CAUGHT — which is the property that made moving the file the better choice.
+func TestArchiveRestoreWithoutTheFileIsReported(t *testing.T) {
+	dir, s := detailArchiveDir(t)
+	if _, _, err := s.Archive(ArchiveRequest{Before: Date{2026, 7, 1}}, today); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+
+	// Paste the archived line back into done.md by hand — and forget the file.
+	done := readFile(t, dir, "done.md")
+	done = strings.Replace(done, "## 2026-07",
+		"## 2026-06\n\n- [x] [T-0008] June | prio:low | detail:details-2026/T-0008.md"+
+			" | created:2026-05-01 | done:2026-06-30 | outcome:obsolete\n\n## 2026-07", 1)
+	writeFile(t, dir, "done.md", done)
+
+	s2 := mustOpen(t, dir)
+	vs, _ := s2.Validate()
+	if len(vs) != 1 || vs[0].Invariant != "I8" {
+		t.Fatalf("want one I8 finding for the restored line, got:\n%s", violationMessages(vs))
+	}
+	if !strings.Contains(vs[0].Message, "details-2026/T-0008.md") {
+		t.Errorf("the finding should name the archived path: %s", vs[0].Message)
+	}
+}
+
+// §8: a directory that is already broken must still be usable, and archiving
+// must not turn someone else's pre-existing mistake into new findings.
+//
+// Both cases here are about a detail file two items claim, which is only ever
+// possible when at least one claim is already an I8 violation — the path
+// encodes the ID, so two VALID claims mean two items with one ID.
+func TestArchiveAndASharedDetailFile(t *testing.T) {
+	detail := "---\ndoc: detail\nid: T-0008\ntitle: June\nupdated: 2026-06-30\n---\n\n# T-0008 — June\n"
+	claimedDone := strings.Replace(archiveDone,
+		"- [x] [T-0008] June | prio:low",
+		"- [x] [T-0008] June | prio:low | detail:details/T-0008.md", 1)
+
+	// A live item pointing at a file named for someone else. Its I8 finding is
+	// "points at the wrong path", which does not depend on the file being
+	// there, so the file leaves with the item it is actually named for.
+	t.Run("a bogus claim does not hold the file back", func(t *testing.T) {
+		dir := newDir(t, map[string]string{
+			"done.md": claimedDone, "details/T-0008.md": detail,
+		})
+		backlog := readFile(t, dir, "backlog.md")
+		backlog = strings.Replace(backlog, "next_id: T-0001", "next_id: T-0012", 1) +
+			"- [ ] [T-0011] Also claims it | detail:details/T-0008.md | created:2026-07-01\n"
+		writeFile(t, dir, "backlog.md", backlog)
+
+		s := mustOpen(t, dir)
+		before, _ := s.Validate()
+
+		res, _, err := s.Archive(ArchiveRequest{Before: Date{2026, 7, 1}}, today)
+		if err != nil {
+			t.Fatalf("a pre-existing bad claim must not block the archive: %v", err)
+		}
+		if len(res.DetailsMoved) != 1 {
+			t.Errorf("moves = %+v, want the file to go with T-0008", res.DetailsMoved)
+		}
+		if exists(t, dir, "details/T-0008.md") {
+			t.Error("the file stayed behind as an orphan")
+		}
+		// The bogus claim keeps exactly the finding it already had.
+		after, _ := s.Validate()
+		if len(after) != len(before) {
+			t.Errorf("findings went from %d to %d:\n%s", len(before), len(after),
+				violationMessages(after))
+		}
+	})
+
+	// One ID in two homes (I1, what a git merge manufactures). Both claims are
+	// valid, so taking the file would leave the SURVIVOR pointing at nothing —
+	// a new finding, for an item that did nothing wrong.
+	t.Run("a duplicate ID keeps its file", func(t *testing.T) {
+		dir := newDir(t, map[string]string{
+			"done.md": claimedDone, "details/T-0008.md": detail,
+		})
+		backlog := readFile(t, dir, "backlog.md")
+		backlog = strings.Replace(backlog, "next_id: T-0001", "next_id: T-0012", 1) +
+			"- [ ] [T-0008] June | detail:details/T-0008.md | created:2026-05-01\n"
+		writeFile(t, dir, "backlog.md", backlog)
+
+		s := mustOpen(t, dir)
+		res, _, err := s.Archive(ArchiveRequest{Before: Date{2026, 7, 1}}, today)
+		if err != nil {
+			t.Fatalf("a pre-existing duplicate must not block the archive: %v", err)
+		}
+		if len(res.DetailsMoved) != 0 {
+			t.Errorf("moved %+v; the surviving twin still needs the file", res.DetailsMoved)
+		}
+		if !exists(t, dir, "details/T-0008.md") {
+			t.Fatal("the surviving item's detail file was taken away")
+		}
+		// The duplicate is gone from done.md, so the board is now clean.
+		if vs, _ := s.Validate(); len(vs) != 0 {
+			t.Errorf("violations after archiving:\n%s", violationMessages(vs))
+		}
+	})
 }
 
 // A heading that is not a month names no year to file under. It is already a
@@ -548,11 +732,13 @@ func TestArchiveOnAnAlreadyBrokenDirectory(t *testing.T) {
 // The real thing, at real scale: this repository's own board, which is the only
 // corpus here where nearly every closed item carries a detail file.
 //
-// It is the test that showed what archiving actually costs a live directory -
-// 87 items out, 51 detail files stranded - and it exists so that number cannot
-// change unnoticed. It skips when the directory is absent, so the module stays
-// buildable in isolation, and LOGS what it covered: a skip that looks like a
-// pass is the failure mode this file cannot afford.
+// It is the test that showed what archiving actually costs a live directory —
+// 87 items out, and the 51 detail files that used to be stranded with them,
+// which is what sent the question to T-0166 and the answer to T-0168. Now those
+// 51 travel, and the board is CLEAN afterwards: that is the assertion. It skips
+// when the directory is absent, so the module stays buildable in isolation, and
+// LOGS what it covered: a skip that looks like a pass is the failure mode this
+// file cannot afford.
 func TestArchiveOnTheRepositorysOwnBoard(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "mm")
 	if err := os.CopyFS(dir, os.DirFS("../micro-manager")); err != nil {
@@ -575,8 +761,11 @@ func TestArchiveOnTheRepositorysOwnBoard(t *testing.T) {
 	if res.Items == 0 || len(res.Months) == 0 {
 		t.Fatalf("nothing was archived from a board with %d closed items", len(before))
 	}
-	t.Logf("archived %d items in %v into %v, stranding %d detail files",
-		res.Items, res.Months, res.Files, len(res.DetailOrphans))
+	t.Logf("archived %d items in %v into %v, moving %d detail files (%d stranded)",
+		res.Items, res.Months, res.Files, len(res.DetailsMoved), len(res.DetailOrphans))
+	if len(res.DetailsMoved) == 0 {
+		t.Error("no detail file travelled; on this board most closed items have one")
+	}
 
 	// Every closed item is still accounted for: what left done.md is exactly
 	// what arrived in the archives.
@@ -599,24 +788,40 @@ func TestArchiveOnTheRepositorysOwnBoard(t *testing.T) {
 	if archived != res.Items {
 		t.Errorf("the archives hold %d items, want the %d that left", archived, res.Items)
 	}
-	if len(tx.Changes) != res.Items {
-		t.Errorf("%d changes for %d items", len(tx.Changes), res.Items)
+	// One change per item, plus one per detail file that travelled.
+	if want := res.Items + len(res.DetailsMoved); len(tx.Changes) != want {
+		t.Errorf("%d changes for %d items and %d detail moves",
+			len(tx.Changes), res.Items, len(res.DetailsMoved))
 	}
 
-	// The only findings are the stranded detail files, every one of them
-	// reported by the operation.
-	vs, _ := s.Validate()
-	reported := map[string]bool{}
-	for _, p := range res.DetailOrphans {
-		reported[p] = true
+	// Every moved file is in its new home and gone from its old one, and the
+	// archived line names the new path.
+	archives := map[string]string{}
+	for _, name := range res.Files {
+		archives[name] = readFile(t, dir, name)
 	}
-	for _, v := range vs {
-		if v.Invariant != "I9" || !reported[v.At.File] {
-			t.Errorf("unreported finding after archiving: %s", v)
+	for _, mv := range res.DetailsMoved {
+		if exists(t, dir, mv.From) {
+			t.Errorf("%s is still in details/", mv.From)
+		}
+		if !exists(t, dir, mv.To) {
+			t.Errorf("%s was not written", mv.To)
+		}
+		found := false
+		for _, body := range archives {
+			if strings.Contains(body, "detail:"+mv.To) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no archived line points at %s", mv.To)
 		}
 	}
-	if len(vs) != len(res.DetailOrphans) {
-		t.Errorf("%d findings for %d reported orphans", len(vs), len(res.DetailOrphans))
+
+	// And the board is clean: archiving a live directory now costs it nothing
+	// the checker can see, which is the whole of §5.6.
+	if vs, _ := s.Validate(); len(vs) != 0 {
+		t.Errorf("findings after archiving the real board:\n%s", violationMessages(vs))
 	}
 }
 

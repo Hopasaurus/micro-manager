@@ -107,12 +107,13 @@ Notes worth internalizing:
   format's extension point and must never be dropped — `mm` already handles
   this; don't hand-edit around it.
 - **`--archive` moves data out of the checked set.** Archived months live in
-  `done-YYYY.md`, which nothing validates: their IDs leave the pool, and a
-  `--report` over an archived period needs `--include-archives` to find
-  anything. It warns about both on every run, even under `--quiet`, and today
-  it also leaves each archived item's detail file behind in `details/` where
-  `--check` will report it. Dry-run it first, and don't reach for it until
-  `done.md` is genuinely unwieldy.
+  `done-YYYY.md` and their detail files in `details-YYYY/`, neither of which is
+  validated: those IDs leave the pool, and a `--report` over an archived period
+  needs `--include-archives` to find anything. It warns on every run, even
+  under `--quiet`. Nothing is stranded and nothing is deleted, so the directory
+  still passes `--check`; restoring means moving the line AND its detail file
+  back, and doing half of it is reported. Dry-run it first, and don't reach for
+  it until `done.md` is genuinely unwieldy.
 
 ## Scripting against it
 

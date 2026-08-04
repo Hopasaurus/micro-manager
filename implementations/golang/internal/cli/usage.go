@@ -244,19 +244,22 @@ Porcelain columns: oldId newId file detail
 `,
 	OpArchive: `mm --archive [--before YYYY-MM | --age DAYS] [--dry-run]
 
-Moves whole month groups out of done.md into done-YYYY.md. Whole groups only: a
-month is the finest grain done.md records.
+Moves whole month groups out of done.md into done-YYYY.md, and the detail files
+of the items in them into details-YYYY/, rewriting each archived detail: field
+to match (spec-file-format.md §5.6). Whole groups only: a month is the finest
+grain done.md records.
 
 This is the one operation that takes data OUT of the validated set. Archived
 items leave the ID pool — I1 and I2 stop seeing them — and a report over an
 archived period finds nothing without --include-archives. It says so on every
 run, including under --quiet.
 
-Detail files are LEFT BEHIND today: an archived item's detail file stays in
-details/ with nothing referencing it, which --check reports as an I9 orphan
-from then on. Each run names the files it stranded. spec-file-format.md §5.6
-requires them to move to details-YYYY/ instead; this implementation does not do
-that yet, so on a board with detail files, expect findings after a run.
+Nothing is left behind and nothing is deleted, so the directory still validates
+afterwards. Restoring is the same move backwards: paste the lines back into
+done.md, move details-YYYY/<ID>.md back to details/, and rewrite the field.
+Doing half of it is caught — the restored line is validated again, and I8
+reports a detail: that is not details/<ID>.md, or one that is and names a file
+that is not there.
 
   --before YYYY-MM          archive every group older than this month; the month
                             itself stays. A full date is accepted and its day
@@ -269,7 +272,7 @@ that yet, so on a board with detail files, expect findings after a run.
                             month a further thirty days. This is the form a
                             scheduled run uses: it needs no editing each month
 
-Porcelain columns: id file
+Porcelain columns: id file detail
 `,
 	OpSearch: `mm --search QUERY [--regex] [--field F]... [--state S] [--limit N]
 

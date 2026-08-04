@@ -132,8 +132,9 @@ func (ws *writeSet) Commit() error {
 // the page cache, and a power loss leaves an empty file where the old one was.
 func writeFileAtomic(path string, data []byte) error {
 	dir := filepath.Dir(path)
-	// The only nested directory the format has is details/, and creating the
-	// first detail file in a directory that never had one must work.
+	// The format's nested directories are details/ and the details-YYYY/ an
+	// archive writes (§5.6): creating the first file in one that never existed
+	// must work, and for details-YYYY/ that is the normal case.
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("%w: creating %s: %v", ErrIO, dir, err)
 	}

@@ -166,14 +166,23 @@ func toJSONFix(r mm.FixResult) jsonFix {
 }
 
 // jsonArchive is the --archive result. The cutoff is included because it can
-// come from a default or from --age, and detailOrphans because the files it
-// names are the directory's new I9 findings.
+// come from a default or from --age; detailsMoved because those files are no
+// longer where §5.4 says a detail file lives, and a caller restoring an item
+// has to move each one back; detailOrphans because each one names a detail:
+// that pointed at nothing.
 type jsonArchive struct {
-	Cutoff        string   `json:"cutoff"`
-	Months        []string `json:"months"`
-	Items         int      `json:"items"`
-	Files         []string `json:"files"`
-	DetailOrphans []string `json:"detailOrphans"`
+	Cutoff        string           `json:"cutoff"`
+	Months        []string         `json:"months"`
+	Items         int              `json:"items"`
+	Files         []string         `json:"files"`
+	DetailsMoved  []jsonDetailMove `json:"detailsMoved"`
+	DetailOrphans []string         `json:"detailOrphans"`
+}
+
+type jsonDetailMove struct {
+	ID   string `json:"id"`
+	From string `json:"from"`
+	To   string `json:"to"`
 }
 
 func toJSONArchive(r mm.ArchiveResult) jsonArchive {
@@ -182,7 +191,13 @@ func toJSONArchive(r mm.ArchiveResult) jsonArchive {
 		Months:        r.Months,
 		Items:         r.Items,
 		Files:         r.Files,
+		DetailsMoved:  []jsonDetailMove{},
 		DetailOrphans: r.DetailOrphans,
+	}
+	for _, mv := range r.DetailsMoved {
+		out.DetailsMoved = append(out.DetailsMoved, jsonDetailMove{
+			ID: string(mv.ID), From: mv.From, To: mv.To,
+		})
 	}
 	// §9.2: a list is always a list. An absent one would make a caller test for
 	// null before iterating, on a field that means "none".

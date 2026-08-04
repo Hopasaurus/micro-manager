@@ -262,11 +262,10 @@ func TestArchiveCLIJSONAndPorcelain(t *testing.T) {
 	}
 }
 
-// A detail file belonging to an archived item is stranded today: the library
-// does not move it to details-YYYY/ yet (T-0168). What must NOT happen is
-// silence — spec-tools.md §5.1.6's rule for --remove applies here for the same
-// reason, so the run names the file and --check reports it afterwards.
-func TestArchiveCLIReportsTheDetailFilesItStrands(t *testing.T) {
+// A detail file travels with its item into details-YYYY/ (§5.6 rule 3), the
+// archived line is rewritten to match, and the directory still validates —
+// end to end, through the wrapper.
+func TestArchiveCLITakesDetailFilesWithIt(t *testing.T) {
 	r, dir := archiveProject(t)
 
 	done := readFile(t, filepath.Join(dir, "done.md"))
@@ -284,21 +283,75 @@ func TestArchiveCLIReportsTheDetailFilesItStrands(t *testing.T) {
 		t.Fatalf("fixture should start clean: %s", got)
 	}
 
-	got := r.run("--archive", "--before", "2026-07")
+	got := r.run("--archive", "--before", "2026-07", "--porcelain")
 	if got.Code != ExitOK {
 		t.Fatalf("archive: %s", got)
 	}
-	if !strings.Contains(got.Stderr, "details/T-0007.md") {
-		t.Errorf("the stranded detail file must be named:\n%s", got.Stderr)
+	// The record carries where the item went AND where its detail file went.
+	if !strings.Contains(got.Stdout, "T-0007\tdone-2025.md\tdetails-2025/T-0007.md") {
+		t.Errorf("porcelain:\n%s", got.Stdout)
+	}
+	// One record per ITEM: the detail move is folded in, not a second row.
+	if n := strings.Count(got.Stdout, "T-0007\t"); n != 1 {
+		t.Errorf("T-0007 appears in %d records, want 1:\n%s", n, got.Stdout)
+	}
+	if !strings.Contains(got.Stderr, "details-YYYY/") {
+		t.Errorf("the move should be stated:\n%s", got.Stderr)
 	}
 
-	// And it is a real finding, not just a warning about one.
+	// The file is in its new home and gone from the old one, and the archived
+	// line names it.
+	if _, err := os.Stat(filepath.Join(dir, "details", "T-0007.md")); err == nil {
+		t.Error("the detail file stayed in details/")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "details-2025", "T-0007.md")); err != nil {
+		t.Errorf("details-2025/T-0007.md was not written: %v", err)
+	}
+	archive := readFile(t, filepath.Join(dir, "done-2025.md"))
+	if !strings.Contains(archive, "detail:details-2025/T-0007.md") {
+		t.Errorf("the archived line was not rewritten:\n%s", archive)
+	}
+
+	// Nothing to report: the live directory is exactly as clean as it was.
+	if check := r.run("--check"); check.Code != ExitOK {
+		t.Fatalf("check after archive: %s", check)
+	}
+}
+
+// §5.6 rule 4: half a restore is caught. The user pastes an archived line back
+// into done.md and forgets the file; --check says so, naming the archived path.
+func TestArchiveCLIHalfARestoreIsReported(t *testing.T) {
+	r, dir := archiveProject(t)
+
+	done := readFile(t, filepath.Join(dir, "done.md"))
+	done = strings.Replace(done,
+		"- [x] [T-0007] Christmas | created:2025-11-01",
+		"- [x] [T-0007] Christmas | detail:details/T-0007.md | created:2025-11-01", 1)
+	if err := os.WriteFile(filepath.Join(dir, "done.md"), []byte(done), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	detail := "---\ndoc: detail\nid: T-0007\ntitle: Christmas\nupdated: 2025-12-24\n---\n\n# Christmas\n"
+	if err := os.WriteFile(filepath.Join(dir, "details", "T-0007.md"), []byte(detail), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.run("--archive", "--before", "2026-07"); got.Code != ExitOK {
+		t.Fatalf("archive: %s", got)
+	}
+
+	// Paste the line back, leaving the file in details-2025/.
+	restored := readFile(t, filepath.Join(dir, "done.md"))
+	restored += "\n## 2025-12\n\n- [x] [T-0007] Christmas | detail:details-2025/T-0007.md" +
+		" | created:2025-11-01 | done:2025-12-24 | outcome:shipped\n"
+	if err := os.WriteFile(filepath.Join(dir, "done.md"), []byte(restored), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	check := r.run("--check")
 	if check.Code != ExitInvariantViolation {
-		t.Fatalf("check after archive = %d, want an I9 finding: %s", check.Code, check)
+		t.Fatalf("check = %d, want the I8 finding a half restore earns: %s", check.Code, check)
 	}
-	if !strings.Contains(check.Stdout, "details/T-0007.md") {
-		t.Errorf("check:\n%s", check.Stdout)
+	if !strings.Contains(check.Stdout, "details-2025/T-0007.md") {
+		t.Errorf("the finding should name the archived path:\n%s", check.Stdout)
 	}
 }
 

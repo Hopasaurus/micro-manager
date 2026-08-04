@@ -47,7 +47,7 @@ var porcelainFields = map[Op][]string{
 	OpNext:    {"id", "state", "section", "prio", "tags", "title"},
 	OpSearch:  {"id", "state", "field", "file", "line", "text"},
 	OpFix:     {"oldId", "newId", "file", "detail"},
-	OpArchive: {"id", "file"},
+	OpArchive: {"id", "file", "detail"},
 }
 
 // porcelainOut accumulates records, for the same reason the JSON envelope does:

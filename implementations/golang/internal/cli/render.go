@@ -67,6 +67,12 @@ func renderArchive(env Env, in *Invocation, res mm.ArchiveResult) {
 			for _, f := range res.Files {
 				out(env, "  wrote %s\n", f)
 			}
+			if n := len(res.DetailsMoved); n > 0 {
+				// Not listed one by one: on a real board this is fifty files,
+				// and the JSON and porcelain streams carry every path for
+				// anything that needs them.
+				out(env, "  moved %d detail file(s) into details-YYYY/\n", n)
+			}
 		}
 	}
 	for _, w := range res.Warnings {

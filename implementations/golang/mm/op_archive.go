@@ -10,12 +10,12 @@ import (
 )
 
 // Archiving: rolling old month groups out of done.md (spec-tools.md §5.3,
-// spec-file-format.md §5.3).
+// §5.3.1, spec-file-format.md §5.6).
 //
 // done.md is the one file items are never removed from, so it grows without
-// bound. The format's answer is done-YYYY.md — "when the file grows unwieldy,
-// trailing years MAY be moved" — and those files are deliberately OUTSIDE the
-// specification: no validator reads them, this library included.
+// bound. The format's answer is done-YYYY.md, with details-YYYY/ beside it, and
+// both are deliberately OUTSIDE validation: no checker reads them, this library
+// included (§5.6 rule 2).
 //
 // That makes this the one operation whose whole purpose is to take data out of
 // the validated world, and everything awkward about it follows from that:
@@ -25,20 +25,23 @@ import (
 //     never decremented — but it no longer proves anything about the numbers
 //     below it. §5.3 requires the tool to say so out loud, which is why this
 //     returns warnings and not just a change set.
-//   - A DETAIL FILE STAYS WHERE IT IS. §5.4 fixes detail files at
-//     details/<ID>.md for their whole life and never deletes them on
-//     completion, so archiving can neither take one along nor throw it away:
-//     the file remains, nothing references it, and I9 reports it as an orphan.
-//     That finding is accepted deliberately and REPORTED, never left silent —
-//     the rule §5.1.6 states for --remove, applied here for the same reason.
+//   - A DETAIL FILE TRAVELS WITH ITS ITEM, to details-YYYY/<ID>.md, and the
+//     archived line's detail: field is rewritten to match — one operation, not
+//     two (§5.6 rule 3). T-0043 shipped the other choice, leaving the file in
+//     details/ as an I9 orphan; T-0166 decided the format question and this is
+//     what it decided. Moving the file is what keeps the LIVE directory clean,
+//     and it needs no validator change: I8 and I9 name details/ exactly, so
+//     details-2025/ is already invisible to them.
 //   - A report over an archived period reads nothing unless it is asked to
 //     include archives (ReportOptions.IncludeArchives).
 //
-// The move is a cut and paste in that order (§7 rule 4): the archive is written
-// BEFORE done.md loses the group, so an interruption between the two writes
-// leaves the closed work in both files rather than in neither. Re-running the
-// operation then heals it, because insertion skips an ID the archive already
-// holds instead of writing a second copy.
+// The move is a cut and paste in that order (§7 rule 4), and the write set
+// enforces it structurally: every write happens before any delete. So the
+// detail copies and the archive file land BEFORE done.md loses the group and
+// BEFORE details/ gives a file up. An interruption leaves the work in both
+// places rather than in neither — a re-run heals a half-written archive,
+// because insertion skips an ID the archive already holds, and the worst case
+// is a stale details/<ID>.md that I9 reports loudly and a person deletes.
 
 // ArchiveRequest selects which month groups leave done.md.
 type ArchiveRequest struct {
@@ -102,15 +105,29 @@ type ArchiveResult struct {
 	// done-YYYY.md per year touched.
 	Files []string
 
-	// DetailOrphans are detail files whose item has left done.md. They still
-	// hold the long-form record and are still on disk; nothing references them
-	// any more, so I9 reports each one until it is deleted or its item is
-	// restored.
+	// DetailsMoved are the detail files that travelled with their items, as
+	// "details/T-0007.md -> details-2025/T-0007.md". Reported because the files
+	// are no longer where §5.4 says a detail file lives, and because a caller
+	// restoring an archived item by hand has to move each one back (§5.6 rule
+	// 4).
+	DetailsMoved []DetailMove
+
+	// DetailOrphans are detail files an archive could NOT take with it: the
+	// path resolves to no file (I8's finding, not this operation's), or another
+	// item still claims it. Each one stays in details/ and I9 reports it if the
+	// claim was the archived item's only one.
 	DetailOrphans []string
 
 	// Warnings state what the archive cost, per §5.3. A caller that drops them
 	// is the one not conforming.
 	Warnings []string
+}
+
+// DetailMove is one detail file following its item out of the live directory.
+type DetailMove struct {
+	ID   ID
+	From string // "details/T-0007.md"
+	To   string // "details-2025/T-0007.md"
 }
 
 // Archive rolls month groups older than a cutoff out of done.md into
@@ -186,6 +203,8 @@ func (s *Store) Archive(req ArchiveRequest, today Date) (ArchiveResult, TxResult
 	targets := map[int]*archiveTarget{}
 	var years []int // first-use order, so the write order is stable
 	duplicates := 0
+	claimed := stillClaimed(t.model, moving)
+	orphaned := map[string]bool{}
 
 	for _, m := range moving {
 		year, err := yearOfMonth(m.Month)
@@ -208,6 +227,25 @@ func (s *Store) Archive(req ArchiveRequest, today Date) (ArchiveResult, TxResult
 		// replaying the group backwards reproduces the order it had.
 		for i := len(m.Items) - 1; i >= 0; i-- {
 			it := m.Items[i]
+
+			// The detail file first, and for EVERY item leaving done.md —
+			// including one the archive already holds (below). A run
+			// interrupted after the archive was written left the file in
+			// details/, still claimed by the done.md line that is about to go;
+			// skipping the move here would turn that into the orphan this
+			// operation exists not to leave.
+			if mv, ok := t.moveArchivedDetail(it, year, claimed); ok {
+				it.Detail = mv.To // rewritten BEFORE the line is rendered (§5.6 rule 3)
+				res.DetailsMoved = append(res.DetailsMoved, mv)
+			} else if it.Detail != "" && it.Detail == it.DetailPath() &&
+				!claimed[it.Detail] && !orphaned[it.Detail] {
+				// The item's own detail file, and it is not there. That is
+				// I8's finding rather than this operation's, but the caller
+				// should hear that the archive is going out incomplete.
+				orphaned[it.Detail] = true
+				res.DetailOrphans = append(res.DetailOrphans, it.Detail)
+			}
+
 			if tgt.ids[it.ID] {
 				// The archive already holds this ID: a previous run was
 				// interrupted between the two writes. Do not write a second
@@ -222,8 +260,6 @@ func (s *Store) Archive(req ArchiveRequest, today Date) (ArchiveResult, TxResult
 				Before: line, After: line})
 		}
 	}
-
-	res.DetailOrphans = t.acceptArchiveOrphans(moving)
 
 	// Archives first, done.md second (§7 rule 4): the copy exists before the
 	// original goes away.
@@ -260,11 +296,19 @@ func archiveWarnings(res ArchiveResult, duplicates int) []string {
 			"validated, so I1 and I2 no longer see them (spec-file-format.md §10.5), "+
 			"and a report over an archived period needs IncludeArchives to find them",
 		plural(res.Items, "archived item", "archived items")))
+	if n := len(res.DetailsMoved); n > 0 {
+		out = append(out, fmt.Sprintf(
+			"%s moved out of details/ into details-YYYY/ with the archived work "+
+				"(spec-file-format.md §5.6); restoring an archived item means "+
+				"moving its file back and rewriting the detail: field, or I8 "+
+				"will say so",
+			plural(n, "detail file", "detail files")))
+	}
 	if n := len(res.DetailOrphans); n > 0 {
 		out = append(out, fmt.Sprintf(
-			"%s no longer referenced by any item and reported by I9 until deleted "+
-				"or the item is restored: %s",
-			plural(n, "detail file is", "detail files are"),
+			"%s could not travel with its item because the path resolves to no "+
+				"file; the archived line now points at nothing: %s",
+			plural(n, "detail reference", "detail references"),
 			strings.Join(res.DetailOrphans, ", ")))
 	}
 	if duplicates > 0 {
@@ -276,50 +320,65 @@ func archiveWarnings(res ArchiveResult, duplicates int) []string {
 	return out
 }
 
-// acceptArchiveOrphans finds the detail files the move strands, whitelists the
-// I9 finding for each so the write is not blocked, and returns them.
+// stillClaimed lists the detail paths a SURVIVING item claims VALIDLY — where
+// the path is that item's own details/<ID>.md (I8).
 //
-// Whitelisting is what makes the violation DELIBERATE rather than accidental:
-// the transaction refuses anything it introduced that was not already wrong
-// (tx.commit), so a finding that is meant to happen has to be added to the
-// baseline — and then reported, because §5.1.6 forbids leaving an invalid
-// directory silently.
-func (t *tx) acceptArchiveOrphans(moving []*monthSpan) []string {
+// Only a valid claim can hold a file back. An invalid one is already an I8
+// finding whose message says the path is wrong and never reaches the "and the
+// file exists" half, so moving the file changes nothing about it — and the
+// file's rightful owner is the item leaving. Two VALID claims on one path mean
+// two items with one ID (an I1 duplicate from a merge, --fix's job): there the
+// survivor really would be left pointing at nothing, so the file stays.
+func stillClaimed(m *dirModel, moving []*monthSpan) map[string]bool {
 	leaving := map[*Item]bool{}
-	for _, m := range moving {
-		for _, it := range m.Items {
+	for _, span := range moving {
+		for _, it := range span.Items {
 			leaving[it] = true
 		}
 	}
-	// A detail file two items claim is a violation already; when one of them
-	// leaves, the survivor still claims the file and it is not an orphan.
 	claimed := map[string]bool{}
-	for _, it := range t.model.items() {
-		if !leaving[it] && it.Detail != "" {
+	for _, it := range m.items() {
+		if !leaving[it] && it.Detail != "" && it.Detail == it.DetailPath() {
 			claimed[it.Detail] = true
 		}
 	}
+	return claimed
+}
 
-	var out []string
-	seen := map[string]bool{}
-	for _, m := range moving {
-		for _, it := range m.Items {
-			path := it.Detail
-			if path == "" || claimed[path] || seen[path] {
-				continue
-			}
-			if _, exists := t.model.details[path]; !exists {
-				continue // a detail: that resolves to nothing is I8's finding
-			}
-			seen[path] = true
-			out = append(out, path)
-			t.baseline[violationKey(Violation{
-				Invariant: "I9", At: Location{File: path},
-				Message: "orphan — no item references it",
-			})] = struct{}{}
-		}
+// moveArchivedDetail takes one item's detail file into details-YYYY/ and
+// reports the move (§5.6 rule 3). The caller rewrites the item's detail: field
+// to mv.To before the line is rendered into the archive — the two halves are
+// one operation, and an implementation that does either alone is not
+// conforming (spec-tools.md §5.3.1).
+//
+// It returns false when there is nothing to take: no detail: field, a field
+// that resolves to no file (I8's finding, not this operation's), a path that is
+// not this item's own (so the file belongs to whoever it is named for), or a
+// file a surviving item validly claims.
+func (t *tx) moveArchivedDetail(it *Item, year int, claimed map[string]bool) (DetailMove, bool) {
+	if it.Detail == "" || it.Detail != it.DetailPath() {
+		return DetailMove{}, false
 	}
-	return out
+	df, ok := t.model.details[it.Detail]
+	if !ok || claimed[it.Detail] {
+		return DetailMove{}, false
+	}
+
+	to := fmt.Sprintf("details-%04d/%s.md", year, it.ID)
+	path := filepath.Join(t.store.path, to)
+	// Stamped before the write for the same reason the archive file is: a
+	// re-run over a half-finished archive finds the copy already there, and the
+	// stamp has to describe what is on disk or the commit aborts as a phantom
+	// conflict (§7 rule 5).
+	t.ws.Add(path, t.detailEdit(df).Bytes(), stampOf(path))
+	t.ws.Delete(filepath.Join(t.store.path, df.Name))
+
+	// Out of the model, not into it under a new key: details-YYYY/ is outside
+	// I8 and I9 (§5.6 rule 2), and the pre-commit reparse must not find an
+	// orphan where the file used to be.
+	delete(t.model.details, df.Name)
+	t.record(Change{Kind: ChangeMoved, ID: it.ID, File: to})
+	return DetailMove{ID: it.ID, From: df.Name, To: to}, true
 }
 
 // archiveTarget is one done-YYYY.md being written.

@@ -1005,10 +1005,18 @@ func runArchive(env Env, in *Invocation, s *mm.Store) error {
 	env.json.setResult(toJSONArchive(res))
 	// One record per item moved, from the change set rather than from a name
 	// this layer would have to construct: the library already knows which
-	// archive each item landed in.
+	// archive each item landed in, and where each detail file went. A detail
+	// move is a change too, so it is folded into its item's record rather than
+	// emitted as a second row for the same id.
+	detailFor := map[mm.ID]string{}
+	movedInto := map[string]bool{}
+	for _, mv := range res.DetailsMoved {
+		detailFor[mv.ID] = mv.To
+		movedInto[mv.To] = true
+	}
 	for _, c := range tx.Changes {
-		if c.Kind == mm.ChangeMoved {
-			env.porcelain.row(string(c.ID), c.File)
+		if c.Kind == mm.ChangeMoved && !movedInto[c.File] {
+			env.porcelain.row(string(c.ID), c.File, detailFor[c.ID])
 		}
 	}
 	for _, w := range res.Warnings {

@@ -22,7 +22,6 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0168] Library: archive MUST move detail files into details-YYYY/, not strand them (spec-file-format.md §5.6) | prio:med | tags:library,ops | detail:details/T-0168.md | created:2026-08-04
 - [ ] [T-0044] Implement migrate for older directory layouts | prio:low | tags:library,ops | created:2026-07-29
 - [ ] [T-0045] Implement stats: throughput, cycle time, WIP over time | prio:low | tags:library,report | created:2026-07-29
 

@@ -386,11 +386,13 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 		compareValidators(t, "after archiving every month group", dir)
 	})
 
-	// The deliberate-violation path, second case: an archived item's detail file
-	// stays in details/ and becomes an orphan. check.sh globs details/*.md and
-	// knows nothing about archives, so it must find exactly the orphans this
-	// implementation reported - no more, and no fewer.
-	t.Run("after an archive that strands a detail file", func(t *testing.T) {
+	// details-YYYY/ is a directory neither validator may look into (§5.6 rule
+	// 2), and the claim that it needs NO validator change rests on exactly
+	// that. check.sh globs "$dir"/details/*.md and the Go checker reads
+	// details/; if either one wandered, this is where it would show, because a
+	// file that has moved there is claimed by no live item and would be an I9
+	// orphan the moment it was seen.
+	t.Run("after an archive that moves a detail file", func(t *testing.T) {
 		dir := newDir(t, map[string]string{
 			"done.md": strings.Replace(archiveDone,
 				"- [x] [T-0008] June | prio:low",
@@ -404,14 +406,17 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(res.DetailOrphans) != 1 {
-			t.Fatalf("orphans = %v, want the one detail file", res.DetailOrphans)
+		if len(res.DetailsMoved) != 1 {
+			t.Fatalf("moves = %+v, want the one detail file", res.DetailsMoved)
 		}
-		compareValidators(t, "archive with a stranded detail file", dir)
+		compareValidators(t, "archive that moved a detail file into details-YYYY/", dir)
 
-		// Both must actually be reporting it, or the agreement is vacuous.
-		if len(goFindings(t, dir)) == 0 || len(runCheckSh(t, dir)) == 0 {
-			t.Error("the stranded detail file was reported by neither validator")
+		// Agreement on nothing is the point here, so it has to be nothing.
+		if got := goFindings(t, dir); len(got) != 0 {
+			t.Errorf("the Go checker reads details-YYYY/: %v", got)
+		}
+		if got := runCheckSh(t, dir); len(got) != 0 {
+			t.Errorf("check.sh reads details-YYYY/: %v", got)
 		}
 	})
 
