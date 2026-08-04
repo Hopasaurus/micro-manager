@@ -16,6 +16,16 @@ All paths and commands below are relative to the **repository root**.
 skill tracks edits automatically. `implementations/golang/SKILL.md` is a copy —
 after editing, run `cp project/SKILL.md implementations/golang/SKILL.md`.
 
+This file is for people **developing micro-manager itself** — it covers
+building the CLI, `check.sh`/`find.sh`, and this repository's fixtures. Someone
+who just wants to *use* `mm` in their own projects, with the CLI already on
+PATH, should install `skills/micro-manager-cli/` instead — a portable package
+with no dependency on this repository's layout (its source directory is named
+`-cli` only to avoid colliding with this file's own "matching is on name
+alone" rule below; install it under the name `micro-manager` in your own
+agent's skill directory). See `skills/micro-manager-cli/README.md` for how to
+install it into pi, Claude Code, or any other Agent-Skills-standard harness.
+
 ## Status — read this first
 
 Working today:

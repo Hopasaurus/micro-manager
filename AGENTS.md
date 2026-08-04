@@ -18,6 +18,12 @@ implementations in progress.
 ```
 check.sh                      reference validator for the ten invariants
 find.sh                       discovery: finds micro-manager directories
+skills/
+  micro-manager-cli/            portable skill package: use `mm` in YOUR projects
+    SKILL.md                    assumes `mm` is already on PATH; see its README
+    README.md                   how to install it into pi, Claude Code, etc.
+                                (named -cli, not micro-manager, so this repo's
+                                 own name-based discovery doesn't reject it)
 project/
   spec-file-format.md         NORMATIVE: on-disk formats, tokens, invariants I1-I10
   spec-tools.md               library/CLI contract, transactions, errors, exit codes
