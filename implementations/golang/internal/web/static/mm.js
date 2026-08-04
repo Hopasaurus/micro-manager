@@ -399,6 +399,29 @@
   const columnKey = (body) => body.getAttribute('data-column');
   const columnBodies = () => Array.from(document.querySelectorAll('.mm-column__body'));
   const cardsIn = (body) => Array.from(body.querySelectorAll('.mm-item'));
+  const isCollapsed = (body) => {
+    const column = body.closest('.mm-column');
+    return Boolean(column) && column.getAttribute('data-collapsed') === 'true';
+  };
+
+  /*
+    T-0152. Which column body a pointer event lands in.
+
+    A collapsed Someday column (§5.5) hides its body — display:none in mm.css —
+    so the pointer hits the header or the rotated title and
+    closest('.mm-column__body') resolves to NOTHING, silently discarding the
+    drop. Same failure as T-0100 (slack beside a short column), different
+    cause: there the body was too short, here it is not in the layout at all.
+    So a hit anywhere in a collapsed column counts as a hit on its body — only
+    the lookup changes, not what a drop means.
+  */
+  function bodyAt(target) {
+    if (!target || !target.closest) return null;
+    const body = target.closest('.mm-column__body');
+    if (body) return body;
+    const collapsed = target.closest('.mm-column[data-collapsed="true"]');
+    return collapsed ? collapsed.querySelector('.mm-column__body') : null;
+  }
 
   function announce(text) {
     const board = document.querySelector('[data-testid="board"]');
@@ -446,7 +469,11 @@
     const to = columnKey(body);
     const verdict = legality(move.from, to);
     const cards = cardsIn(body).filter((c) => c !== move.card);
-    const clamped = Math.max(0, Math.min(index, cards.length));
+    /* Collapsed, there is no visible list to aim within and no card to measure
+       against, so the drop lands at the bottom (T-0152) — the one position
+       that needs no geometry to mean what it says. */
+    const collapsed = isCollapsed(body);
+    const clamped = collapsed ? cards.length : Math.max(0, Math.min(index, cards.length));
 
     move.target = body;
     move.index = clamped;
@@ -468,6 +495,13 @@
     placeholder.className = 'mm-drop-placeholder';
     placeholder.setAttribute('data-drop-allowed', verdict.allowed ? 'true' : 'false');
     body.appendChild(placeholder);
+    /* Inside a hidden body every rect is zero, so positioning it would be
+       arithmetic on nothing. The column's own border is the feedback while
+       collapsed (mm.css, .mm-column[data-drop-target]). */
+    if (collapsed) {
+      announce(`${move.card.getAttribute('data-item-id')} to ${to}, position ${clamped + 1}`);
+      return;
+    }
     const phH = placeholder.offsetHeight;
     const bodyTop = body.getBoundingClientRect().top;
     let center;
@@ -585,7 +619,7 @@
 
   document.addEventListener('dragover', (event) => {
     if (!move) return;
-    const body = event.target.closest('.mm-column__body');
+    const body = bodyAt(event.target);
     if (!body) return;
     event.preventDefault();
     hoverTarget(body, indexAt(body, event.clientY));
@@ -598,7 +632,7 @@
 
     /* The drop's own coordinates are authoritative: a release within a frame
        of a fast final move can leave move.index one dragover stale (T-0149). */
-    const body = event.target.closest('.mm-column__body');
+    const body = bodyAt(event.target);
     if (body) hoverTarget(body, indexAt(body, event.clientY));
     commitMove();
   });

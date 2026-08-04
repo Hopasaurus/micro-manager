@@ -2,7 +2,7 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0164
+next_id: T-0168
 updated: 2026-08-04
 ---
 
@@ -22,10 +22,10 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0163] gofmt the five drifting files in mm/ and guard against drift | prio:low | tags:setup | detail:details/T-0163.md | created:2026-08-04
-- [ ] [T-0043] Implement archive for rolling months into done-YYYY.md | prio:low | tags:library,ops | created:2026-07-29
 - [ ] [T-0044] Implement migrate for older directory layouts | prio:low | tags:library,ops | created:2026-07-29
 - [ ] [T-0045] Implement stats: throughput, cycle time, WIP over time | prio:low | tags:library,report | created:2026-07-29
+- [ ] [T-0166] Spec: say what coverage archiving costs — a stranded detail file breaks I9, and §10.5 names only I1/I2 | prio:med | tags:format,spec | detail:details/T-0166.md | created:2026-08-04
+- [ ] [T-0167] CLI: wire the optional operations from spec-tools.md §5.3, starting with --archive [--before YYYY-MM] | prio:low | tags:cli | created:2026-08-04
 
 ## Blocked
 
@@ -37,9 +37,10 @@ thing that can be started.
 
 ## Someday
 
-- [ ] [T-0152] Should be able to drop on "SOMEDAY" even when collapsed | prio:med | tags:new-feature | detail:details/T-0152.md | created:2026-08-03
 - [ ] [T-0143] Spec: name the compiled-in library themes in spec-gui.md §8.7 (micro-manager-lite) | prio:low | tags:format,spec | created:2026-08-03
 - [ ] [T-0142] Theme editor: edit the dark palette (colorDark) alongside the light | prio:med | tags:gui,theme | detail:details/T-0142.md | created:2026-08-03
 - [ ] [T-0144] Done only shows the count up to the limit | prio:med | tags:bug | detail:details/T-0144.md | created:2026-08-03
 - [ ] [T-0145] Make a way to show all done items | prio:med | tags:new-feature,spike | detail:details/T-0145.md | created:2026-08-03
 - [ ] [T-0162] Open the new-item panel through an htmx swap like the card title link | prio:low | tags:gui,flicker-fix | detail:details/T-0162.md | created:2026-08-04
+- [ ] [T-0164] Tickler service | prio:med | tags:spike | detail:details/T-0164.md | created:2026-08-04
+- [ ] [T-0165] Refine settings and theme config. | prio:med | detail:details/T-0165.md | created:2026-08-04

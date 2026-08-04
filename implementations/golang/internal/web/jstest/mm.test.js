@@ -75,6 +75,29 @@ const BOARD_HTML = `
 </div>
 `;
 
+// The same board with a Someday column in front of ready, collapsed the way
+// §5.5 renders it: data-collapsed="true", and a body that mm.css hides. jsdom
+// applies no stylesheet, so the hiding is not what this fixture reproduces —
+// what it reproduces is the consequence, a pointer event that lands on the
+// header and never on the body (T-0152).
+const COLLAPSED_HTML = BOARD_HTML.replace(
+  '<section data-testid="board-column-ready"',
+  `<section data-testid="board-column-someday" class="mm-column" data-section="someday"
+            data-collapsed="true" data-count="1">
+     <header data-testid="board-column-someday-header" class="mm-column__header">
+       <button data-testid="board-column-someday-toggle" class="mm-column__toggle"
+               type="button" aria-label="Toggle Someday column">v</button>
+       <h2 data-testid="board-column-someday-title" class="mm-column__title">Someday</h2>
+     </header>
+     <div data-testid="board-column-someday-body" class="mm-column__body" data-column="someday">
+       <article data-testid="item-T-0009" class="mm-item" data-item-id="T-0009" tabindex="0">
+         <h3><a href="/p/x/item/T-0009">Someday one</a></h3>
+       </article>
+     </div>
+   </section>
+   <section data-testid="board-column-ready"`,
+);
+
 // htmx double: records every ajax call, and lets a test fire htmx:* events on
 // document.body the way the real htmx does (CustomEvent, bubbles).
 function makeHtmx(win) {
@@ -458,6 +481,87 @@ test('dragging into a column makes the column the target and clears the others',
   assert.equal(ready.getAttribute('data-drop-index'), null, 'the old target is cleared');
   assert.equal(done.getAttribute('data-drop-index'), '0');
   assert.equal(done.getAttribute('data-drop-allowed'), 'true');
+});
+
+/* ------------------------------------------------- collapsed Someday (T-0152) */
+
+test('a collapsed column is a drop target through its header', (t) => {
+  const { win } = load(t, COLLAPSED_HTML);
+  stubLayout(win);
+  const card = byTestid(win, 'item-T-0002');
+  const someday = byTestid(win, 'board-column-someday');
+  const title = byTestid(win, 'board-column-someday-title');
+
+  card.dispatchEvent(dragEvent(win, 'dragstart', 60));
+
+  // The pointer is over the rotated title — the body is hidden, so this is the
+  // only thing a collapsed column offers to aim at.
+  const over = dragEvent(win, 'dragover', 10);
+  title.dispatchEvent(over);
+
+  assert.equal(over.defaultPrevented, true, 'the dragover is accepted, so a drop can follow');
+  assert.equal(someday.getAttribute('data-drop-target'), 'true');
+  assert.equal(someday.getAttribute('data-drop-allowed'), 'true');
+  // One card already in someday, and a collapsed drop goes to the bottom.
+  assert.equal(someday.getAttribute('data-drop-index'), '1', 'collapsed drops land at the bottom');
+});
+
+test('dropping on a collapsed column moves the item to the bottom of it', (t) => {
+  const { win, htmx } = load(t, COLLAPSED_HTML);
+  stubLayout(win);
+  const card = byTestid(win, 'item-T-0002');
+  const header = byTestid(win, 'board-column-someday-header');
+
+  card.dispatchEvent(dragEvent(win, 'dragstart', 60));
+  header.dispatchEvent(dragEvent(win, 'dragover', 10));
+  header.dispatchEvent(dragEvent(win, 'drop', 10));
+
+  assert.equal(htmx.calls.length, 1, 'the drop posts the move');
+  const call = htmx.calls[0];
+  assert.equal(call.method, 'POST');
+  assert.equal(call.url, '/p/x/items/T-0002/move');
+  assert.equal(call.opts.values.section, 'someday');
+  assert.equal(call.opts.values.position, '2', 'after the one card already there');
+});
+
+test('a keyboard move into a collapsed column also lands at the bottom', (t) => {
+  const { win, htmx } = load(t, COLLAPSED_HTML);
+  stubLayout(win);
+  // T-0001 is FIRST in ready, so the index it carries across is 0 — which is
+  // the bottom only if the collapsed rule does nothing.
+  const card = byTestid(win, 'item-T-0001');
+  const someday = byTestid(win, 'board-column-someday');
+
+  card.dispatchEvent(new win.KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+  // someday is the leftmost column, ready the next: one ArrowLeft crosses.
+  card.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+  assert.equal(someday.getAttribute('data-drop-index'), '1', 'the index is the bottom, not the carried one');
+
+  // Arrows within a collapsed column cannot aim: there is nothing to see.
+  card.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+  assert.equal(someday.getAttribute('data-drop-index'), '1');
+
+  card.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  assert.equal(htmx.calls.length, 1);
+  assert.equal(htmx.calls[0].opts.values.position, '2');
+  assert.equal(htmx.calls[0].opts.values.section, 'someday');
+});
+
+test('an expanded column still takes its index from the pointer', (t) => {
+  // The collapsed rule must not leak into the normal case: with
+  // data-collapsed="false" the body is in the layout and §7.3's measured index
+  // stands.
+  const { win } = load(t, COLLAPSED_HTML);
+  stubLayout(win);
+  const someday = byTestid(win, 'board-column-someday');
+  someday.setAttribute('data-collapsed', 'false');
+  const body = byTestid(win, 'board-column-someday-body');
+  const card = byTestid(win, 'item-T-0002');
+
+  card.dispatchEvent(dragEvent(win, 'dragstart', 60));
+  // T-0009 is stubbed at [0,40); a pointer above its midpoint inserts before it.
+  body.dispatchEvent(dragEvent(win, 'dragover', 5));
+  assert.equal(someday.getAttribute('data-drop-index'), '0');
 });
 
 test('dragging into done prompts the finish dialog', (t) => {

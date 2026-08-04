@@ -644,6 +644,14 @@ The client MUST NOT apply a drop optimistically without server confirmation
 unless it can fully revert. On rejection it MUST restore the pre-drag DOM,
 including `data-position` on every affected card, and surface the error.
 
+A **collapsed** column (§5.5) is a drop target like any other, even though its
+body is hidden: a pointer anywhere over the collapsed column MUST resolve to
+that column, and the drop MUST land at the **bottom** of it. There is no
+visible list to aim within, so no other index has a meaning the user could
+have intended. The `data-drop-*` attributes of §7.3 are maintained as usual;
+the placeholder is inside the hidden body and so is not visible, and the
+column's own drop-target styling carries the feedback.
+
 ### 7.2 Legal transitions
 
 | From | To | Operation | Notes |

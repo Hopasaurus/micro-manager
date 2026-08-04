@@ -220,6 +220,46 @@ func TestPlaceholderIsOutOfTheColumnFlow(t *testing.T) {
 	}
 }
 
+// A collapsed column is still a drop target (§7.1, T-0152).
+//
+// mm.css hides a collapsed column's body outright, so the element mm.js used
+// to resolve a drop against — closest('.mm-column__body') — is not in the
+// layout and a pointer over the column hits the header instead. Verified in a
+// browser when this shipped: over a collapsed Someday, elementFromPoint
+// returned board-column-someday-header, whose closest('.mm-column__body') is
+// null; the drop was accepted only once the lookup fell back to the column.
+//
+// A source-shape guard in the style of the ones around here. The behaviour
+// itself is covered by jstest/mm.test.js, which runs the real script against a
+// real DOM — but that suite SKIPS where node or jsdom is absent, and this is
+// the cheap check that survives there.
+func TestCollapsedColumnsResolveADrop(t *testing.T) {
+	script, err := os.ReadFile("static/mm.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(script)
+
+	if !strings.Contains(js, `.mm-column[data-collapsed="true"]`) {
+		t.Error("mm.js never resolves a hit inside a collapsed column, so a drop " +
+			"on a collapsed Someday hits no column body and is discarded (T-0152)")
+	}
+	for _, handler := range []string{"'dragover'", "'drop'"} {
+		i := strings.Index(js, "addEventListener("+handler)
+		if i < 0 {
+			t.Fatalf("mm.js has no %s handler", handler)
+		}
+		body := js[i:]
+		if end := strings.Index(body, "\n  });"); end > 0 {
+			body = body[:end]
+		}
+		if strings.Contains(body, "closest('.mm-column__body')") {
+			t.Errorf("the %s handler resolves the column body directly; a collapsed "+
+				"column has none in the layout and its drops are lost (T-0152)", handler)
+		}
+	}
+}
+
 // §7.3 fixes the attributes a drag maintains, and §7.4 requires move mode to
 // maintain the SAME ones so one set of assertions covers both input paths.
 //
@@ -261,8 +301,9 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 	// client. T-0150 added the someday-collapse request header - a few lines of
 	// plumbing the server could not do itself - and T-0139 moved the polling
 	// backstop from the templates' triggers into mm.js (the SSE-down interval),
-	// which is why the ceiling is now 780.
-	if lines := strings.Count(js, "\n"); lines > 780 {
+	// which took the ceiling to 780. T-0152 added the collapsed-column drop
+	// resolver — a hit test, which only the client can do — for 795.
+	if lines := strings.Count(js, "\n"); lines > 795 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }
