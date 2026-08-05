@@ -289,6 +289,7 @@ A conforming implementation MUST provide all of these.
 
 ```
 mm --init [--dir PATH] --project NAME [--slots N] [--slot-width W]
+             [--prefix P] [--description TEXT]
 ```
 
 Creates a micro-manager directory: `backlog.md` with the three sections and
@@ -298,6 +299,20 @@ written too.
 
 `--slot-width` sets the digit width for working files (default 2, per
 format spec §5.2.1). `--slots` sets how many are created.
+
+`--prefix P` claims the board's ID grammar at creation (format spec §3.3.2):
+the fresh `backlog.md` declares `id_prefix: P` and its first `next_id` is
+`P-0001` instead of `T-0001`. P MUST be one to four uppercase ASCII letters
+(`A-Z`); anything else — including empty — is `InvalidArgument`. The prefix is
+the one grammar decision a board cannot re-make cleanly later: every existing
+ID carries it, and I2 forbids renumbering, which is why it belongs at `--init`
+and nowhere else.
+
+`--description TEXT` seeds the board description (§5.3.2): TEXT becomes the
+first paragraph of the fresh `structure.md`, replacing the template's default
+prose — a board can be born with its purpose stated. Supplying it makes the
+SHOULD a MUST: the description lives in `structure.md`, so the file has to be
+written.
 
 > **Corrected.** This modifier was `--wip` in an earlier revision, which
 > contradicted §3.2: `--wip N` is an operation (§5.2), and §3.2 requires
@@ -314,7 +329,8 @@ format spec §5.2.1). `--slots` sets how many are created.
 > with `--add --detail` (§5.1.2).
 
 Errors: `AlreadyExists` if the target already holds any of these files;
-`InvalidArgument` if `--project` is empty.
+`InvalidArgument` if `--project` is empty or `--prefix` is not one to four
+uppercase ASCII letters.
 
 ---
 
@@ -669,7 +685,7 @@ that its absence pushes users back to editing by hand.
 | `--unblock ID [--top]` | Move to `## Ready` and drop `blocked:`. |
 | `--note ID TEXT` | Append a dated entry to the working file's `## Notes`, or to the detail file if the item is not in a slot. The highest-frequency write in daily use. |
 | `--wip N` | Set the WIP limit by creating or deleting working files. Deleting MUST refuse unless the highest-numbered files are idle (I10), and MUST NOT renumber occupied slots. |
-| `--status` | One screen: what is in each slot, WIP `n/N`, counts by section, oldest untouched Ready item. |
+| `--status` | One screen: what is in each slot, WIP `n/N`, counts by section, oldest untouched Ready item, and — when set — the board description (§5.3.2). The JSON envelope carries it in `directory.description` (§9.2); human output MAY show it. |
 | `--next` | Print the top of `## Ready` — the thing to start next. Exits non-zero if empty. |
 | `--search QUERY` | Substring or regex match over titles, tags, and detail bodies; reports state and location per hit. |
 | `--find` | List discovered micro-manager directories with their `project` names. The discovery step, exposed. |
@@ -687,6 +703,7 @@ MAY be provided.
 | `--stats [--since DATE]` | Throughput, cycle time from `started` to `done`, WIP over time, tag distribution. |
 | `--export [--format json\|csv]` | Whole-directory dump for external tooling. |
 | `--top-up` | Interactive triage over `## Someday`, promoting items to `## Ready`. |
+| `--describe TEXT` | Write or replace the first paragraph of `structure.md` — the board description (§5.3.2). |
 
 #### 5.3.1 `--archive` in detail
 
@@ -729,6 +746,41 @@ perform quietly.
 Errors: `InvalidArgument` (a month component outside `01`–`12`, `DAYS` below
 zero, or both switches given at once).
 
+#### 5.3.2 `--describe` in detail
+
+The board description is the first paragraph of `structure.md` — the format's
+human-documentation file (spec-file-format.md §5.5: free prose, optional, never
+validated). Because the file is deliberately unstructured, "first paragraph" is
+a convention this operation defines and `--status` reads:
+
+> The first paragraph is the first run of consecutive non-blank lines after
+> any leading title heading (a line beginning with `#`), skipping a leading
+> frontmatter block (format spec §4.1) and blank lines. An absent
+> `structure.md`, or a file with no such run, is "no description" — a valid
+> state, never an error.
+
+`--describe TEXT` makes TEXT that paragraph:
+
+- **`structure.md` present** — the first paragraph is replaced with TEXT; every
+  other line of the file is preserved verbatim. The write is a line splice over
+  the retained original (§7), so TEXT equal to the current paragraph writes
+  nothing.
+- **`structure.md` absent** — a minimal one is created: the standard
+  frontmatter (`doc: structure`, `version: 1`, `updated:` today), a single
+  leading title heading, and TEXT as its first paragraph.
+- **Empty TEXT** clears the description: the paragraph is removed, the rest of
+  the file untouched, and reading the result is "no description" again.
+
+The operation is a mutation like any other — it runs the §7 transaction
+machinery, so it accepts `--dry-run`, detects concurrent modification, and
+writes atomically. Since `structure.md` is outside I1–I10, pre-commit
+validation (§8) cannot reject it; that is also why the operation exists: a
+front end that must never touch board files itself (spec-pi-mm-plugin.md §8.1)
+routes every description write here, its one sanctioned path to this file.
+
+Errors: none specific to the value — free prose cannot be invalid.
+`Concurrent` and `Io` apply as for any write (§7).
+
 ## 6. Library API
 
 Notation is pseudo-code: `name(params) -> Result<T, Error>`. Implementations map
@@ -758,7 +810,8 @@ Item {
 }
 
 Slot        { number int, width int, occupied bool, item Item|null }
-Directory   { path, project string, wipLimit int, wipUsed int, nextId ID }
+Directory   { path, project string, wipLimit int, wipUsed int, nextId ID,
+              description string | null   # first paragraph of structure.md (§5.3.2); null when none }
 Violation   { file path, line int|null, invariant string, message string }
 
 DiscoveryOptions {
@@ -801,6 +854,7 @@ Store.finish(ID, FinishOptions) -> Item
 Store.report(Period, ReportOptions) -> Report
 Store.validate()                -> [Violation]
 Store.setWipLimit(int)          -> Directory
+Store.setDescription(text)      -> Directory   # --describe (§5.3.2)
 discover(DiscoveryOptions)      -> DiscoveryResult
 ```
 
@@ -912,13 +966,17 @@ One JSON object on stdout, nothing else — no progress text, no warnings mixed 
 {
   "ok": true,
   "operation": "add",
-  "directory": { "path": "...", "project": "Sample One" },
+  "directory": { "path": "...", "project": "Sample One", "description": "A small-file todo system." },
   "result": { },
   "changes": [ { "kind": "created", "id": "T-0004", "file": "backlog.md" } ],
   "warnings": [],
   "errors": []
 }
 ```
+
+`directory.description` is the board description — the first paragraph of
+`structure.md` (§5.3.2). It is omitted when the board has no description; that
+absence is a valid state, never an error.
 
 On failure, `ok` is false, `errors` is non-empty, and each error carries `code`
 (a §6.3 name), `message`, and where applicable `id` and `file`.
@@ -1002,6 +1060,12 @@ export MM_REPORT_PERIOD=this-week
 
 # validate before committing
 mm --check --all
+
+# a fresh board with its own ID grammar (format spec §3.3.2)
+mm --init --project Garden --prefix G --description "Gardening board"
+
+# a board's one-line purpose; --status and the plugin read it back
+mm --describe "Personal board: everything in flight, in one place."
 ```
 
 ---
@@ -1019,6 +1083,7 @@ mm --check --all
 | `--pause` | working file, `backlog.md`, `details/` | **I1**, I4, I5 |
 | `--finish` | working file, `done.md`, `details/` | **I1**, I3, I4, I6 |
 | `--wip` | working files | **I10** |
+| `--describe` | `structure.md` | — |
 | `--archive` | `done.md`, `done-YYYY.md`, `details/`, `details-YYYY/` | I1, I2 (items leave the pool); **I9 (a detail file left behind in `details/`)** |
 | `--report`, `--list`, `--show`, `--check` | nothing | — |
 
@@ -1034,7 +1099,7 @@ required     --init --add --list --show --edit --remove --move
              --start --pause --finish --report --check
 recommended  --block --unblock --note --wip --status --next --search
              --find --detail --subtask --subtask-done
-optional     --archive --migrate --stats --export --top-up
+optional     --archive --describe --migrate --stats --export --top-up
 ```
 
 Global modifiers, valid everywhere:
@@ -1051,7 +1116,7 @@ Operation-specific modifiers:
 --prio --tag --untag --set --unset --title --blocked --reason
 --created --started --done --outcome --reason --closing-note
 --detail --detail-text --detail-file --no-edit --with-detail
---slot --project --slots --slot-width
+--slot --project --slots --slot-width --prefix --description
 --period --week --last-week --this-week --since --until --group-by
 --include-wip --include-backlog --include-archives
 --state --limit --sort --all --keep-notes --discard-notes
