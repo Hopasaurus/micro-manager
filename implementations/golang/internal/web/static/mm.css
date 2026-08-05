@@ -333,6 +333,24 @@ body {
 
 .mm-column__add:hover { color: var(--mm-color-accent-base); background: var(--mm-color-bg-raised); }
 
+/* The done column's "Show all N" link (§5.5), only present when doneLimit
+   hid some items. A link, not a button: it navigates to the addressable
+   ?done=all state, so back/forward and a direct URL both restore it. */
+.mm-column__show-all {
+  display: block;
+  padding: var(--mm-space-2);
+  border-radius: var(--mm-radius-sm);
+  color: var(--mm-color-fg-muted);
+  text-decoration: none;
+  font-size: var(--mm-font-size-sm);
+  text-align: center;
+}
+
+.mm-column__show-all:hover {
+  color: var(--mm-color-accent-base);
+  background: var(--mm-color-bg-raised);
+}
+
 /* flex: 1 is what actually makes the drop zone tall. The column stretches, but
    without this the body still ends at its last card and the slack belongs to
    the column - and .mm-column__body is what mm.js resolves a drop against
@@ -751,6 +769,40 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
   gap: var(--mm-space-2) var(--mm-space-3);
+}
+
+/* The class display:grid above would beat the UA's [hidden] rule, so the
+   hidden state of the inactive palette must be restated (T-0142). */
+.mm-theme-editor__colors[hidden] { display: none; }
+
+/* The Light / Dark palette switcher (T-0142). Two tabs above the token grids;
+   the inactive palette is hidden, never removed, so the form submits both sets
+   and the save handler reads whichever fields the user actually touched. */
+.mm-theme-editor__tabs {
+  display: inline-flex;
+  gap: var(--mm-space-1);
+  padding: var(--mm-space-1);
+  margin-bottom: var(--mm-space-3);
+  border: var(--mm-border-width-thin) solid var(--mm-color-border-default);
+  border-radius: var(--mm-radius-full);
+  background: var(--mm-color-bg-sunken);
+}
+
+.mm-theme-editor__tabs button {
+  padding: var(--mm-space-1) var(--mm-space-3);
+  border: none;
+  border-radius: var(--mm-radius-full);
+  background: none;
+  color: var(--mm-color-fg-muted);
+  font-family: var(--mm-font-family-ui);
+  font-size: var(--mm-font-size-sm);
+  cursor: pointer;
+}
+
+.mm-theme-editor__tabs button[aria-selected="true"] {
+  background: var(--mm-color-bg-raised);
+  color: var(--mm-color-fg-default);
+  box-shadow: var(--mm-shadow-sm);
 }
 
 /* The swatch sits between the label and the input, and the live preview

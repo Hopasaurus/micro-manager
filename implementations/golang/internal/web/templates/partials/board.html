@@ -17,7 +17,7 @@
          data-wip-used="{{.Data.WipUsed}}" data-wip-limit="{{.Data.WipLimit}}"
          aria-live="polite"
          {{with .App.Project}}
-         hx-get="/p/{{.ID}}/board?fragment=1" hx-ext="morph"
+         hx-get="/p/{{.ID}}/board?fragment=1{{if $.Data.DoneAll}}&done=all{{end}}" hx-ext="morph"
          hx-trigger="sse:board from:body"
          hx-swap="morph"
          {{end}}>
@@ -32,6 +32,7 @@
          {{if $c.Section}}data-section="{{$c.Section}}"{{end}}
          {{if eq $c.Key "someday"}}data-collapsed="{{if $c.Collapsed}}true{{else}}false{{end}}"{{end}}
          data-count="{{$c.Count}}"
+         {{if $c.IsDone}}data-total="{{$c.Total}}"{{end}}
          role="list" aria-label="{{$c.Title}}">
   <header data-testid="{{$c.Testid}}-header" class="mm-column__header">
     {{if eq $c.Key "someday"}}
@@ -39,15 +40,31 @@
             type="button" aria-label="Toggle Someday column">{{if $c.Collapsed}}v{{else}}&gt;{{end}}</button>
     {{end}}
     <h2 data-testid="{{$c.Testid}}-title" class="mm-column__title">{{$c.Title}}</h2>
-    <span data-testid="{{$c.Testid}}-count" class="mm-column__count">{{$c.Count}}</span>
+    <span data-testid="{{$c.Testid}}-count" class="mm-column__count">{{if and $c.IsDone (gt $c.Total $c.Count)}}{{$c.Count}} of {{$c.Total}}{{else}}{{$c.Count}}{{end}}</span>
     {{if not $c.IsWorking}}
+    {{/* T-0162: the add link opens the panel through the same htmx swap as the
+         card title (item-card.html) — href for no-JS, hx-get into
+         #item-panel-root with hx-push-url — so it stops being the last
+         full-page load on the board. The hx-get carries the same ?section=
+         the href does, which seeds the new-item form (§5.6). */}}
     <a data-testid="{{$c.Testid}}-add" class="mm-column__add"
        href="{{with $p}}/p/{{.ID}}/new{{if $c.Section}}?section={{$c.Section}}{{end}}{{end}}"
+       {{with $p}}hx-get="/p/{{.ID}}/new{{if $c.Section}}?section={{$c.Section}}{{end}}" hx-target="#item-panel-root"
+       hx-swap="innerHTML" hx-push-url="true"{{end}}
        aria-label="Add an item to {{$c.Title}}">+</a>
     {{end}}
   </header>
   <div data-testid="{{$c.Testid}}-body" class="mm-column__body" data-column="{{$c.Key}}">
     {{range $c.Items}}{{template "item-card" dict "Item" . "Project" $p}}{{end}}
+    {{/* §5.5: when doneLimit hides some of the done items, the column ends with
+         the affordance that shows them all. It links to the addressable
+         ?done=all state rather than expanding in place, so back/forward and
+         the SSE refresh both keep working. It is absent when nothing is
+         hidden - "show all 110" with 110 visible would be a lie. */}}
+    {{if and $c.IsDone (gt $c.Total $c.Count)}}
+    <a data-testid="{{$c.Testid}}-show-all" class="mm-column__show-all"
+       href="{{with $p}}/p/{{.ID}}/board?done=all{{end}}">Show all {{$c.Total}}</a>
+    {{end}}
   </div>
 </section>
 {{- end}}

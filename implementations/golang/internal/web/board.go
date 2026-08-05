@@ -24,6 +24,10 @@ type boardData struct {
 	WipLimit int
 	Filters  filterData
 	Empty    bool
+	// DoneAll is ?done=all (§4.1): the done column renders every done item,
+	// ignoring ui.board.doneLimit. The SSE refresh carries it forward so a
+	// backstop poll cannot silently collapse the column back to the limit.
+	DoneAll bool
 }
 
 // columnData is one column. Testid is the contract name; Key is what a filter
@@ -43,7 +47,12 @@ type columnData struct {
 	// request carries the state (T-0150).
 	Collapsed bool
 	Count     int
-	Items     []itemData
+	// Total is the column's full item count, limited or not (§5.5). For every
+	// column but done it equals Count; the done column's Count is capped at
+	// ui.board.doneLimit, and Total is what the header reports and what
+	// data-total carries. "20 of 110" is Count of Total.
+	Total int
+	Items []itemData
 }
 
 // itemData is one card. Every field here corresponds to an attribute §5.5 fixes.
@@ -175,6 +184,7 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		WipUsed:  dir.WipUsed,
 		WipLimit: dir.WipLimit,
 		Filters:  filters,
+		DoneAll:  c.QueryParam("done") == "all",
 	}
 	// One refs resolver per render: resolution is a lookup among the boards
 	// this service knows, and the memo it keeps for item existence is only
@@ -227,14 +237,18 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 
 	done := columnData{Testid: "board-column-done", Key: "done", Title: "Done", IsDone: true}
 	limit := s.opts.Config.UI.Board.DoneLimit
+	// The full done count is the column's Total (§5.5): the header must report
+	// what is really done, not what fit in the column. Counting before capping
+	// also keeps itemView - refs resolution and all - out of the loop for the
+	// items the limit hides (T-0144).
 	for _, it := range items {
 		if it.State != mm.StateDone {
 			continue
 		}
-		if limit > 0 && len(done.Items) >= limit {
-			break
+		done.Total++
+		if data.DoneAll || limit == 0 || len(done.Items) < limit {
+			done.Items = append(done.Items, s.itemView(it, dir, len(done.Items)+1, resolver))
 		}
-		done.Items = append(done.Items, s.itemView(it, dir, len(done.Items)+1, resolver))
 	}
 	done.Count = len(done.Items)
 	data.Columns = append(data.Columns, done)
@@ -339,6 +353,9 @@ func hasEveryTag(have []string, want []string) bool {
 	return true
 }
 
+// readFilters reads the query parameters of §4.1. done=all is not a filter - it
+// changes the done column's rendering, not which items are selected - so it is
+// parsed separately in buildBoard.
 func readFilters(c *echo.Context) filterData {
 	q := c.Request().URL.Query()
 	f := filterData{

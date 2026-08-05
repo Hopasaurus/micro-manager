@@ -106,7 +106,9 @@ case-sensitive, used unaltered in routes and testids.
 
 ### 3.3 `themeId`
 
-`[a-z0-9][a-z0-9-]{0,63}`, unique within a theme library.
+`[a-z0-9][a-z0-9-]{0,63}`, unique within a theme library. A library file MAY
+reuse the id of a built-in theme, which shadows it rather than duplicating it
+(§8.7).
 
 ## 4. URI routes
 
@@ -141,6 +143,7 @@ Query parameters on `/p/:projectId/board`, all OPTIONAL and combinable:
 | `prio` | `high` \| `med` \| `low` |
 | `tag` | tag name, repeatable |
 | `q` | free-text search |
+| `done` | `all` — render every done item, ignoring `ui.board.doneLimit`. Without it the done column is capped at the limit (§5.5). |
 
 On `/p/:projectId/report`: `period`, `since`, `until`, `group-by`,
 `include-wip`, `include-backlog`, `include-archives` — same vocabulary and
@@ -447,6 +450,22 @@ or absent), the toggle displays `>` and the column body displays its items. When
 (`data-collapsed="true"`), the toggle displays `v`, the column body is hidden, the column title
 "Someday" is rotated 90 degrees, and the column shrinks to show only the rotated header.
 
+The done column reports what is really done, not what fits:
+
+- Its `data-count` is the number of cards rendered — like every column — but it
+  also carries `data-total`, the full count of done items under the current
+  filters. The two differ only while `ui.board.doneLimit` is hiding some.
+- `board-column-done-count` reads "shown of total" when the column is limited —
+  `20 of 110` — and the bare count when it is not. The header count MUST NOT be
+  the capped number on its own: a board showing 20 cards with 110 done must say
+  so.
+- When `data-total` exceeds `data-count`, the column body ends with
+  `board-column-done-show-all`, a link to the addressable state
+  `/p/:projectId/board?done=all` (§4.1). With `?done=all` the column renders
+  every done item, `data-count` equals `data-total`, and the link is absent —
+  there is nothing left to show. The link is how a user sees the other 90;
+  expanding in place would be client state the server could not be held to.
+
 The item menu (§6.2) MUST contain one entry per legal operation, each with
 testid `item-T-0042-action-<operation>`, e.g. `item-T-0042-action-start`.
 Illegal actions MUST be present and `disabled` with `data-reason` naming the
@@ -734,6 +753,9 @@ Locations:
 
 `XDG_CONFIG_HOME` defaults to `$HOME/.config` when unset or not absolute.
 
+The library also contains the themes compiled into the implementation, which
+have no path and are always present. They are named and specified in §8.7.
+
 Every date, time and timestamp in a theme, a config file, a list file, a `data-*`
 attribute, or an API payload MUST be ISO 8601 in the extended format
 (`spec-file-format.md` §3.3.1). Timestamps carry an explicit UTC designator —
@@ -885,6 +907,44 @@ Missing tokens at any level fall through to the built-in default per token, not
 per file — a project theme that sets only `accent.base` and `brand` is valid and
 common.
 
+**Built-in themes.** Steps 2 and 4 resolve an id against the theme library, and
+the library is the files under `$XDG_CONFIG_HOME/micro-manager/themes/` TOGETHER
+WITH the themes compiled into the implementation. Two ids are fixed:
+
+| `themeId` | | Role |
+|---|---|---|
+| `micro-manager` | MUST | The built-in default of step 5. It defines every token in §8.3 — that is what makes per-token fallback total, and it is the only theme of which it is required. |
+| `micro-manager-lite` | SHOULD | A light companion of reduced visual weight: `appearance: light`, one palette, and no `gui` group, so typography, spacing and radii fall through to the default. |
+
+The ids are normative; the palettes are not. A theme is chosen by id in
+`config.json` (§9.2, §9.3), exported under its id (§8.8) and listed by id, so an
+implementation that renamed its default would emit configs and exports no other
+implementation could resolve — and a theme picker offering an id that resolves to
+nothing silently serves the default instead. What the colours actually are is
+presentation, and this document does not fix them.
+
+Four rules follow from a built-in being a library entry with no file:
+
+1. It appears in the theme library listing (`GET /api/v1/themes`,
+   `/settings/themes`) alongside the files, and it is exportable (§8.8).
+   Exporting a built-in is how a user forks one.
+2. It resolves **at the precedence position its id was named at**, not at step 5.
+   A project naming `micro-manager-lite` therefore still outranks a system
+   `theme.json`, which it would not if built-ins were reachable only as the
+   default.
+3. A library **file** whose id matches a built-in shadows it: the file is read,
+   the built-in is ignored, and the id is listed once rather than twice. This is
+   the supported way to patch a shipped theme.
+4. An implementation MAY compile in further themes, which behave exactly as
+   these two do. One that does not ship a named built-in treats the id as a
+   library id with no file: resolution continues at the next candidate.
+
+The theme ids in this document's examples — `sample-one-dark` in §8.2 and §9.3,
+`nord-dark` in §9.2 — are illustrations, not themes an implementation ships.
+Offering one in a picker as though it existed is the failure mode rule 2 above
+describes: the selection resolves to nothing and the default is served with no
+indication that the choice was ignored.
+
 **Switching projects MUST re-resolve and re-apply without a page reload.** The
 implementation MUST update the custom properties on the app root and update
 `data-theme-name` and `data-theme-source`. A test asserts: navigate from project
@@ -908,7 +968,10 @@ file with every asset inlined as a data URI and no external references. Filename
 3. never partially apply — a rejected theme changes nothing;
 4. preserve unknown keys;
 5. on an `id` collision, require an explicit overwrite or rename choice via
-   `dialog-import-theme`, never silently replace.
+   `dialog-import-theme`, never silently replace. A built-in id collides like any
+   other: overwriting writes a library file that shadows the built-in (§8.7
+   rule 3), which is a shadow and not a replacement — the built-in is still
+   there when the file is removed.
 
 Import targets are the theme library, the system theme, or the current project's
 theme; the destination is an explicit parameter with no default.
@@ -986,6 +1049,10 @@ the coupling `spec-tools.md` §3.5 exists to prevent.
   "report": { "period": "this-week", "groupBy": "outcome" }
 }
 ```
+
+`ui.board.doneLimit` caps how many done cards the board column renders (default
+20; 0 means no cap). It is a display cap, not a truth: the column header still
+reports the full done count, and `?done=all` overrides the cap entirely (§5.5).
 
 The `tui` object is reserved for terminal-specific settings (`spec-tui.md` §9).
 The GUI MUST ignore it and MUST preserve it when rewriting a config file.
@@ -1227,6 +1294,7 @@ project-card-wip  project-card-favorite-toggle
 board  board-column-someday  board-column-someday-toggle  board-column-ready  board-column-blocked
 board-column-working  board-column-done
 board-column-<key>-header  -title  -count  -add  -body  (backlog columns carry -add; board-column-working does not)
+board-column-done-show-all
 item-<ID>  item-<ID>-title  item-<ID>-id  item-<ID>-prio
 item-<ID>-tags  item-<ID>-tag-<tag>  item-<ID>-detail-indicator
 item-<ID>-menu  item-<ID>-action-<operation>

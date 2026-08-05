@@ -16,18 +16,21 @@ import (
 
 // Theme editor, library, import and export (spec-gui.md §8, T-0064, T-0137).
 
-// themeEditorData fills the editor form. DarkTokens is the resolved dark
-// palette as JSON, for the live preview: the editor edits the light palette
-// only, and the preview must still show what the dark half looks like (§8.7).
+// themeEditorData fills the editor form. DarkColors is the dark palette's
+// token fields, edited by the Dark tab (T-0142); DarkTokens remains the JSON
+// the live preview builds its forced-dark block from (§8.7). DarkTab is whether
+// the dark tab is the initially active one (an appearance: dark theme).
 type themeEditorData struct {
 	ThemeID    string
 	ThemeName  string
 	Author     string
 	Appearance string
 	Colors     []tokenInput
+	DarkColors []tokenInput
 	Gui        []tokenOption
 	Warnings   []string
 	DarkTokens string
+	DarkTab    bool
 }
 
 type tokenInput struct {
@@ -74,18 +77,27 @@ func (s *Server) saveThemeEditor(c *echo.Context) error {
 		reqTheme = "custom"
 	}
 
-	// Start from the RESOLVED theme, not the built-in default: the editor
-	// carries every colour and gui token, but it has no colourDark fields, so
-	// a save built on the default would silently replace a library theme's
-	// dark palette with the default's (T-0137). What the user was looking at
-	// is the best description of what they meant to keep.
+	// Resolve first: the editor carries every colour token of BOTH palettes
+	// and every gui token, so what the user was looking at is the best
+	// description of what they meant to keep (T-0137).
 	req := mm.ThemeRequest{
 		ConfigHome:    s.opts.ConfigHome,
 		SystemThemeID: s.opts.Config.Theme.ID,
 	}
 	resolved, _, _ := mm.ResolveTheme(req)
 
+	// Start from the resolved theme's own file when there is one, not from
+	// the built-in default: its raw document is what carries the unknown keys
+	// and the tui/extra sections a read-modify-write must not drop (§8.2). The
+	// resolved values then fill every gap, so a token the source never set
+	// falls back per token exactly as the rest of the editor relies on, and an
+	// emptied field keeps the resolved value.
 	theme := mm.BuiltinTheme()
+	if resolved.Path != "" {
+		if loaded, err := mm.LoadTheme(resolved.Path); err == nil && loaded != nil {
+			theme = loaded
+		}
+	}
 	theme.ID = reqTheme
 	theme.Name = c.Request().FormValue("name")
 	theme.Author = c.Request().FormValue("author")
@@ -93,12 +105,47 @@ func (s *Server) saveThemeEditor(c *echo.Context) error {
 	if theme.Color == nil {
 		theme.Color = map[string]string{}
 	}
-	theme.ColorDark = resolved.ColorDark
+	if theme.ColorDark == nil {
+		theme.ColorDark = map[string]string{}
+	}
+	if theme.GUI == nil {
+		theme.GUI = map[string]string{}
+	}
+	for k, v := range resolved.Color {
+		if theme.Color[k] == "" {
+			theme.Color[k] = v
+		}
+	}
+	for k, v := range resolved.ColorDark {
+		if theme.ColorDark[k] == "" {
+			theme.ColorDark[k] = v
+		}
+	}
+	for k, v := range resolved.GUI {
+		if theme.GUI[k] == "" {
+			theme.GUI[k] = v
+		}
+	}
 	theme.Brand = resolved.Brand
 
+	// The form's two colour sections: token_<path> is the light palette's
+	// fields, tokenDark_<path> the dark tab's (T-0142). An empty value means
+	// "keep the fallback", which the merge above already arranged.
 	for _, token := range mm.ColorTokens() {
 		if val := c.Request().FormValue("token_" + token); val != "" {
 			theme.Color[token] = val
+		}
+		if val := c.Request().FormValue("tokenDark_" + token); val != "" {
+			theme.ColorDark[token] = val
+		}
+	}
+
+	// The gui fields carry the same token_<path> names (no colour token
+	// collides with a gui path); reading them here is what makes a gui edit
+	// survive the save, as the live preview has always promised.
+	for _, token := range mm.GUITokens() {
+		if val := c.Request().FormValue("token_" + token); val != "" {
+			theme.GUI[token] = val
 		}
 	}
 
@@ -223,6 +270,7 @@ func (s *Server) buildThemeEditor(c *echo.Context) themeEditorData {
 		ThemeName:  resolved.Name,
 		Author:     "",
 		Appearance: resolved.Appearance,
+		DarkTab:    resolved.Appearance == "dark",
 	}
 
 	// The dark palette rides along as JSON so the live preview can show it
@@ -241,6 +289,18 @@ func (s *Server) buildThemeEditor(c *echo.Context) themeEditorData {
 	for _, token := range mm.ColorTokens() {
 		val := resolved.Color[token]
 		data.Colors = append(data.Colors, tokenInput{
+			Path:  token,
+			Name:  mm.CSSPropertyName("color." + token),
+			Value: val,
+		})
+	}
+
+	// The dark palette's fields (T-0142), rendered from the resolved values so
+	// the per-token fallback is visible before the user types anything: an
+	// auto theme MUST be able to complete both palettes in one place (§8.2).
+	for _, token := range mm.ColorTokens() {
+		val := resolved.ColorDark[token]
+		data.DarkColors = append(data.DarkColors, tokenInput{
 			Path:  token,
 			Name:  mm.CSSPropertyName("color." + token),
 			Value: val,

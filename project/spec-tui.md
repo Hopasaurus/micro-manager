@@ -455,7 +455,7 @@ is RECOMMENDED for IDs, tags, and theme names.
 :move T-0042 --position 3
 :report --period last-week --group-by outcome
 :wip 3
-:theme sample-one-dark
+:theme micro-manager-lite
 :open /path/to/micro-manager
 :check
 :help

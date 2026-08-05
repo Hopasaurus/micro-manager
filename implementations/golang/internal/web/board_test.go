@@ -106,6 +106,58 @@ func somedayToggle(t *testing.T, body string) string {
 	return m[1]
 }
 
+// T-0162: the column add links open the new-item panel through the same htmx
+// swap the card title uses, so the + button stops being the board's last
+// full-page load. The href stays for no-JS, and the hx-get carries the same
+// ?section= the href does, which seeds the new-item form.
+func TestColumnAddLinksSwapThePanel(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+	body := ts.get("/p/" + id + "/board").expectStatus(http.StatusOK).Body
+
+	ready := testid(t, body, "board-column-ready-add")
+	href := attrOf(t, ready, "href")
+	if href != "/p/"+id+"/new?section=ready" {
+		t.Errorf("ready add href = %q, want the section-seeded panel URL", href)
+	}
+	for _, want := range []string{
+		`hx-get="/p/` + id + `/new?section=ready"`, // matches the href
+		`hx-target="#item-panel-root"`,
+		`hx-swap="innerHTML"`,
+		`hx-push-url="true"`,
+	} {
+		if !strings.Contains(ready, want) {
+			t.Errorf("the ready add link is missing %s: %s", want, ready)
+		}
+	}
+
+	// Every column's add link seeds its own section; the someday one proves
+	// the hx-get follows the href rather than being hardcoded to ready.
+	someday := testid(t, body, "board-column-someday-add")
+	if got := attrOf(t, someday, "hx-get"); got != "/p/"+id+"/new?section=someday" {
+		t.Errorf("someday add hx-get = %q", got)
+	}
+
+	// The working column has no add link (its header carries no +).
+	if hasTestid(body, "board-column-working-add") {
+		t.Error("the working column has an add link")
+	}
+
+	// The swap contract: an htmx GET of the add link's URL returns the panel
+	// fragment alone — the board stays, the app shell is not re-rendered.
+	frag := ts.get("/p/"+id+"/new?section=ready", "HX-Request", "true").
+		expectStatus(http.StatusOK).Body
+	if !strings.Contains(frag, `data-testid="item-panel"`) {
+		t.Errorf("the htmx add-link GET does not return the panel:\n%s", frag)
+	}
+	if strings.Contains(frag, `data-testid="app-header"`) {
+		t.Error("the htmx add-link GET returned the whole shell, not the panel fragment")
+	}
+	// The fragment carries the seeded section into the form.
+	if !strings.Contains(frag, `name="section" value="ready"`) {
+		t.Error("the new-item form is not seeded with section=ready")
+	}
+}
+
 // §5.1: the board carries data-wip-used and data-wip-limit; working cards carry
 // data-slot.
 func TestBoardAndWorkingAttributes(t *testing.T) {

@@ -43,17 +43,35 @@
         <option value="light" {{if eq $d.Appearance "light"}}selected{{end}}>light</option>
         <option value="dark" {{if eq $d.Appearance "dark"}}selected{{end}}>dark</option>
       </select>
-      <span class="mm-hint">The preview follows this choice; the editor itself edits the light palette (dark palette editing is a follow-up).</span>
+      <span class="mm-hint">The preview follows this choice. The Light / Dark tabs below pick which palette the colour fields edit — an auto theme uses both (§8.2), so both stay editable here.</span>
     </div>
 
     <h2>Colors</h2>
-    <div class="mm-theme-editor__colors">
+    <div class="mm-theme-editor__tabs" role="tablist" aria-label="Palette to edit">
+      <button type="button" data-testid="x-palette-tab-light" role="tab"
+              aria-selected="{{if $d.DarkTab}}false{{else}}true{{end}}">Light</button>
+      <button type="button" data-testid="x-palette-tab-dark" role="tab"
+              aria-selected="{{if $d.DarkTab}}true{{else}}false{{end}}">Dark</button>
+    </div>
+
+    <div data-palette="light" class="mm-theme-editor__colors" {{if $d.DarkTab}}hidden{{end}}>
       {{range $d.Colors}}
       <div class="mm-field mm-theme-editor__token">
         <label for="token-{{.Path}}">{{.Name}} (<code>{{.Path}}</code>)</label>
         <span class="mm-swatch" data-swatch-for="token-{{.Path}}" style="background-color:{{.Value}}"></span>
         <input id="token-{{.Path}}" name="token_{{.Path}}" type="text" value="{{.Value}}"
                data-token-path="color.{{.Path}}" spellcheck="false">
+      </div>
+      {{end}}
+    </div>
+
+    <div data-palette="dark" class="mm-theme-editor__colors" {{if not $d.DarkTab}}hidden{{end}}>
+      {{range $d.DarkColors}}
+      <div class="mm-field mm-theme-editor__token">
+        <label for="tokenDark-{{.Path}}">{{.Name}} (<code>{{.Path}}</code>)</label>
+        <span class="mm-swatch" data-swatch-for="tokenDark-{{.Path}}" style="background-color:{{.Value}}"></span>
+        <input id="tokenDark-{{.Path}}" name="tokenDark_{{.Path}}" type="text" value="{{.Value}}"
+               data-token-path="colorDark.{{.Path}}" spellcheck="false">
       </div>
       {{end}}
     </div>

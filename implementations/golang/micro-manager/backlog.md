@@ -2,8 +2,8 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0169
-updated: 2026-08-04
+next_id: T-0189
+updated: 2026-08-05
 ---
 
 # Backlog
@@ -22,6 +22,12 @@ thing that can be started.
 
 ## Ready
 
+- [ ] [T-0169] Spec: tickler fields and grammar — SCHEDULE token, placement, I7 (from T-0164 spike) | prio:med | tags:format,spec | detail:details/T-0169.md | created:2026-08-05
+- [ ] [T-0170] Spec: tickler API, --tick, Move-clears-tickler (spec-tools §5.3, §6) | prio:med | tags:library,spec | detail:details/T-0170.md | created:2026-08-05
+- [ ] [T-0171] Spec: tickler UI — panel controls, next-fire badge (spec-gui) | prio:low | tags:gui,spec | detail:details/T-0171.md | created:2026-08-05
+- [ ] [T-0172] Library: schedule parser + calendar math, tickler/tickled fields, Store.tick/ticklers | prio:med | tags:library | detail:details/T-0172.md | created:2026-08-05
+- [ ] [T-0173] mm --tick and the UI tickler service goroutine | prio:med | tags:cli,gui | detail:details/T-0173.md | created:2026-08-05
+
 ## Blocked
 
 - [ ] [T-0135] CSS transition polish on swap (fade .htmx-added content) | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0135.md | created:2026-08-02 | blocked:report Phase 3; only if Phase 1 still feels abrupt
@@ -32,10 +38,16 @@ thing that can be started.
 
 ## Someday
 
-- [ ] [T-0142] Theme editor: edit the dark palette (colorDark) alongside the light | prio:med | tags:gui,theme | detail:details/T-0142.md | created:2026-08-03
-- [ ] [T-0143] Spec: name the compiled-in library themes in spec-gui.md §8.7 (micro-manager-lite) | prio:low | tags:format,spec | created:2026-08-03
-- [ ] [T-0144] Done only shows the count up to the limit | prio:med | tags:bug | detail:details/T-0144.md | created:2026-08-03
-- [ ] [T-0145] Make a way to show all done items | prio:med | tags:new-feature,spike | detail:details/T-0145.md | created:2026-08-03
-- [ ] [T-0162] Open the new-item panel through an htmx swap like the card title link | prio:low | tags:gui,flicker-fix | detail:details/T-0162.md | created:2026-08-04
-- [ ] [T-0164] Tickler service | prio:med | tags:spike | detail:details/T-0164.md | created:2026-08-04
 - [ ] [T-0165] Refine settings and theme config. | prio:med | detail:details/T-0165.md | created:2026-08-04
+- [ ] [T-0175] Plugin skeleton and install: directory extension, package.json, mm-on-PATH check | prio:med | tags:plugin | detail:details/T-0175.md | created:2026-08-05
+- [ ] [T-0176] mm runner: subprocess with --json, --dir pin, timeout, exit-code mapping | prio:med | tags:plugin | detail:details/T-0176.md | created:2026-08-05
+- [ ] [T-0177] Board resolution, pinning, and session/branch state | prio:med | tags:plugin | detail:details/T-0177.md | created:2026-08-05
+- [ ] [T-0178] Read tools: mm_status, mm_next, mm_list, mm_show, mm_board, mm_check, mm_find | prio:med | tags:plugin | detail:details/T-0178.md | created:2026-08-05
+- [ ] [T-0179] Write tools: mm_add, mm_edit, mm_move, mm_note, mm_init, mm_describe | prio:med | tags:plugin | detail:details/T-0179.md | created:2026-08-05
+- [ ] [T-0180] Workflow tools: mm_start, mm_pause, mm_finish | prio:med | tags:plugin | detail:details/T-0180.md | created:2026-08-05
+- [ ] [T-0181] mm_remove with the double guard | prio:med | tags:plugin | detail:details/T-0181.md | created:2026-08-05
+- [ ] [T-0182] /mm command surface | prio:med | tags:plugin | detail:details/T-0182.md | created:2026-08-05
+- [ ] [T-0183] Context injection and configuration | prio:med | tags:plugin | detail:details/T-0183.md | created:2026-08-05
+- [ ] [T-0184] Recommended tools: mm_block/unblock, mm_search, mm_report, mm_tick, mm_archive | prio:low | tags:plugin | detail:details/T-0184.md | created:2026-08-05
+- [ ] [T-0185] Conformance tests: runner, exit codes, §8.1 smoke test | prio:med | tags:plugin | detail:details/T-0185.md | created:2026-08-05
+- [ ] [T-0187] mm cli: add the ability to bulk add tasks | prio:med | tags:new-feature | created:2026-08-05

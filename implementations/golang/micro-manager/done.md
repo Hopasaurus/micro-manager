@@ -11,6 +11,15 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0186] Spec: add --prefix P to mm --init so a board's id_prefix can be set at creation | prio:med | tags:cli,spec | detail:details/T-0186.md | created:2026-08-05 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0188] Spec: --describe TEXT, the board description in --status, and --init --description (spec-tools.md) | prio:low | tags:cli,spec | detail:details/T-0188.md | created:2026-08-05 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0174] Implement the pi plugin per project/spec-pi-mm-plugin.md | prio:med | tags:plugin | detail:details/T-0174.md | created:2026-08-05 | done:2026-08-05 | outcome:obsolete
+- [x] [T-0164] Tickler service | prio:med | tags:spike | detail:details/T-0164.md | created:2026-08-04 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0162] Open the new-item panel through an htmx swap like the card title link | prio:low | tags:gui,flicker-fix | detail:details/T-0162.md | created:2026-08-04 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0142] Theme editor: edit the dark palette (colorDark) alongside the light | prio:med | tags:gui,theme | detail:details/T-0142.md | created:2026-08-03 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0145] Make a way to show all done items | prio:med | tags:new-feature,spike | detail:details/T-0145.md | created:2026-08-03 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0144] Done only shows the count up to the limit | prio:med | tags:bug | detail:details/T-0144.md | created:2026-08-03 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0143] Spec: name the compiled-in library themes in spec-gui.md §8.7 (micro-manager-lite) | prio:low | tags:format,spec | detail:details/T-0143.md | created:2026-08-03 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
 - [x] [T-0045] Implement stats: throughput, cycle time, WIP over time | prio:low | tags:library,report | detail:details/T-0045.md | created:2026-07-29 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0044] Implement migrate for older directory layouts | prio:low | tags:library,ops | detail:details/T-0044.md | created:2026-07-29 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
 - [x] [T-0168] Library: archive MUST move detail files into details-YYYY/, not strand them (spec-file-format.md §5.6) | prio:med | tags:library,ops | detail:details/T-0168.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped

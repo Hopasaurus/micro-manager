@@ -191,6 +191,14 @@ func auditViews(t *testing.T, ts *testServer, id string) string {
 	bid := projectIDOf(t, broken, broken.Dirs[0])
 	b = append(b, broken.get("/p/"+bid+"/check").expectStatus(200).Body)
 
+	// board-column-done-show-all only renders when the done column is
+	// truncated, and the clean fixture's three done items never are. A
+	// done-heavy board joins the battery for that one element.
+	heavy := bigDoneFixture(t, t.TempDir(), 12, 25)
+	heavyServer := serverOver(t, heavy, nil)
+	hid := projectIDOf(t, heavyServer, heavy)
+	b = append(b, heavyServer.get("/p/"+hid+"/board").expectStatus(200).Body)
+
 	return strings.Join(b, "\n")
 }
 

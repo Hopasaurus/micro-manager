@@ -248,11 +248,24 @@ func TestRefreshFetchSizeByDoneColumn(t *testing.T) {
 					done, cards, want, limit)
 			}
 		}
+		// The cap's invariant is that the fragment does not GROW with done.md.
+		// It may differ by a bounded constant: T-0144 put the full done count
+		// in the header and data-total (a digit more per order of magnitude),
+		// and T-0145 renders a fixed show-all link once the column is
+		// truncated - present at 200 and 1000 done, absent at 20. Growth past
+		// the bound is a card leak: each card is ~1.5KB, so any leak blows
+		// straight through it.
+		lo, hi := sizes[0], sizes[0]
 		for _, s := range sizes[1:] {
-			if s != sizes[0] {
-				t.Errorf("board fragment size varies with done.md (%v): DoneLimit is not capping it", sizes)
-				break
+			if s < lo {
+				lo = s
 			}
+			if s > hi {
+				hi = s
+			}
+		}
+		if hi-lo > 300 {
+			t.Errorf("board fragment size varies with done.md beyond the fixed show-all overhead (%v): DoneLimit is not capping it", sizes)
 		}
 	})
 
