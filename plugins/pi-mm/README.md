@@ -10,8 +10,8 @@ writes the board's files itself (§2.1).
 
 ## Status
 
-Readable and writable. The extension loads, checks for `mm`, resolves and pins
-a board, and provides the read and write tools of spec §4.2:
+Complete. The extension loads, checks for `mm`, resolves and pins a board, and
+provides the whole tool surface of spec §4.2 — required first:
 
 | Tool | What it answers |
 |---|---|
@@ -38,6 +38,23 @@ That is the **whole required tool set** of spec §4.2. `mm_remove` needs
 refusal), asks the user as well when there is a UI, and only then passes
 `--force` — the CLI's own guard being the third line rather than the first.
 
+The **recommended set** is registered too, but only for the operations the
+installed `mm` actually has — the plugin reads its `--help` once at session
+start and gates on what it lists:
+
+| Tool | What it does |
+|---|---|
+| `mm_block` / `mm_unblock` | move an item to blocked with a reason, or back to ready |
+| `mm_search` | substring or regex over titles, tags and detail bodies |
+| `mm_report` | what closed in a period, with the period it resolved |
+| `mm_tick` | fire the board's due someday schedules, once |
+| `mm_archive` | roll old closed months out into a per-year archive |
+
+Neither `mm_tick` nor `mm_archive` ever runs on its own — no timer, no event
+handler, no "while I'm here". Calling the tool is the only trigger, both take
+`dry_run` so you can see what a run would do, and `mm_archive` passes `mm`'s
+warning about archived items leaving the ID pool through word for word.
+
 ## `/mm`
 
 The same operations for a human, sharing the tools rather than mirroring them —
@@ -53,9 +70,16 @@ so what you see is byte-for-byte what the agent sees:
 /mm edit ID [--title T] [--set K=V]...   /mm move ID [--top | --position N]
 /mm start ID | /mm pause ID | /mm finish ID [--outcome O]
 /mm note ID TEXT                      /mm remove ID     (asks first)
+/mm block ID "REASON"                 /mm unblock ID [--end]
+/mm search "QUERY" [--field F]... [--state S] [--regex] [--limit N]
+/mm report [PERIOD] [--since D] [--until D] [--group-by G] [--include-wip]
+/mm tick [--dry-run]                  /mm archive [--before YYYY-MM] [--dry-run]
 /mm describe TEXT                     /mm context [on|off]
 /mm help
 ```
+
+An operation whose tool this build does not have says so — it names the
+operation the installed `mm` is missing rather than half-running it.
 
 ## Per-turn context
 
@@ -92,9 +116,6 @@ config.
 A key of the wrong type is named and ignored rather than coerced, and an
 unknown key is reported — a config that appears to work and does nothing is the
 worst outcome.
-
-**Not yet.** The recommended tools — `/mm tick`, `/mm archive`, search, report
-(T-0184); those two say so rather than half-running.
 
 ## Requirements
 
@@ -161,6 +182,6 @@ It skips with a reason when `mm` is not on PATH, so the suite still runs on a
 machine that has never built the Go implementation:
 
 ```bash
-npm test                       # 133 pass, 6 skipped without mm
-PATH=/path/to/mm/bin:$PATH npm test   # 139 pass
+npm test                       # 159 pass, 7 skipped without mm
+PATH=/path/to/mm/bin:$PATH npm test   # 166 pass
 ```

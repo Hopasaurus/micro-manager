@@ -36,6 +36,76 @@ export type Presence =
 const PROBE_ARGS = ["--version"] as const;
 
 /**
+ * What one probe spawn produced.
+ *
+ * The three shapes are the three ways running a program can end, and they are
+ * kept apart because each needs different words: it was not there, it never
+ * answered, or it answered.
+ */
+export type ProbeOutcome =
+  | { readonly kind: "exit"; readonly code: number | null; readonly stdout: string; readonly stderr: string }
+  | { readonly kind: "timeout" }
+  | { readonly kind: "error"; readonly enoent: boolean; readonly detail: string };
+
+/**
+ * Runs `mm` once and collects its output.
+ *
+ * The plugin asks `mm` two questions that are not board interactions — "are you
+ * there?" (`--version`) and "what can you do?" (`--help`, capabilities.ts) —
+ * and neither goes through the runner, which owns `--json` and `--dir` and
+ * insists on an envelope. This is the shared half of both: spawn, bound it,
+ * never hold the host process open, and never throw.
+ */
+export function spawnText(
+  command: string,
+  args: readonly string[],
+  timeoutMs: number,
+): Promise<ProbeOutcome> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (outcome: ProbeOutcome) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(outcome);
+    };
+
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(command, [...args], { stdio: ["ignore", "pipe", "pipe"] });
+    } catch (err) {
+      // spawn can throw synchronously (EACCES on some platforms) rather than
+      // emitting "error"; both paths must produce the same answer.
+      resolve({ kind: "error", enoent: true, detail: describe(err) });
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      done({ kind: "timeout" });
+    }, timeoutMs);
+    // A probe must never hold the host process open (§2.2: the plugin is a
+    // guest).
+    timer.unref?.();
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", (err: NodeJS.ErrnoException) => {
+      done({ kind: "error", enoent: err.code === "ENOENT", detail: describe(err) });
+    });
+    child.on("close", (code) => {
+      done({ kind: "exit", code, stdout, stderr });
+    });
+  });
+}
+
+/**
  * The one message the plugin gives a user whose `mm` is missing or broken.
  *
  * It names the remedy, because "mm not found" alone leaves someone stuck: the
@@ -68,69 +138,31 @@ export function presenceMessage(p: Presence): string {
  * Exported for tests and for a deliberate re-probe (a user who installs `mm`
  * mid-session and reloads); everything else goes through the cache below.
  */
-export function probe(
+export async function probe(
   command = "mm",
   timeoutMs = PROBE_TIMEOUT_MS,
 ): Promise<Presence> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const done = (p: Presence) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(p);
+  const outcome = await spawnText(command, PROBE_ARGS, timeoutMs);
+  if (outcome.kind === "timeout") {
+    return { ok: false, reason: "timeout", detail: `${timeoutMs}ms` };
+  }
+  if (outcome.kind === "error") {
+    return {
+      ok: false,
+      reason: outcome.enoent ? "not-found" : "failed",
+      detail: outcome.detail,
     };
-
-    let child: ReturnType<typeof spawn>;
-    try {
-      child = spawn(command, [...PROBE_ARGS], {
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-    } catch (err) {
-      // spawn can throw synchronously (EACCES on some platforms) rather than
-      // emitting "error"; both paths must produce the same answer.
-      resolve({ ok: false, reason: "not-found", detail: describe(err) });
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      done({ ok: false, reason: "timeout", detail: `${timeoutMs}ms` });
-    }, timeoutMs);
-    // The probe must never hold the host process open (§2.2: the plugin is a
-    // guest).
-    timer.unref?.();
-
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
-
-    child.on("error", (err: NodeJS.ErrnoException) => {
-      done({
-        ok: false,
-        reason: err.code === "ENOENT" ? "not-found" : "failed",
-        detail: describe(err),
-      });
-    });
-
-    child.on("close", (code) => {
-      if (code === 0) {
-        const version = firstLine(stdout) || firstLine(stderr);
-        done({ ok: true, version: version || "unknown version" });
-        return;
-      }
-      done({
-        ok: false,
-        reason: "failed",
-        detail: `exit ${code}${firstLine(stderr) ? `: ${firstLine(stderr)}` : ""}`,
-      });
-    });
-  });
+  }
+  if (outcome.code === 0) {
+    const version = firstLine(outcome.stdout) || firstLine(outcome.stderr);
+    return { ok: true, version: version || "unknown version" };
+  }
+  const said = firstLine(outcome.stderr);
+  return {
+    ok: false,
+    reason: "failed",
+    detail: `exit ${outcome.code}${said ? `: ${said}` : ""}`,
+  };
 }
 
 /**

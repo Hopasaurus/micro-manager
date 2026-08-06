@@ -20,11 +20,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { clearPin, setPin } from "./board.ts";
+import { hasOperation, probeCapabilities } from "./capabilities.ts";
 import { probe } from "./presence.ts";
 import { run } from "./runner.ts";
 import { readTools } from "./tools-read.ts";
 import { runCommand } from "./command.ts";
 import { removeTools } from "./tools-remove.ts";
+import { recommendedTools } from "./tools-recommended.ts";
 import { workflowTools } from "./tools-workflow.ts";
 import { writeTools } from "./tools-write.ts";
 
@@ -360,4 +362,108 @@ test("/mm prints what the tools print", { skip: present.ok ? false : `no mm on P
 
   assert.match((await runCommand(tools, "check")).text, /clean: no violations/);
   t.diagnostic("covered: /mm init, add, status (byte-identical to the tool), list, show, remove, check");
+});
+
+/*
+  The recommended tools against a real board and a real mm (§4.2).
+
+  These are gated on what the installed build has, so the test asks the same
+  question the plugin does — the capability probe — and covers what it finds.
+  A board with a tickler and an old month is set up on disk so --tick and
+  --archive have something to do; an archive that moved nothing would prove
+  neither the argv nor the warning.
+*/
+test("the recommended tools work against a real board", { skip: present.ok ? false : `no mm on PATH (${present.reason})` }, async (t) => {
+  const dir = join(mkdtempSync(join(tmpdir(), "mm-recommended-")), "board");
+  const deps = { health: async () => ({ ok: true as const, version: "real" }), run };
+  const tools = new Map(
+    [...readTools(deps), ...writeTools(deps), ...workflowTools(deps), ...recommendedTools(deps)].map(
+      (x) => [x.name, x],
+    ),
+  );
+  const call = async (name: string, params: Record<string, unknown> = {}) => {
+    const r = await tools.get(name)!.execute("id", params);
+    return { text: r.content[0]?.text ?? "", isError: r.isError === true };
+  };
+  const must = async (name: string, params: Record<string, unknown> = {}) => {
+    const r = await call(name, params);
+    assert.equal(r.isError, false, `${name}: ${r.text}`);
+    return r.text;
+  };
+
+  clearPin();
+  t.after(clearPin);
+
+  const caps = await probeCapabilities("mm", 5_000);
+  t.diagnostic(`mm operations: ${caps.known ? [...caps.operations].join(" ") : "unknown"}`);
+
+  await must("mm_init", { project: "Recommended", dir, slots: 1 });
+  await must("mm_add", { title: "water the beds", prio: "high", tags: ["outdoor"] });
+  await must("mm_add", { title: "wait for the vendor" });
+
+  const covered: string[] = [];
+
+  if (hasOperation(caps, "block")) {
+    const blocked = await must("mm_block", { id: "2", reason: "waiting on the vendor" });
+    assert.match(blocked, /blocked T-0002/);
+    assert.match(blocked, /waiting on the vendor/);
+    // I5 is real: an item in Blocked without a reason is a violation, so the
+    // board being clean afterwards is the check that the reason landed.
+    assert.match(await must("mm_check"), /clean: no violations/);
+    assert.match(await must("mm_unblock", { id: "2" }), /unblocked T-0002/);
+    covered.push("mm_block", "mm_unblock");
+  }
+
+  if (hasOperation(caps, "search")) {
+    const hits = await must("mm_search", { query: "beds" });
+    assert.match(hits, /1 hit:/);
+    assert.match(hits, /T-0001 {2}water the beds/);
+    assert.match(hits, /title match/, "the field that matched is reported per hit (§5.2)");
+    covered.push("mm_search");
+  }
+
+  if (hasOperation(caps, "report")) {
+    await must("mm_start", { id: "1" });
+    await must("mm_finish", { id: "1", outcome: "shipped" });
+    const report = await must("mm_report", { period: "all", group_by: "outcome" });
+    // §5.1.11: every output mode states the period and where it came from.
+    assert.match(report, /all/);
+    assert.match(report, /from switch/);
+    assert.match(report, /shipped:/);
+    assert.match(report, /T-0001 {2}water the beds/);
+    covered.push("mm_report");
+  }
+
+  if (hasOperation(caps, "tick")) {
+    const someday = await must("mm_add", { title: "renew the domain", section: "someday" });
+    const id = /\b(T-\d{4})\b/.exec(someday)?.[1];
+    assert.ok(id, `mm_add did not report an ID: ${someday}`);
+    // The schedule is set through mm --edit, not by writing the field: the
+    // plugin's own rule (§2.1) applies to its tests too.
+    await must("mm_edit", { id: id!, set: ["tickler=2026-01-01"] });
+
+    const preview = await must("mm_tick", { dry_run: true });
+    assert.match(preview, /^dry run — nothing was written\n/);
+    assert.match(preview, new RegExp(`${id}  moved to ready`));
+    // A preview really is one: the item is still in Someday.
+    assert.match(await must("mm_show", { id: id! }), /someday/);
+
+    const fired = await must("mm_tick");
+    assert.match(fired, /1 fired:/);
+    assert.match(fired, new RegExp(`${id}  moved to ready`));
+    assert.match(await must("mm_show", { id: id! }), /ready/);
+    covered.push("mm_tick");
+  }
+
+  if (hasOperation(caps, "archive")) {
+    // Nothing is old enough to archive on a board created today, and that is
+    // the case worth pinning: it is a result, not an error.
+    const nothing = await must("mm_archive");
+    assert.match(nothing, /nothing to archive/);
+    covered.push("mm_archive");
+  }
+
+  assert.match(await must("mm_check"), /clean: no violations/);
+  assert.ok(covered.length > 0, "the capability probe found nothing to cover — that is the bug");
+  t.diagnostic(`covered: ${covered.join(", ")}`);
 });

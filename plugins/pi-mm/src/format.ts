@@ -211,6 +211,179 @@ export function itemList(items: readonly ItemView[], empty: string): string {
   return items.map(itemLine).join("\n");
 }
 
+/* ------------------------------------------- the recommended set (§4.2) */
+
+/** One hit of `mm --search` (`spec-tools.md` §5.2, §9.2). */
+export interface SearchHit {
+  readonly item?: ItemView;
+  /** Which field matched: title, tags, or detail. */
+  readonly field?: string;
+  readonly at?: { readonly file?: string; readonly line?: number };
+  readonly text?: string;
+}
+
+/**
+ * Search hits, one line each.
+ *
+ * §5.2 asks a search to report "state and location per hit", and both are on
+ * the line rather than in `details`: a hit whose state you cannot see is one
+ * you have to call `mm_show` about before you know whether it is still open.
+ */
+export function searchHits(hits: readonly SearchHit[]): string {
+  if (hits.length === 0) return "no matches.";
+  const lines = hits.map((hit) => {
+    const item = hit.item ?? {};
+    const where = hit.at?.file ? `${hit.at.file}${hit.at.line ? `:${hit.at.line}` : ""}` : "";
+    const tail = [itemLocation(item), hit.field ? `${hit.field} match` : "", where]
+      .filter(Boolean)
+      .join(", ");
+    return `${itemLine(item)}  — ${tail}`;
+  });
+  return [`${hits.length} hit${hits.length === 1 ? "" : "s"}:`, ...lines].join("\n");
+}
+
+/** `mm --report`'s result (`spec-tools.md` §5.1.11). */
+export interface ReportResult {
+  readonly project?: string;
+  readonly period?: {
+    readonly label?: string;
+    readonly since?: string;
+    readonly until?: string;
+    /** Where the period came from: a switch, the environment, or the default. */
+    readonly source?: string;
+  };
+  readonly done?: readonly ItemView[];
+  readonly groups?: ReadonlyArray<{ readonly key?: string; readonly items?: readonly ItemView[] }>;
+  readonly wip?: readonly ItemView[];
+  readonly next?: readonly ItemView[];
+}
+
+/**
+ * A report.
+ *
+ * The period line is not decoration: §5.1.11 requires EVERY output mode to
+ * state the resolved period and where it came from, because "a report whose
+ * period is invisible is a report you cannot check" — and a model reading a
+ * bare list of items has no other way to know which week it is looking at.
+ */
+export function reportBody(report: ReportResult): string {
+  const period = report.period ?? {};
+  const span = period.since && period.until ? ` (${period.since}..${period.until})` : "";
+  const from = period.source ? ` — from ${period.source}` : "";
+  const head = `${report.project ? `${report.project} — ` : ""}${period.label ?? "period"}${span}${from}`;
+
+  const lines = [head];
+  const done = report.done ?? [];
+  lines.push(`${done.length} closed`);
+  if (report.groups?.length) {
+    for (const group of report.groups) {
+      lines.push(`${group.key ?? "(ungrouped)"}:`);
+      for (const item of group.items ?? []) lines.push(`  ${itemLine(item)}`);
+    }
+  } else {
+    for (const item of done) lines.push(`  ${itemLine(item)}`);
+  }
+  if (report.wip?.length) {
+    lines.push("in progress:");
+    for (const item of report.wip) lines.push(`  ${itemLine(item)}`);
+  }
+  if (report.next?.length) {
+    lines.push("next:");
+    for (const item of report.next) lines.push(`  ${itemLine(item)}`);
+  }
+  return lines.join("\n");
+}
+
+/** `mm --tick`'s result (`spec-tools.md` §5.3.3). */
+export interface TickResult {
+  readonly fired?: ReadonlyArray<{
+    readonly id?: string;
+    /** `move` for a one-shot, `spawn` for a recurring prototype. */
+    readonly kind?: string;
+    readonly spawned?: string;
+    readonly tickled?: string;
+  }>;
+  readonly errors?: ReadonlyArray<{ readonly id?: string; readonly error?: string }>;
+}
+
+/**
+ * What a tickler run did.
+ *
+ * Both halves are always reported, because §5.3.3 requires it: "a failing item
+ * never aborts the run", so a run that fired three and failed one is a success
+ * whose failure still has to be said out loud.
+ */
+export function tickReport(result: TickResult): string {
+  const fired = result.fired ?? [];
+  const errors = result.errors ?? [];
+  const lines: string[] = [];
+
+  if (fired.length === 0) {
+    lines.push("nothing was due.");
+  } else {
+    lines.push(`${fired.length} fired:`);
+    for (const fire of fired) {
+      // The two kinds of fire are different events, not one with a flag: a
+      // one-shot MOVES the item and consumes its schedule; a recurring one
+      // leaves the prototype where it is and spawns a new item with a new ID.
+      const what =
+        fire.kind === "spawn"
+          ? `spawned ${fire.spawned ?? "a new item"}`
+          : "moved to ready";
+      lines.push(`  ${fire.id ?? "?"}  ${what}${fire.tickled ? ` (tickled ${fire.tickled})` : ""}`);
+    }
+  }
+  for (const failure of errors) {
+    lines.push(`  error: ${failure.id ?? "?"}: ${failure.error ?? "unknown"}`);
+  }
+  return lines.join("\n");
+}
+
+/** `mm --archive`'s result (`spec-tools.md` §5.3.1). */
+export interface ArchiveResult {
+  readonly cutoff?: string;
+  readonly months?: readonly string[];
+  readonly items?: number;
+  readonly files?: readonly string[];
+  readonly detailsMoved?: ReadonlyArray<{
+    readonly id?: string;
+    readonly from?: string;
+    readonly to?: string;
+  }>;
+  readonly detailOrphans?: readonly string[];
+}
+
+/**
+ * What an archive run moved.
+ *
+ * Every filename here comes from the result, never from a literal: the plugin
+ * does not know what an archive file is called and must not appear to (§8.1).
+ * The cost of the run — that archived items leave the ID pool and stop being
+ * covered by I1/I2 — is `mm`'s own warning and rides along verbatim through
+ * `withWarnings` (§4.2), which is why it is not restated here.
+ */
+export function archiveReport(result: ArchiveResult): string {
+  const items = result.items ?? 0;
+  const cutoff = result.cutoff ? ` (cutoff ${result.cutoff})` : "";
+  if (items === 0) return `nothing to archive${cutoff}.`;
+
+  const months = result.months ?? [];
+  const files = result.files ?? [];
+  const lines = [
+    `archived ${items} item${items === 1 ? "" : "s"}` +
+      (months.length ? ` from ${months.join(", ")}` : "") +
+      (files.length ? ` into ${files.join(", ")}` : "") +
+      cutoff,
+  ];
+  for (const move of result.detailsMoved ?? []) {
+    lines.push(`  ${move.id ?? "?"}: ${move.from ?? "?"} → ${move.to ?? "?"}`);
+  }
+  for (const orphan of result.detailOrphans ?? []) {
+    lines.push(`  orphaned: ${orphan}`);
+  }
+  return lines.join("\n");
+}
+
 /** Warnings ride along under the result, never mixed into it. */
 export function withWarnings(body: string, envelope: Envelope): string {
   const warnings = envelope.warnings ?? [];

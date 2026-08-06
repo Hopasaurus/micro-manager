@@ -22,8 +22,6 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0184] Recommended tools: mm_block/unblock, mm_search, mm_report, mm_tick, mm_archive | prio:low | tags:plugin | detail:details/T-0184.md | created:2026-08-05
-- [ ] [T-0185] Conformance tests: runner, exit codes, §8.1 smoke test | prio:med | tags:plugin | detail:details/T-0185.md | created:2026-08-05
 - [ ] [T-0187] mm cli: add the ability to bulk add tasks | prio:med | tags:new-feature | detail:details/T-0187.md | created:2026-08-05
 - [ ] [T-0191] update the spec so that if backlog.md and done.md are missing it skips the directory. | prio:med | detail:details/T-0191.md | created:2026-08-06
 - [ ] [T-0194] detect multiple mm directories in the same directory | prio:med | tags:needs-refinement | detail:details/T-0194.md | created:2026-08-06

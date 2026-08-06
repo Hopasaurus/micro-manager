@@ -15,10 +15,12 @@
     - Removal "confirms the same way" — the same guard runs, from the same code
       (§8.2), with the command's ctx handed straight through.
 
-  What is NOT here: /mm tick and /mm archive. §5 lists them, but their tools are
-  the recommended set (T-0184) and are not built. A command that half-ran them
-  would be worse than one that says they are not available yet, which is what
-  /mm help does.
+  The recommended operations (T-0184) are here on the same terms. §5 names
+  `/mm tick` and `/mm archive` explicitly; block, unblock, search and report
+  follow from §5's opening sentence — the command is "a human-facing mirror of
+  the tools" — and mirror them the same way, by calling them. When the
+  installed `mm` lacks one, its tool was never registered (§4.2) and the
+  command says so, because runCommand looks the tool up rather than assuming.
 */
 
 import { setContextEnabled, contextEnabled } from "./settings.ts";
@@ -75,6 +77,13 @@ export function tokenize(line: string): string[] {
 const VALUE_FLAGS = new Set([
   "project",
   "dir",
+  "reason",
+  "field",
+  "period",
+  "since",
+  "until",
+  "group-by",
+  "age",
   "slots",
   "slot-width",
   "prefix",
@@ -326,12 +335,62 @@ export function plan(p: ParsedCommand): Plan {
       return { say: `context injection ${want} for this session.` };
     }
 
-    case "tick":
-    case "archive":
-      // §5 lists these; their tools are the recommended set and are not built
-      // (T-0184). Saying so is better than half-running them.
+    case "block": {
+      const [id, ...rest] = p.words;
+      const reason = first(p, "reason") ?? rest.join(" ");
+      if (!id) return { say: "/mm block needs an ID and a reason." };
+      if (!reason) {
+        return { say: `/mm block needs a reason: /mm block ${id} "waiting on the vendor".` };
+      }
+      return { tool: "mm_block", params: { id, reason } };
+    }
+
+    case "unblock": {
+      const id = p.words[0];
+      if (!id) return { say: "/mm unblock needs an ID." };
+      return { tool: "mm_unblock", params: clean({ id, end: p.switches.has("end") || undefined }) };
+    }
+
+    case "search": {
+      const query = p.words.join(" ");
+      if (!query) return { say: '/mm search needs a query — quote it: /mm search "deploy script".' };
       return {
-        say: `/mm ${p.op} is not available yet — the ${p.op} tool is part of the recommended set, which this build does not provide. Use the mm CLI directly for now.`,
+        tool: "mm_search",
+        params: clean({
+          query,
+          fields: all(p, "field"),
+          state: first(p, "state"),
+          regex: p.switches.has("regex") || undefined,
+          limit: num(first(p, "limit")),
+        }),
+      };
+    }
+
+    case "report":
+      return {
+        tool: "mm_report",
+        params: clean({
+          period: first(p, "period") ?? p.words[0],
+          since: first(p, "since"),
+          until: first(p, "until"),
+          group_by: first(p, "group-by"),
+          include_wip: p.switches.has("include-wip") || undefined,
+          include_backlog: p.switches.has("include-backlog") || undefined,
+          include_archives: p.switches.has("include-archives") || undefined,
+        }),
+      };
+
+    case "tick":
+      return { tool: "mm_tick", params: clean({ dry_run: p.switches.has("dry-run") || undefined }) };
+
+    case "archive":
+      return {
+        tool: "mm_archive",
+        params: clean({
+          before: first(p, "before"),
+          age: num(first(p, "age")),
+          dry_run: p.switches.has("dry-run") || undefined,
+        }),
       };
 
     default:
@@ -364,6 +423,11 @@ export function helpText(): string {
     "/mm start ID | /mm pause ID | /mm finish ID [--outcome O] [--closing-note T]",
     "/mm note ID TEXT",
     "/mm remove ID                         asks before deleting",
+    '/mm block ID "REASON" | /mm unblock ID [--end]',
+    '/mm search "QUERY" [--field F]... [--state S] [--regex] [--limit N]',
+    "/mm report [PERIOD] [--since D] [--until D] [--group-by G] [--include-wip]",
+    "/mm tick [--dry-run]                  fire due someday schedules",
+    "/mm archive [--before YYYY-MM | --age DAYS] [--dry-run]",
     "/mm context [on|off]                  per-turn board context",
     "/mm help",
   ].join("\n");
@@ -393,7 +457,13 @@ export async function runCommand(
 
   const tool = tools.get(decided.tool);
   if (!tool) {
-    return { text: `${decided.tool} is not available in this build.`, isError: true };
+    // Normally this is the recommended set (§4.2): those tools are registered
+    // only when the installed `mm` has the operation, so the honest report is
+    // the build's age — the same thing exit 2 says (§4.3) — not a plugin bug.
+    return {
+      text: `/mm ${parsed.op} needs ${decided.tool}, which this session does not have: the installed mm does not provide that operation.`,
+      isError: true,
+    };
   }
   const result = await tool.execute(`mm-command:${parsed.op}`, decided.params, signal, undefined, ctx);
   return {

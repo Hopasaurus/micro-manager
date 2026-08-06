@@ -15,7 +15,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import micromanager, { STATUS_KEY, health } from "./index.ts";
+import { resetCapabilities } from "./capabilities.ts";
 import { resetPresence } from "./presence.ts";
+
+/**
+ * Both session-scoped probes, dropped.
+ *
+ * `mm --version` (presence) and `mm --help` (capabilities) are each cached for
+ * the session, so a test that changed what is on PATH without dropping them
+ * would be asserting against the previous test's shim.
+ */
+function resetProbes(): void {
+  resetPresence();
+  resetCapabilities();
+}
 
 type Handler = (event: { reason?: string }, ctx: FakeContext) => unknown;
 
@@ -87,7 +100,9 @@ test("the factory registers the lifecycle and the tool surface built so far", ()
   assert.ok(pi.events.has("session_shutdown"), "shutdown is stated, not omitted (§7)");
 
   // §4.2's whole REQUIRED set: read (T-0178), write (T-0179), workflow
-  // (T-0180) and mm_remove (T-0181). The recommended set is T-0184.
+  // (T-0180) and mm_remove (T-0181). The RECOMMENDED set is deliberately not
+  // here: whether to register it is a question about the installed mm, so it
+  // is answered at session_start (§4.2, and the two tests below).
   const names = pi.tools.map((t) => (t as { name: string }).name).sort();
   assert.deepEqual(names, [
     "mm_add",
@@ -114,7 +129,7 @@ test("the factory registers the lifecycle and the tool surface built so far", ()
 
 test("with mm present, the status line names the build it will drive", async () => {
   const restore = withMmOnPath('echo "mm 1.4.0"');
-  resetPresence();
+  resetProbes();
   try {
     const pi = fakePi();
     const { ctx, status, notes } = fakeCtx();
@@ -125,7 +140,90 @@ test("with mm present, the status line names the build it will drive", async () 
     assert.equal(notes.length, 0, "a working plugin says nothing at startup");
   } finally {
     restore();
-    resetPresence();
+    resetProbes();
+  }
+});
+
+/**
+ * A shim that answers `--version` and `--help` differently.
+ *
+ * Both probes run at session start, and what the recommended set does depends
+ * entirely on the second one, so a shim that echoed the same thing for every
+ * argument could not express the case under test.
+ */
+function mmShim(help: string): string {
+  return [
+    'case "$1" in',
+    '  --version) echo "mm 1.4.0" ;;',
+    // %b, not %s: JSON.stringify escapes the newlines, and this is what turns
+    // them back into a multi-line help text.
+    `  --help) printf '%b' ${JSON.stringify(help)} ;;`,
+    "esac",
+  ].join("\n");
+}
+
+/** The recommended tools of §4.2, in the order they are registered. */
+const RECOMMENDED = ["mm_block", "mm_unblock", "mm_search", "mm_report", "mm_tick", "mm_archive"];
+
+test("the recommended set is registered against the installed build (§4.2)", async () => {
+  // A build with three of the six operations. --tick and --archive are absent,
+  // which is precisely the case §4.2 legislates: "expose only when the
+  // installed mm has it".
+  const restore = withMmOnPath(
+    mmShim(
+      "Operations:\n  --add TITLE   add a backlog item\n  --block ID    move to Blocked\n" +
+        "  --unblock ID  move back to Ready\n  --search Q    match over titles\n\n" +
+        "Global modifiers:\n  --json        one JSON object\n  --report-ish  not an operation\n",
+    ),
+  );
+  resetProbes();
+  try {
+    const pi = fakePi();
+    const { ctx } = fakeCtx();
+    micromanager(pi.api as never);
+    await pi.fire("session_start", { reason: "startup" }, ctx);
+
+    const names = pi.tools.map((t) => (t as { name: string }).name);
+    assert.deepEqual(
+      names.filter((n) => RECOMMENDED.includes(n)),
+      ["mm_block", "mm_unblock", "mm_search"],
+    );
+    // The Global modifiers section is not a source of operations: a modifier
+    // that happens to read like one must not register a tool.
+    assert.equal(names.includes("mm_report"), false);
+  } finally {
+    restore();
+    resetProbes();
+  }
+});
+
+test("an unreadable --help exposes the recommended set rather than hiding it (§4.2, §4.3)", async () => {
+  // Unknown is not absent. Hiding a tool because a probe could not be read is
+  // a worse failure than exposing one that answers exit 2, which the runner
+  // already reports as the build's age.
+  const restore = withMmOnPath(mmShim("mm — some other build's help, with no operations list\n"));
+  resetProbes();
+  try {
+    const pi = fakePi();
+    const { ctx } = fakeCtx();
+    micromanager(pi.api as never);
+    await pi.fire("session_start", { reason: "startup" }, ctx);
+
+    const names = pi.tools.map((t) => (t as { name: string }).name);
+    for (const tool of RECOMMENDED) {
+      assert.ok(names.includes(tool), `${tool} should be exposed when capabilities are unknown`);
+    }
+    // …and registering twice must not duplicate: session_start can fire again.
+    await pi.fire("session_start", { reason: "reload" }, ctx);
+    const again = pi.tools.map((t) => (t as { name: string }).name);
+    assert.equal(
+      again.filter((n) => n === "mm_tick").length,
+      1,
+      "a reload re-probes; it must not register the same tool twice",
+    );
+  } finally {
+    restore();
+    resetProbes();
   }
 });
 
@@ -135,7 +233,7 @@ test("with mm missing, it degrades loudly and says what to install", async () =>
   const empty = mkdtempSync(join(tmpdir(), "mm-empty-path-"));
   const previous = process.env["PATH"];
   process.env["PATH"] = empty;
-  resetPresence();
+  resetProbes();
   try {
     const pi = fakePi();
     const { ctx, status, notes } = fakeCtx();
@@ -150,7 +248,7 @@ test("with mm missing, it degrades loudly and says what to install", async () =>
     assert.equal(level, "warning");
   } finally {
     process.env["PATH"] = previous;
-    resetPresence();
+    resetProbes();
   }
 });
 
@@ -158,7 +256,7 @@ test("session_start never throws, whatever mm does", async () => {
   // Gracefully: an mm that exits non-zero must not take the session down with
   // it. A guest that throws out of a lifecycle handler is not a guest.
   const restore = withMmOnPath("exit 9");
-  resetPresence();
+  resetProbes();
   try {
     const pi = fakePi();
     const { ctx, notes } = fakeCtx();
@@ -167,26 +265,26 @@ test("session_start never throws, whatever mm does", async () => {
     assert.equal(notes.length, 1);
   } finally {
     restore();
-    resetPresence();
+    resetProbes();
   }
 });
 
 test("health() is what every later tool gates on", async () => {
   const restore = withMmOnPath('echo "mm 1.4.0"');
-  resetPresence();
+  resetProbes();
   try {
     const ok = await health();
     assert.equal(ok.ok, true);
     assert.equal(ok.ok && ok.version, "mm 1.4.0");
   } finally {
     restore();
-    resetPresence();
+    resetProbes();
   }
 
   const empty = mkdtempSync(join(tmpdir(), "mm-empty-path-"));
   const previous = process.env["PATH"];
   process.env["PATH"] = empty;
-  resetPresence();
+  resetProbes();
   try {
     const bad = await health();
     assert.equal(bad.ok, false);
@@ -195,7 +293,7 @@ test("health() is what every later tool gates on", async () => {
     assert.match(!bad.ok ? bad.message : "", /no `mm` on PATH/);
   } finally {
     process.env["PATH"] = previous;
-    resetPresence();
+    resetProbes();
   }
 });
 

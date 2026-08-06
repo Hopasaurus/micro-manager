@@ -1,22 +1,23 @@
 ---
 doc: working
 version: 1
-status: idle
-id: null
-title: null
-prio: null
-tags: null
-detail: null
-created: null
-started: null
+status: working
+id: T-0185
+title: Conformance tests: runner, exit codes, §8.1 smoke test
+prio: med
+tags: plugin
+detail: details/T-0185.md
+created: 2026-08-05
+started: 2026-08-06
 ---
 
 # Working
 
-Nothing in progress. Pick an item from [backlog.md](backlog.md) — see the
-**Start** operation in [structure.md](structure.md).
-
 ## Task
+
+See [details/T-0185.md](details/T-0185.md).
+
+Implement per the specification. See `../AGENTS.md` for the working rules.
 
 ## Plan
 

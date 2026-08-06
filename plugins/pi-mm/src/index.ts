@@ -20,12 +20,12 @@
           mutates the board except in direct response to a tool call or a /mm
           command. Not on session_start, not on agent_settled, not ever.
 
-  What is built so far: the skeleton and the mm check (T-0175), the runner
-  (T-0176), board resolution and the pin (T-0177), the required READ tools
-  (T-0178), the WRITE tools (T-0179), the workflow tools (T-0180) and
-  mm_remove with its double guard (T-0181) — the whole required surface of
-  §4.2 — the /mm command (T-0182), and per-turn context injection with the
-  §9 config (T-0183). The recommended tools (T-0184) land here next.
+  What is built: the skeleton and the mm check (T-0175), the runner (T-0176),
+  board resolution and the pin (T-0177), the required READ tools (T-0178), the
+  WRITE tools (T-0179), the workflow tools (T-0180) and mm_remove with its
+  double guard (T-0181) — the whole required surface of §4.2 — the /mm command
+  (T-0182), per-turn context injection with the §9 config (T-0183), and the
+  recommended tools, registered against the installed build (T-0184).
 */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -37,6 +37,7 @@ import {
   pinnedBoard,
   setPin,
 } from "./board.ts";
+import { capabilities, hasOperation, resetCapabilities } from "./capabilities.ts";
 import { presence, presenceMessage, resetPresence, type Presence } from "./presence.ts";
 import { run } from "./runner.ts";
 import { helpText, runCommand } from "./command.ts";
@@ -45,6 +46,7 @@ import { resetContext, turnContext } from "./context.ts";
 import { readTools, type ToolContext, type ToolDefinition } from "./tools-read.ts";
 import { resetSettings } from "./settings.ts";
 import { removeTools } from "./tools-remove.ts";
+import { RECOMMENDED_OPS, recommendedTools } from "./tools-recommended.ts";
 import { workflowTools } from "./tools-workflow.ts";
 import { writeTools } from "./tools-write.ts";
 
@@ -102,15 +104,46 @@ export default function micromanager(pi: ExtensionAPI): void {
     },
   };
   const tools = new Map<string, ToolDefinition>();
+  const register = (tool: ToolDefinition) => {
+    tools.set(tool.name, tool);
+    pi.registerTool(tool as never);
+  };
   for (const tool of [
     ...readTools(deps),
     ...writeTools(deps),
     ...workflowTools(deps),
     ...removeTools(deps),
   ]) {
-    tools.set(tool.name, tool);
-    pi.registerTool(tool as never);
+    register(tool);
   }
+
+  /*
+    The RECOMMENDED set (§4.2) is registered at session_start instead, because
+    whether to register it is a question about the installed `mm`: "expose only
+    when the installed mm has the op". Answering it needs a subprocess, and a
+    factory may run in an invocation that never starts a session — the same
+    reason the presence probe waits (see the session_start handler below).
+
+    pi supports registering after startup: a tool registered inside
+    session_start is refreshed into the same session and callable without a
+    reload. Registration is idempotent here, so a /reload that re-probes does
+    not double-register.
+  */
+  const registerRecommended = async (): Promise<string[]> => {
+    const caps = await capabilities();
+    const added: string[] = [];
+    for (const tool of recommendedTools(deps)) {
+      const op = RECOMMENDED_OPS[tool.name];
+      // A tool with no entry in the map would be exposed unconditionally; that
+      // is a bug in tools-recommended.ts rather than a build to gate on, and
+      // refusing to register it is how it gets noticed.
+      if (!op || !hasOperation(caps, op)) continue;
+      if (tools.has(tool.name)) continue;
+      register(tool);
+      added.push(tool.name);
+    }
+    return added;
+  };
 
   /*
     The /mm command (§5): the human-facing mirror of the tools, running the
@@ -126,7 +159,8 @@ export default function micromanager(pi: ExtensionAPI): void {
       const ops = [
         "status", "next", "check", "find", "board", "init", "describe", "list",
         "show", "add", "edit", "move", "start", "pause", "finish", "note",
-        "remove", "context", "help",
+        "remove", "block", "unblock", "search", "report", "tick", "archive",
+        "context", "help",
       ];
       const matches = ops.filter((op) => op.startsWith(prefix));
       return matches.length > 0 ? matches.map((op) => ({ value: op, label: op })) : null;
@@ -147,9 +181,13 @@ export default function micromanager(pi: ExtensionAPI): void {
     spawning a subprocess from one would be work nobody asked for.
   */
   pi.on("session_start", async (_event, ctx: ExtensionContext) => {
-    // A reload is the moment a user has just installed mm and wants the plugin
-    // to notice; anything else keeps the session's cached answer.
-    if (_event.reason === "reload") resetPresence();
+    // A reload is the moment a user has just installed mm — or replaced it
+    // with a newer build — and wants the plugin to notice; anything else keeps
+    // the session's cached answers.
+    if (_event.reason === "reload") {
+      resetPresence();
+      resetCapabilities();
+    }
 
     ui = ctx;
     const state = await health();
@@ -178,6 +216,11 @@ export default function micromanager(pi: ExtensionAPI): void {
       for (const warning of loaded.warnings) {
         ctx.ui.notify?.(`micro-manager config: ${warning}`, "warning");
       }
+
+      // §4.2's recommended set, against what this build actually has. Failing
+      // to probe is not an error — hasOperation answers yes when nothing was
+      // learned, and exit 2 remains the backstop (§4.3).
+      await registerRecommended();
 
       const restored = pinFromBranch(ctx.sessionManager?.getBranch?.() ?? []);
       if (restored) setPin(restored);
@@ -238,6 +281,7 @@ export default function micromanager(pi: ExtensionAPI): void {
   */
   pi.on("session_shutdown", () => {
     resetPresence();
+    resetCapabilities();
     clearPin();
     resetSettings();
     resetContext();

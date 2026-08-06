@@ -116,12 +116,42 @@ test("/mm remove asserts the confirmation a typed command IS (§8.2)", () => {
   assert.deepEqual("tool" in decided && decided.params, { id: "T-0042", confirmed: true });
 });
 
-test("/mm tick and /mm archive say they are not built rather than half-running", () => {
-  for (const op of ["tick", "archive"]) {
-    const decided = plan(parseCommand(op));
-    assert.ok("say" in decided);
-    assert.match("say" in decided ? decided.say : "", /not available yet/);
-  }
+test("the recommended operations map onto their tools (§5, §4.2)", () => {
+  const planned = (line: string) => {
+    const decided = plan(parseCommand(line));
+    assert.ok("tool" in decided, `${line} did not reach a tool: ${JSON.stringify(decided)}`);
+    return decided as { tool: string; params: Record<string, unknown> };
+  };
+
+  assert.deepEqual(planned('block T-0042 "waiting on the vendor"'), {
+    tool: "mm_block",
+    params: { id: "T-0042", reason: "waiting on the vendor" },
+  });
+  assert.deepEqual(planned("unblock T-0042 --end"), {
+    tool: "mm_unblock",
+    params: { id: "T-0042", end: true },
+  });
+  assert.deepEqual(planned('search "deploy script" --field title --regex --limit 5'), {
+    tool: "mm_search",
+    params: { query: "deploy script", fields: ["title"], regex: true, limit: 5 },
+  });
+  assert.deepEqual(planned("report last-week --group-by outcome --include-wip"), {
+    tool: "mm_report",
+    params: { period: "last-week", group_by: "outcome", include_wip: true },
+  });
+  // §5.3.1/§5.3.3: both take a dry run, and neither takes anything else that
+  // would let a command do more than the operation it names.
+  assert.deepEqual(planned("tick --dry-run"), { tool: "mm_tick", params: { dry_run: true } });
+  assert.deepEqual(planned("archive --before 2026-01"), {
+    tool: "mm_archive",
+    params: { before: "2026-01" },
+  });
+});
+
+test("/mm block insists on a reason before it spends a subprocess (I5)", () => {
+  const decided = plan(parseCommand("block T-0042"));
+  assert.ok("say" in decided);
+  assert.match("say" in decided ? decided.say : "", /reason/);
 });
 
 test("/mm context is session state, and reports itself (§5, §6)", (t) => {
@@ -209,8 +239,12 @@ test("the command's ctx reaches the tool, which is how /mm remove confirms", asy
   assert.equal(remove.calls[0]?.ctx, ctx);
 });
 
-test("a tool the build does not have says so", async () => {
-  const out = await runCommand(new Map(), "status");
+test("a tool this session does not have says so, and blames the build (§4.2)", async () => {
+  // The recommended set is registered only when the installed mm has the
+  // operation, so an unregistered tool is the build's age rather than a plugin
+  // bug — the same thing exit 2 reports (§4.3).
+  const out = await runCommand(new Map(), "tick");
   assert.equal(out.isError, true);
-  assert.match(out.text, /mm_status is not available in this build/);
+  assert.match(out.text, /mm_tick/);
+  assert.match(out.text, /the installed mm does not provide that operation/);
 });
