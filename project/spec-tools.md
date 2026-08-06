@@ -477,7 +477,10 @@ Moves an item within `backlog.md`. Exactly one destination selector is required.
 - `--section S` moves between sections. Combined with a position selector, the
   position is interpreted in the destination section. Moving into `blocked`
   REQUIRES a `blocked:` field to exist or be supplied via `--blocked`; moving
-  out of `blocked` MUST drop it (I5).
+  out of `blocked` MUST drop it (I5). Moving out of `someday` MUST drop a
+  `tickler:` field — the schedule is consumed, and the checker would otherwise
+  reject the field outside `## Someday` (format spec I7); `tickled:` is kept,
+  it is historical (§5.3.3).
 
 Only backlog items can be moved: ordering is meaningless in `done.md` beyond its
 month grouping, and working slots are interchangeable (format spec §5.2.1).
@@ -704,6 +707,7 @@ MAY be provided.
 | `--export [--format json\|csv]` | Whole-directory dump for external tooling. |
 | `--top-up` | Interactive triage over `## Someday`, promoting items to `## Ready`. |
 | `--describe TEXT` | Write or replace the first paragraph of `structure.md` — the board description (§5.3.2). |
+| `--tick [--dry-run]` | Run the tickler once: evaluate every `## Someday` item's `tickler:` schedule against today and fire the due ones — one-shot items move to `## Ready` with the schedule consumed; recurring items are prototypes that spawn a new Ready item on each fire (§5.3.3). MUST report what fired and what errored. |
 
 #### 5.3.1 `--archive` in detail
 
@@ -781,6 +785,80 @@ routes every description write here, its one sanctioned path to this file.
 Errors: none specific to the value — free prose cannot be invalid.
 `Concurrent` and `Io` apply as for any write (§7).
 
+#### 5.3.3 `--tick` in detail
+
+Runs the tickler once: every `## Someday` item carrying `tickler:` (format
+spec §6) is evaluated against today, and the due ones fire. Firing is a
+mutation like any other — it accepts `--dry-run` and runs the §7 transaction
+machinery. The default is manual, like every operation; a scheduled run is
+the cron/systemd surface (`mm --tick --dir …` from a timer, with
+`Persistent=true` so a missed run fires on boot).
+
+**Two kinds of fire**, a property of the schedule value, not a separate flag
+(format spec §3.3 `SCHEDULE`):
+
+- **One-shot** (`tickler:2026-09-01`): the item moves to `## Ready`, its
+  `tickler:` field is dropped, and `tickled:<today>` is stamped. The schedule
+  is consumed; the item is an ordinary ready item from here on.
+- **Recurring** (`mon@08:00`, `first-mon@08:00`, `15@08:00`, `last@08:00`):
+  the item is a **prototype**. A new item is added to `## Ready` — a fresh ID
+  (`next_id` bumps, format spec I2), the prototype's title, `prio`, and
+  `tags`, and `created:<today>` — while the prototype stays in `## Someday`
+  with `tickler` intact and `tickled:<today>` stamped, ready for its next
+  fire.
+
+**A spawn copies title, prio, and tags — nothing else.** In particular it
+carries no `detail:`: format spec I9 claims every detail file exactly once, so
+a spawned copy pointing at the prototype's file would abort the transaction on
+validation. The prototype keeps its own detail; the spawned copy starts bare.
+
+**Both fires live entirely in `backlog.md`** — Someday and Ready are the same
+file, so a fire is a single-file transaction, the simplest shape the envelope
+has. Nothing in a fire touches working files, `done.md`, or `details/`.
+
+**The move out of Someday clears `tickler`.** A fire's one-shot path is
+exactly the §5.1.7 rule — moving an item out of `## Someday` drops `tickler:`
+and keeps `tickled:` — plus `tickled:<today>`. Without the rule, dragging a
+scheduled someday item to Ready would leave a field the checker rejects
+(format spec I7: `tickler` is Someday-only) and the move would die with
+`InvariantViolation` for no visible reason.
+
+**Due test.** Let `last` be `tickled` (absent for a never-fired item):
+
+- one-shot: due iff `fire-date > last`; an absent `last` means the date has
+  arrived. A backdated one-shot — written down after its date — fires on the
+  next run: "overdue, fire now" is the least surprising reading.
+- recurring: due iff `next(last ?? created) <= today`, where `next(after)` is
+  the smallest fire instant **strictly after** `after`. A `mon@08:00`
+  prototype written on a Tuesday fires the following Monday, never the Monday
+  that already passed — `created` anchors the first fire (format spec §5.1).
+  A runner that missed a week still catches up: the strictly-after rule keeps
+  `next(last) <= today` true across the gap.
+
+**`tick` is date-granular like every operation.** The caller passes today — a
+daily cron and a minute-clock UI both work. A schedule's `@HH:MM` is
+evaluated inside the library's calendar math (format spec §10.1: wall-clock in
+the evaluating process's zone), but it never leaves the expression, and
+nothing in the data records a time.
+
+**Idempotent across overlapping runners.** A UI service goroutine and a cron
+entry can tick one board at once. The `tickled` stamp is the primary guard:
+after a fire, `next(tickled)` is in the future, and every v1 period is at
+least a day, so a schedule cannot fire twice in one day. A runner whose read
+went stale before the winner wrote fails pre-commit validation with
+`Concurrent` (§7 rule 5) — reported as a per-item error, and a failing item
+never aborts the run. A consumed one-shot has no `tickler` left to
+re-evaluate; the only failure mode left is two processes moving the same
+line, which rule 5 resolves.
+
+**Cadence is free.** Any interval works and a missed run catches up; the
+effective firing granularity is the cadence of the least frequent runner, not
+a property of the data.
+
+Errors: a malformed `tickler:` value (hand-edited garbage) is reported as a
+per-item error and the run continues — never fatal. `Concurrent` and `Io`
+apply as for any write (§7).
+
 ## 6. Library API
 
 Notation is pseudo-code: `name(params) -> Result<T, Error>`. Implementations map
@@ -805,6 +883,8 @@ Item {
   done          date | null
   outcome       "shipped" | "cancelled" | "obsolete" | null
   blocked       string | null
+  tickler       string | null   # SCHEDULE, Someday only (format spec §6)
+  tickled       date | null     # last tickler fire (format spec §6)
   extra         map<string,string>   # unregistered fields, preserved verbatim
   source        Location             # file + line, for diagnostics
 }
@@ -830,6 +910,21 @@ DiscoveryResult {
   scannedAt    TIMESTAMP    # ISO 8601, format spec §3.3.1
 }
 Change      { kind Created|Updated|Moved|Deleted, id ID, before, after, file }
+
+Schedule    — immutable value type (format spec §3.3 SCHEDULE)
+  parse(string)          -> Schedule    # InvalidArgument on a malformed value
+  String()               -> string      # canonical form
+  isOneShot()            -> bool        # a bare DATE; the other shapes recur
+  fireDate()             -> DATE|null   # a one-shot's date; null when recurring
+  next(after DATE)       -> DATE|null   # smallest fire instant strictly after;
+                                        # null when it will never fire again
+Tickler     { id ID, schedule string, last DATE|null, next DATE|null }
+                                        # read-only; last = tickled; next =
+                                        # Schedule.next(last ?? created) against
+                                        # the caller's "now" (§5.3.3)
+TickResult  { fired [FiredTickler], errors [TickError] }
+FiredTickler { id ID, kind move|spawn, spawned ID|null, tickled DATE }
+TickError   { id ID, error string }
 ```
 
 `extra` is load-bearing: format spec §9 makes unregistered fields the extension
@@ -855,6 +950,8 @@ Store.report(Period, ReportOptions) -> Report
 Store.validate()                -> [Violation]
 Store.setWipLimit(int)          -> Directory
 Store.setDescription(text)      -> Directory   # --describe (§5.3.2)
+Store.ticklers(now DATE)        -> [Tickler]   # read-only (§5.3.3)
+Store.tick(now DATE, dryRun bool) -> TickResult  # --tick (§5.3.3)
 discover(DiscoveryOptions)      -> DiscoveryResult
 ```
 
@@ -1066,6 +1163,11 @@ mm --init --project Garden --prefix G --description "Gardening board"
 
 # a board's one-line purpose; --status and the plugin read it back
 mm --describe "Personal board: everything in flight, in one place."
+
+# Monday morning: see what the tickler would fire, then fire it
+mm --tick --dry-run
+# -> would fire T-0043 (move to Ready), T-0044 (spawn T-0045, recurring)
+mm --tick
 ```
 
 ---
@@ -1084,6 +1186,7 @@ mm --describe "Personal board: everything in flight, in one place."
 | `--finish` | working file, `done.md`, `details/` | **I1**, I3, I4, I6 |
 | `--wip` | working files | **I10** |
 | `--describe` | `structure.md` | — |
+| `--tick` | `backlog.md` | I2 (a spawn bumps `next_id`) |
 | `--archive` | `done.md`, `done-YYYY.md`, `details/`, `details-YYYY/` | I1, I2 (items leave the pool); **I9 (a detail file left behind in `details/`)** |
 | `--report`, `--list`, `--show`, `--check` | nothing | — |
 
@@ -1099,7 +1202,7 @@ required     --init --add --list --show --edit --remove --move
              --start --pause --finish --report --check
 recommended  --block --unblock --note --wip --status --next --search
              --find --detail --subtask --subtask-done
-optional     --archive --describe --migrate --stats --export --top-up
+optional     --archive --describe --migrate --stats --export --top-up --tick
 ```
 
 Global modifiers, valid everywhere:
