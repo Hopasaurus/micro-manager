@@ -38,8 +38,28 @@ That is the **whole required tool set** of spec §4.2. `mm_remove` needs
 refusal), asks the user as well when there is a UI, and only then passes
 `--force` — the CLI's own guard being the third line rather than the first.
 
-**Not yet.** The `/mm` command (T-0182), per-turn context injection (T-0183),
-and the recommended tools (T-0184).
+## `/mm`
+
+The same operations for a human, sharing the tools rather than mirroring them —
+so what you see is byte-for-byte what the agent sees:
+
+```
+/mm status | next | check | find
+/mm board [PATH]                      show the board in use, or pin one
+/mm init --project NAME [--dir P] [--slots N] [--prefix P] [--description T]
+/mm list [--section S] [--state S] [--prio P] [--tag T] [--limit N]
+/mm show ID [--detail]
+/mm add "TITLE" [--section S] [--prio P] [--tag T]... [--top]
+/mm edit ID [--title T] [--set K=V]...   /mm move ID [--top | --position N]
+/mm start ID | /mm pause ID | /mm finish ID [--outcome O]
+/mm note ID TEXT                      /mm remove ID     (asks first)
+/mm describe TEXT                     /mm context [on|off]
+/mm help
+```
+
+**Not yet.** Per-turn context injection (T-0183) and the recommended tools —
+`/mm tick`, `/mm archive`, search, report (T-0184); those two say so rather
+than half-running.
 
 ## Requirements
 
@@ -106,6 +126,6 @@ It skips with a reason when `mm` is not on PATH, so the suite still runs on a
 machine that has never built the Go implementation:
 
 ```bash
-npm test                       # 94 pass, 5 skipped without mm
-PATH=/path/to/mm/bin:$PATH npm test   # 99 pass
+npm test                       # 110 pass, 6 skipped without mm
+PATH=/path/to/mm/bin:$PATH npm test   # 116 pass
 ```

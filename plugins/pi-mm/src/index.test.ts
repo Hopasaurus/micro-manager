@@ -108,8 +108,8 @@ test("the factory registers the lifecycle and the tool surface built so far", ()
     "mm_start",
     "mm_status",
   ]);
-  // The /mm command is T-0182.
-  assert.equal(pi.commands.length, 0);
+  // §5's one command, with the operation as its first argument.
+  assert.deepEqual(pi.commands, ["mm"]);
 });
 
 test("with mm present, the status line names the build it will drive", async () => {

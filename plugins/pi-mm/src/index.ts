@@ -24,7 +24,7 @@
   (T-0176), board resolution and the pin (T-0177), the required READ tools
   (T-0178), the WRITE tools (T-0179), the workflow tools (T-0180) and
   mm_remove with its double guard (T-0181) — the whole required surface of
-  §4.2. The /mm command (T-0182), context injection (T-0183) and the
+  §4.2 — and the /mm command (T-0182). Context injection (T-0183) and the
   recommended tools (T-0184) land here next.
 */
 
@@ -39,7 +39,9 @@ import {
 } from "./board.ts";
 import { presence, presenceMessage, resetPresence, type Presence } from "./presence.ts";
 import { run } from "./runner.ts";
-import { readTools } from "./tools-read.ts";
+import { helpText, runCommand } from "./command.ts";
+import { readTools, type ToolContext, type ToolDefinition } from "./tools-read.ts";
+import { resetSettings } from "./settings.ts";
 import { removeTools } from "./tools-remove.ts";
 import { workflowTools } from "./tools-workflow.ts";
 import { writeTools } from "./tools-write.ts";
@@ -84,14 +86,44 @@ export default function micromanager(pi: ExtensionAPI): void {
       if (ui) setStatus(ui, line);
     },
   };
+  const tools = new Map<string, ToolDefinition>();
   for (const tool of [
     ...readTools(deps),
     ...writeTools(deps),
     ...workflowTools(deps),
     ...removeTools(deps),
   ]) {
+    tools.set(tool.name, tool);
     pi.registerTool(tool as never);
   }
+
+  /*
+    The /mm command (§5): the human-facing mirror of the tools, running the
+    SAME tools rather than a parallel implementation. That is what makes "the
+    command MUST print the same formatted results the tools return" true by
+    construction, and what gives /mm remove the same double guard the agent's
+    path has (§8.2) — the command's own ctx is handed to the tool, so the
+    confirmation dialog is the tool's.
+  */
+  pi.registerCommand("mm", {
+    description: "micro-manager: status, next, list, add, start, finish… (/mm help)",
+    getArgumentCompletions: (prefix: string) => {
+      const ops = [
+        "status", "next", "check", "find", "board", "init", "describe", "list",
+        "show", "add", "edit", "move", "start", "pause", "finish", "note",
+        "remove", "context", "help",
+      ];
+      const matches = ops.filter((op) => op.startsWith(prefix));
+      return matches.length > 0 ? matches.map((op) => ({ value: op, label: op })) : null;
+    },
+    handler: async (args: string, ctx: ExtensionContext) => {
+      const output = await runCommand(tools, args, ctx as ToolContext);
+      // §5: print what the tool returned. An error is a "warning" rather than
+      // an "error" notification because most of them are the board saying no —
+      // a WIP limit, an unknown id — which is information, not a malfunction.
+      ctx.ui.notify?.(output.text || helpText(), output.isError ? "warning" : "info");
+    },
+  } as never);
 
   /*
     The probe runs at session_start rather than at load (§2.1: "verify mm exists
@@ -114,6 +146,7 @@ export default function micromanager(pi: ExtensionAPI): void {
         cache of what the branch says.
       */
       clearPin();
+      resetSettings();
       const restored = pinFromBranch(ctx.sessionManager?.getBranch?.() ?? []);
       if (restored) setPin(restored);
 
@@ -144,5 +177,6 @@ export default function micromanager(pi: ExtensionAPI): void {
   pi.on("session_shutdown", () => {
     resetPresence();
     clearPin();
+    resetSettings();
   });
 }

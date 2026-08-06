@@ -23,6 +23,7 @@ import { clearPin, setPin } from "./board.ts";
 import { probe } from "./presence.ts";
 import { run } from "./runner.ts";
 import { readTools } from "./tools-read.ts";
+import { runCommand } from "./command.ts";
 import { removeTools } from "./tools-remove.ts";
 import { workflowTools } from "./tools-workflow.ts";
 import { writeTools } from "./tools-write.ts";
@@ -306,4 +307,57 @@ test("mm_remove's guards hold against a real board", { skip: present.ok ? false 
   // transaction envelope.
   assert.match((await call("mm_check", {})).text, /clean: no violations/);
   t.diagnostic("covered: unconfirmed refusal, declined prompt, real removal, board still clean");
+});
+
+/*
+  /mm against a real board (§5).
+
+  The claim under test is "the command MUST print the same formatted results
+  the tools return". The only way to check that honestly is to run both against
+  the same board and compare the bytes.
+*/
+test("/mm prints what the tools print", { skip: present.ok ? false : `no mm on PATH (${present.reason})` }, async (t) => {
+  const dir = join(mkdtempSync(join(tmpdir(), "mm-command-")), "board");
+  const deps = { health: async () => ({ ok: true as const, version: "real" }), run };
+  const tools = new Map(
+    [...readTools(deps), ...writeTools(deps), ...workflowTools(deps), ...removeTools(deps)].map(
+      (x) => [x.name, x],
+    ),
+  );
+
+  clearPin();
+  t.after(clearPin);
+  await runCommand(tools, `init --project "Commanded" --dir ${dir}`);
+  await runCommand(tools, 'add "water the beds" --prio high --tag outdoor');
+
+  const viaCommand = await runCommand(tools, "status");
+  const viaTool = await tools.get("mm_status")!.execute("id", {});
+  assert.equal(viaCommand.isError, false, viaCommand.text);
+  // Byte for byte: a human and an agent see the same facts because they are
+  // reading the same string.
+  assert.equal(viaCommand.text, viaTool.content[0]?.text);
+
+  // The quoted title survived the command's own tokenizer and mm's argv.
+  assert.match((await runCommand(tools, "list")).text, /water the beds/);
+  assert.match((await runCommand(tools, "show 1")).text, /outdoor/);
+
+  // A typed removal is confirmed twice: the command asserts it, and the tool
+  // still asks through the ctx it is handed.
+  const asked: string[] = [];
+  const ctx = {
+    hasUI: true,
+    ui: {
+      confirm: async (_title: string, message: string) => {
+        asked.push(message);
+        return false;
+      },
+    },
+  };
+  const declined = await runCommand(tools, "remove 1", ctx);
+  assert.equal(asked.length, 1, "the user was asked");
+  assert.match(declined.text, /the user declined/);
+  assert.match((await runCommand(tools, "list")).text, /water the beds/, "still there");
+
+  assert.match((await runCommand(tools, "check")).text, /clean: no violations/);
+  t.diagnostic("covered: /mm init, add, status (byte-identical to the tool), list, show, remove, check");
 });

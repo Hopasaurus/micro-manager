@@ -22,11 +22,12 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0182] /mm command surface | prio:med | tags:plugin | detail:details/T-0182.md | created:2026-08-05
 - [ ] [T-0183] Context injection and configuration | prio:med | tags:plugin | detail:details/T-0183.md | created:2026-08-05
 - [ ] [T-0184] Recommended tools: mm_block/unblock, mm_search, mm_report, mm_tick, mm_archive | prio:low | tags:plugin | detail:details/T-0184.md | created:2026-08-05
 - [ ] [T-0185] Conformance tests: runner, exit codes, §8.1 smoke test | prio:med | tags:plugin | detail:details/T-0185.md | created:2026-08-05
 - [ ] [T-0187] mm cli: add the ability to bulk add tasks | prio:med | tags:new-feature | detail:details/T-0187.md | created:2026-08-05
+- [ ] [T-0191] update the spec so that if backlog.md and done.md are missing it skips the directory. | prio:med | detail:details/T-0191.md | created:2026-08-06
+- [ ] [T-0194] detect multiple mm directories in the same directory | prio:med | tags:needs-refinement | detail:details/T-0194.md | created:2026-08-06
 
 ## Blocked
 
@@ -41,8 +42,6 @@ thing that can be started.
 - [ ] [T-0165] Refine settings and theme config. | prio:med | detail:details/T-0165.md | created:2026-08-04
 - [ ] [T-0189] Need a way to bulk move from someday to ready | prio:med | created:2026-08-06
 - [ ] [T-0190] Need a way to make drag scroll down | prio:med | detail:details/T-0190.md | created:2026-08-06
-- [ ] [T-0191] update the spec so that if backlog.md and done.md are missing it skips the directory. | prio:med | detail:details/T-0191.md | created:2026-08-06
-- [ ] [T-0194] detect multiple mm directories in the same directory | prio:med | tags:needs-refinement | detail:details/T-0194.md | created:2026-08-06
 - [ ] [T-0195] slim down the skill | prio:med | tags:needs-refinement | detail:details/T-0195.md | created:2026-08-06
 - [ ] [T-0196] think about removing the spec from the project files | prio:med | tags:needs-refinement | detail:details/T-0196.md | created:2026-08-06
 - [ ] [T-0193] This will wake up at 6:44 | prio:med | tags:test | detail:details/T-0193.md | created:2026-08-06 | tickler:2026-08-06@06:44
