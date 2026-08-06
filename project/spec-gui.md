@@ -79,6 +79,23 @@ When the fingerprint changes, the client MUST re-read and re-render, and MUST
 surface a non-blocking notice if the change affected an item the user is
 currently editing.
 
+### 2.4 The tickler service
+
+The service MAY run `Store.tick` (`spec-tools.md` §5.3.3) on a configurable
+interval so scheduled someday items fire without a CLI cron. It is opt-in
+through the system config key `tickler.interval` (a duration like `1m`; absent
+or `null` means off, the default). A process that mutates the board on its own
+initiative must not start quietly — the same principle as `spec-tools.md`
+§5.3.1's "nothing archives on its own initiative".
+
+- The service runs tick per directory it holds, on its own clock. `tick` is
+  date-granular and idempotent across overlapping runners (§5.3.3), so a UI
+  service and a CLI cron may tick the same board at once.
+- The client learns that something fired on the next fingerprint poll (§2.3);
+  a dedicated SSE event is a MAY.
+- The service MUST log what fired — item, kind, spawned ID — a mutating
+  background process needs an audit trail.
+
 ## 3. Identity and addressing
 
 ### 3.1 `projectId`
@@ -202,6 +219,15 @@ JSON over HTTP under `/api/v1`. The version prefix is mandatory.
 Every mutating endpoint MUST accept `dryRun: true` and return the change set
 without writing, mirroring `--dry-run`.
 
+The add (`POST /items`) and edit (`PATCH /items/:itemId`) endpoints accept the
+Wake-up group's control fields — `tickler-kind`, `tickler-date`,
+`tickler-weekday`, `tickler-ordinal`, `tickler-monthday`, `tickler-time`
+(§5.6) — and the server composes the `tickler:` value from them, setting or
+removing the field in the same transaction as the rest of the form. The
+grammar lives in one place: the server composes, the library validates on
+write, and a composed value the library rejects is `InvalidArgument` (400) —
+the controls cannot produce one, a hand-crafted request can.
+
 ### 4.3 Error mapping
 
 Library errors (`spec-tools.md` §6.3) map to HTTP status codes as follows. The
@@ -275,6 +301,7 @@ class names alone, so tests never depend on styling decisions.
 | `data-collapsed` | `true` \| `false` | `board-column-someday` |
 | `data-outcome` | `shipped` \| `cancelled` \| `obsolete` | done items |
 | `data-blocked` | `true` \| `false` | item cards |
+| `data-tickler` | the item's `tickler:` `SCHEDULE`, absent otherwise | someday item cards |
 | `data-has-detail` | `true` \| `false` | item cards |
 | `data-wip-used` / `data-wip-limit` | integers | board |
 | `data-theme-name` / `data-theme-source` | name; `project` \| `system` \| `builtin` | app root |
@@ -444,6 +471,24 @@ after every reorder — it is how a test asserts ordering without reading text.
 Within `board-column-working`, cards are ordered by slot number. `board-column-working`
 MUST be rendered even when empty (`data-count="0"`).
 
+**A someday card carrying `tickler:`** (format spec §6) additionally carries
+`data-tickler="<schedule>"` on the article and a next-fire badge:
+
+```html
+<span data-testid="item-T-0042-tickler" class="mm-item__tickler"
+      data-next="2026-08-10">next Mon 08:00</span>
+```
+
+The badge text is computed server-side with `Schedule.next(today)`
+(`spec-tools.md` §6.1) on every board render: a recurring schedule shows the
+weekday name of the next fire plus its time — `next Mon 08:00`, or `next Mon`
+when the schedule carries no time; a one-shot shows its date — `next
+2026-09-01`, with the time appended when it carries one; a schedule whose
+next fire is `null` — already due, the next tick fires it — reads `due`.
+`data-next` carries the computed next-fire date and is absent when it is
+`null`. The badge is the affordance — visible text, never a colour-only or
+tooltip-only hint (§5.1).
+
 `board-column-someday` is the leftmost column. Its header MUST contain a toggle button
 `board-column-someday-toggle` in its upper-left corner. When expanded (`data-collapsed="false"`
 or absent), the toggle displays `>` and the column body displays its items. When collapsed
@@ -485,6 +530,21 @@ the DOM.
     <select   data-testid="item-field-prio"    name="prio">
     <input    data-testid="item-field-tags"    name="tags">
     <input    data-testid="item-field-blocked" name="blocked">
+    <fieldset data-testid="item-tickler" data-present="true">
+      <legend>Wake up</legend>
+      <select data-testid="tickler-kind" name="tickler-kind">
+        <option value="never">Never</option>
+        <option value="one-time">One-time</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+      <input  data-testid="tickler-date" type="date" name="tickler-date">
+      <select data-testid="tickler-weekday" name="tickler-weekday">…</select>
+      <select data-testid="tickler-ordinal" name="tickler-ordinal">…</select>
+      <input  data-testid="tickler-monthday" type="number" min="1" max="31"
+              name="tickler-monthday">
+      <input  data-testid="tickler-time" type="time" name="tickler-time">
+    </fieldset>
     <textarea data-testid="item-field-detail"  name="detail"></textarea>
     <button   data-testid="item-save">Save</button>
     <button   data-testid="item-cancel">Cancel</button>
@@ -508,6 +568,37 @@ the DOM.
 
 For an item in a working slot, `item-plan` renders subtasks as
 `subtask-<n>` checkboxes and `item-notes` renders the dated log.
+
+**The Wake-up group** — the tickler controls — is one partial served by both
+panels, rendered inside `item-form`:
+
+- New-item panel (`/p/:projectId/new`): rendered when its section selector
+  (`item-field-section`, new panel only) is Someday. The selector defaults to
+  Ready, where the group is hidden.
+- Item panel: rendered for a someday item. `data-present="true"` with the
+  controls pre-filled from the item's parsed schedule when it carries
+  `tickler`; `data-present="false"` (kind `never`, controls empty) when it
+  does not — an unscheduled someday item can gain a tickler here, and
+  choosing kind `never` removes one.
+
+The kind select chooses the shape; the matching input is shown and the others
+hidden. The server composes the `tickler:` value from the controls:
+
+| kind | controls | composed `SCHEDULE` |
+|---|---|---|
+| `never` | — | no `tickler:` field (an existing one is removed) |
+| `one-time` | `tickler-date` (required), `tickler-time` (optional) | `2026-09-01`, `2026-09-01@08:00` |
+| `weekly` | `tickler-weekday` (required, `mon`…`sun`), `tickler-ordinal` (optional: `first` `second` `third` `fourth` `last`), `tickler-time` (optional) | `mon@08:00`, `first-mon@08:00` |
+| `monthly` | `tickler-monthday` (required, `1`–`31` or `last`), `tickler-time` (optional) | `15@08:00`, `last@08:00` |
+
+- The monthday is zero-padded to two digits in the composed value —
+  `05@08:00`, never `5@08:00` (format spec §3.3 `SCHEDULE`). An absent
+  `tickler-time` composes to no `@HH:MM` (the schedule's 00:00).
+- The grammar lives in one place: the server composes, the library validates
+  on write (§4.2).
+- Pre-fill parses the item's `tickler` back into the controls: a bare `DATE`
+  is `one-time`; `DATE@HH:MM` adds the time; `[ordinal-]weekday[@HH:MM]` is
+  `weekly`; `monthday|last[@HH:MM]` is `monthly`.
 
 ### 5.7 Report
 
@@ -643,6 +734,7 @@ provide every recommended one in §5.2.
 | `--next` | Top card of `board-column-ready` |
 | `--search` | `search-input` |
 | `--find` | `/projects` |
+| `--tick` | The tickler service (§2.4), when `tickler.interval` is set — the GUI's equivalent of a scheduled `--tick`, not a manual button |
 
 ### 6.2 Every drag has a non-drag equivalent
 
@@ -1015,6 +1107,7 @@ spec and MUST be ignored by format readers.
     "timeoutMs": 5000,
     "rescanOnFocus": true
   },
+  "tickler": { "interval": null },
   "server": {
     "bind": "127.0.0.1",
     "port": 7717,
@@ -1034,6 +1127,11 @@ same precedence slot (`spec-tools.md` §5.1.11 step 4). A UI service MUST NOT
 read `MM_REPORT_PERIOD` from its own environment: the service outlives any one
 user's shell, and inheriting the environment of whoever started it is exactly
 the coupling `spec-tools.md` §3.5 exists to prevent.
+
+`tickler.interval` turns on the tickler service (§2.4): a duration like
+`"1m"`, absent or `null` meaning off (the default). It is a system-level
+choice — the service is a process concern, not a board's, and a project
+config MUST NOT set it.
 
 ### 9.3 Project configuration
 
@@ -1297,10 +1395,13 @@ board-column-<key>-header  -title  -count  -add  -body  (backlog columns carry -
 board-column-done-show-all
 item-<ID>  item-<ID>-title  item-<ID>-id  item-<ID>-prio
 item-<ID>-tags  item-<ID>-tag-<tag>  item-<ID>-detail-indicator
-item-<ID>-menu  item-<ID>-action-<operation>
+item-<ID>-tickler  item-<ID>-menu  item-<ID>-action-<operation>
 drop-placeholder
 
 item-panel  item-panel-title  item-form  item-field-<field>
+item-field-section  item-tickler
+tickler-kind  tickler-date  tickler-weekday  tickler-ordinal
+tickler-monthday  tickler-time
 item-save  item-cancel  item-actions  item-action-<operation>
 item-notes  item-plan  item-meta  subtask-<n>
 

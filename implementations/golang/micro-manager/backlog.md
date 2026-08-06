@@ -22,7 +22,6 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0171] Spec: tickler UI — panel controls, next-fire badge (spec-gui) | prio:low | tags:gui,spec | detail:details/T-0171.md | created:2026-08-05
 - [ ] [T-0172] Library: schedule parser + calendar math, tickler/tickled fields, Store.tick/ticklers | prio:med | tags:library | detail:details/T-0172.md | created:2026-08-05
 - [ ] [T-0173] mm --tick and the UI tickler service goroutine | prio:med | tags:cli,gui | detail:details/T-0173.md | created:2026-08-05
 

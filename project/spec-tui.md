@@ -239,6 +239,9 @@ visually distinct in every colour tier, including monochrome (§11).
 An item row shows, in a fixed order: priority marker, ID, title, tag list,
 detail indicator, and blocked marker where applicable. Title is truncated last,
 after tags. Working item rows additionally show the slot number and `started`.
+A someday item carrying `tickler` (format spec §6) MAY additionally show its
+next fire beside the item — a MAY, not a requirement: the TUI is not required
+to render the tickler at all (`spec-tools.md` §5.3.3, `spec-gui.md` §2.4).
 
 Columns scroll independently. The focused item MUST remain visible, with at
 least one row of context above and below where the column is long enough.
