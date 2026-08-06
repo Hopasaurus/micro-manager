@@ -24,8 +24,8 @@
   (T-0176), board resolution and the pin (T-0177), the required READ tools
   (T-0178), the WRITE tools (T-0179), the workflow tools (T-0180) and
   mm_remove with its double guard (T-0181) — the whole required surface of
-  §4.2 — and the /mm command (T-0182). Context injection (T-0183) and the
-  recommended tools (T-0184) land here next.
+  §4.2 — the /mm command (T-0182), and per-turn context injection with the
+  §9 config (T-0183). The recommended tools (T-0184) land here next.
 */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -40,6 +40,8 @@ import {
 import { presence, presenceMessage, resetPresence, type Presence } from "./presence.ts";
 import { run } from "./runner.ts";
 import { helpText, runCommand } from "./command.ts";
+import { DEFAULT_CONFIG, loadConfig, type PluginConfig } from "./config.ts";
+import { resetContext, turnContext } from "./context.ts";
 import { readTools, type ToolContext, type ToolDefinition } from "./tools-read.ts";
 import { resetSettings } from "./settings.ts";
 import { removeTools } from "./tools-remove.ts";
@@ -79,11 +81,24 @@ export default function micromanager(pi: ExtensionAPI): void {
     ctx.ui.setStatus?.(STATUS_KEY, line || "no board");
   };
   let ui: ExtensionContext | undefined;
+  /*
+    Configuration (§9) is read at session_start, not here: a factory may run in
+    an invocation that never starts a session, and the project file's trust
+    answer only exists once there is a context to ask. Until then the defaults
+    stand, which is what every key already means when its file is absent.
+  */
+  let config: PluginConfig = DEFAULT_CONFIG;
   const deps = {
     health,
     run,
     onPin: (line: string) => {
       if (ui) setStatus(ui, line);
+    },
+    get timeoutMs(): number {
+      return config.timeoutMs;
+    },
+    get confirmRemove(): boolean {
+      return config.confirmRemove;
     },
   };
   const tools = new Map<string, ToolDefinition>();
@@ -147,8 +162,32 @@ export default function micromanager(pi: ExtensionAPI): void {
       */
       clearPin();
       resetSettings();
+      resetContext();
+
+      /*
+        §9. The global file always; the project file only for a trusted
+        project — pi's own answer, never the plugin's guess. Warnings are
+        surfaced once here rather than swallowed: a config that appears to work
+        and does nothing is the worst outcome.
+      */
+      const loaded = loadConfig({
+        cwd: ctx.cwd,
+        projectTrusted: ctx.isProjectTrusted?.() ?? false,
+      });
+      config = loaded.config;
+      for (const warning of loaded.warnings) {
+        ctx.ui.notify?.(`micro-manager config: ${warning}`, "warning");
+      }
+
       const restored = pinFromBranch(ctx.sessionManager?.getBranch?.() ?? []);
       if (restored) setPin(restored);
+      /*
+        §7: "A pin set by /mm board PATH or config (§9) is the SESSION pin; it
+        overrides resolution order and is re-asserted on session_start." So a
+        configured board wins over what the branch remembered — the file is the
+        standing instruction, the branch is where this session had got to.
+      */
+      if (config.board) setPin({ path: config.board, source: "pin" });
 
       // §3.2.1: the persistent status line says which board the agent is
       // operating on — set at session start, updated whenever the pin changes,
@@ -168,6 +207,29 @@ export default function micromanager(pi: ExtensionAPI): void {
   });
 
   /*
+    Per-turn context injection (§6). A read, never a write: this is a turn
+    boundary, and §8.3 forbids the plugin acting on its own initiative. It
+    injects nothing whenever there is any doubt — no board, no mm, injection
+    switched off, or a status read that failed — because §6 is explicit that an
+    empty injection beats a false one.
+  */
+  pi.on("before_agent_start", async (event: { systemPrompt?: string }, ctx: ExtensionContext) => {
+    const block = await turnContext({
+      health,
+      run,
+      timeoutMs: config.timeoutMs,
+      contextLines: config.contextLines,
+      // §6's last rule: never inject a board the project has not been trusted
+      // to read. `context: false` in config is the user's own switch (§9), and
+      // /mm context off is the session's (§5, checked inside turnContext).
+      allowed: config.context,
+    });
+    if (!block) return undefined;
+    void ctx;
+    return { systemPrompt: `${event.systemPrompt ?? ""}\n\n${block}` };
+  });
+
+  /*
     The plugin holds no resources — no watcher, no timer, no open handle — so
     shutdown has nothing to release (§7). The handler exists to make that a
     statement rather than an omission: if something here ever starts holding a
@@ -178,5 +240,6 @@ export default function micromanager(pi: ExtensionAPI): void {
     resetPresence();
     clearPin();
     resetSettings();
+    resetContext();
   });
 }

@@ -207,15 +207,18 @@ test("health() is what every later tool gates on", async () => {
   than on an access — a parameter description saying "working.NN.md", a result
   line saying an item landed in "done.md". Naming a board file is how you TALK
   about a board; opening one is the thing that must never happen. So what is
-  asserted now is the mechanism rather than the vocabulary:
+  asserted is the mechanism rather than the vocabulary:
 
-    1. No plugin module imports node:fs. You cannot read or write a board
-       without it, and the plugin's one way out to the world is spawning mm —
-       whose argv the runner's own tests pin. This is the load-bearing rule.
+    1. No plugin module imports node:fs, WITH ONE EXEMPTION. You cannot read or
+       write a board without it, and the plugin's one way out to the world is
+       spawning mm — whose argv the runner's tests pin. The exemption is
+       config.ts, which reads the plugin's OWN config (§9); it is granted by
+       name, and paid for by rule 3.
     2. No board filename appears as a PATH: a bare filename literal
        ("backlog.md"), or one after a separator ("details/T-0042.md"). A
-       filename inside a sentence is prose and is allowed; a filename that IS
-       the string is a path being built.
+       filename inside a sentence is prose and is allowed.
+    3. The exempt module opens nothing but its own config file. An exemption
+       nobody checks is just a hole.
 */
 test("the plugin reaches the board only through mm (§8.1)", async () => {
   const { readdirSync, readFileSync } = await import("node:fs");
@@ -229,6 +232,8 @@ test("the plugin reaches the board only through mm (§8.1)", async () => {
     "working\\.[0-9N]+\\.md",
     "details/[^\"'`\\s]*\\.md",
   ];
+  /** The one module allowed to touch the filesystem, and what it may open. */
+  const FS_EXEMPT = "config.ts";
 
   let checked = 0;
   for (const name of readdirSync(dir)) {
@@ -236,11 +241,13 @@ test("the plugin reaches the board only through mm (§8.1)", async () => {
     checked += 1;
     const source = readFileSync(join(dir, name), "utf8");
 
-    assert.doesNotMatch(
-      source,
-      /from\s+["']node:fs(\/promises)?["']|require\(["']node:fs/,
-      `${name} imports node:fs; the plugin never touches board files (§2.1, §8.1)`,
-    );
+    if (name !== FS_EXEMPT) {
+      assert.doesNotMatch(
+        source,
+        /from\s+["']node:fs(\/promises)?["']|require\(["']node:fs/,
+        `${name} imports node:fs; the plugin never touches board files (§2.1, §8.1)`,
+      );
+    }
     for (const needle of names) {
       const asAPath = new RegExp(`["'\`](${needle}|[^"'\`\n]*/${needle})["'\`]`);
       assert.doesNotMatch(
@@ -250,7 +257,28 @@ test("the plugin reaches the board only through mm (§8.1)", async () => {
       );
     }
   }
+
+  /*
+    Rule 3: the exemption, checked — at the point where a path is BUILT rather
+    than where it is read. The read itself takes a variable, so asserting on
+    the call would prove nothing; what constrains config.ts is that every path
+    it constructs ends in its own filename.
+  */
+  const exempt = readFileSync(join(dir, FS_EXEMPT), "utf8");
+  // Line-wise, because a nested call (homedir()) ends the naive paren match
+  // early; every join in this module is one line.
+  const built = exempt.split("\n").filter((line) => /\bjoin\(/.test(line));
+  assert.ok(built.length > 0, "the exemption should be earning its keep");
+  for (const line of built) {
+    assert.match(
+      line,
+      /CONFIG_FILENAME/,
+      `${FS_EXEMPT} builds a path that is not its own config file: ${line.trim()}`,
+    );
+  }
+  assert.match(exempt, /CONFIG_FILENAME = "mm-plugin\.json"/);
+
   // A smoke test that silently covered nothing is the failure mode this file
   // cannot afford (the same reason the Go side logs its fixture counts).
-  assert.ok(checked >= 5, `only ${checked} plugin module(s) were scanned`);
+  assert.ok(checked >= 8, `only ${checked} plugin module(s) were scanned`);
 });

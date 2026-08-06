@@ -57,9 +57,44 @@ so what you see is byte-for-byte what the agent sees:
 /mm help
 ```
 
-**Not yet.** Per-turn context injection (T-0183) and the recommended tools —
-`/mm tick`, `/mm archive`, search, report (T-0184); those two say so rather
-than half-running.
+## Per-turn context
+
+When a board is pinned, each turn's system prompt gains one compact block, so
+the agent starts knowing what is in flight without spending a tool call:
+
+```
+[mm] /srv/boards/todos — Sample One — wip 1/4 · ready 3 · blocked 1 · someday 5
+     in work:  T-0018  Migrate the build cache
+     next:     T-0169  Spec: tickler fields and grammar (high)
+```
+
+Data only, at most 8 lines, never done items, refreshed after anything the
+plugin changes, and **nothing at all** when there is no board, no `mm`, or an
+untrusted project — an empty injection beats a false one. Turn it off for a
+session with `/mm context off`, or by default with `context: false` in the
+config.
+
+## Configuration
+
+| File | Scope |
+|---|---|
+| `~/.pi/agent/mm-plugin.json` | global, always read |
+| `.pi/mm-plugin.json` | project-local, **only when the project is trusted** |
+
+| Key | Default | Meaning |
+|---|---|---|
+| `board` | — | pin a board, overriding resolution |
+| `context` | `true` | per-turn injection |
+| `contextLines` | `6` | max injected lines (capped at 8) |
+| `timeoutMs` | `30000` | subprocess bound |
+| `confirmRemove` | `true` | `mm_remove`'s interactive prompt |
+
+A key of the wrong type is named and ignored rather than coerced, and an
+unknown key is reported — a config that appears to work and does nothing is the
+worst outcome.
+
+**Not yet.** The recommended tools — `/mm tick`, `/mm archive`, search, report
+(T-0184); those two say so rather than half-running.
 
 ## Requirements
 
@@ -126,6 +161,6 @@ It skips with a reason when `mm` is not on PATH, so the suite still runs on a
 machine that has never built the Go implementation:
 
 ```bash
-npm test                       # 110 pass, 6 skipped without mm
-PATH=/path/to/mm/bin:$PATH npm test   # 116 pass
+npm test                       # 133 pass, 6 skipped without mm
+PATH=/path/to/mm/bin:$PATH npm test   # 139 pass
 ```

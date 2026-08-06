@@ -39,6 +39,7 @@ import {
   type ItemView,
   type StatusResult,
 } from "./format.ts";
+import { markBoardChanged } from "./context.ts";
 import { run, type Envelope, type RunOutcome } from "./runner.ts";
 
 /** What a tool needs from the world, injected so tests can drive it. */
@@ -159,6 +160,10 @@ export async function operate(
     ...(signal ? { signal } : {}),
   });
   if (!outcome.ok) {
+    // A failed mutation can still have written something before it failed —
+    // mm reports what it touched either way, so the cache is invalidated from
+    // the same source in both branches (§6).
+    if (outcome.failure.envelope) markBoardChanged(outcome.failure.envelope);
     return {
       ok: false,
       result: text(
@@ -172,6 +177,7 @@ export async function operate(
       ),
     };
   }
+  markBoardChanged(outcome.envelope);
   return { ok: true, envelope: outcome.envelope, pin: resolution.pin };
 }
 

@@ -21,6 +21,7 @@
 import { Type } from "typebox";
 
 import { boardStatusLine, boardFromEnvelope, pinDetails, setPin, type Pin } from "./board.ts";
+import { markBoardChanged } from "./context.ts";
 import { itemDetail, itemLine, withWarnings, type ItemView } from "./format.ts";
 import type { Envelope } from "./runner.ts";
 import {
@@ -336,6 +337,8 @@ export function writeTools(deps: ToolDeps): ToolDefinition[] {
             true,
           );
         }
+
+        markBoardChanged(outcome.envelope);
 
         // §3.3: "A freshly created board is pinned for the session." Its
         // identity comes from `result`, not `directory` — there was no
