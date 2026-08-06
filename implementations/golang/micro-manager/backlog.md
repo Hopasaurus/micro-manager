@@ -22,7 +22,6 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0176] mm runner: subprocess with --json, --dir pin, timeout, exit-code mapping | prio:med | tags:plugin | detail:details/T-0176.md | created:2026-08-05
 - [ ] [T-0177] Board resolution, pinning, and session/branch state | prio:med | tags:plugin | detail:details/T-0177.md | created:2026-08-05
 - [ ] [T-0178] Read tools: mm_status, mm_next, mm_list, mm_show, mm_board, mm_check, mm_find | prio:med | tags:plugin | detail:details/T-0178.md | created:2026-08-05
 - [ ] [T-0179] Write tools: mm_add, mm_edit, mm_move, mm_note, mm_init, mm_describe | prio:med | tags:plugin | detail:details/T-0179.md | created:2026-08-05

@@ -10,11 +10,11 @@ writes the board's files itself (§2.1).
 
 ## Status
 
-The skeleton: the extension loads, checks for `mm` at session start, and says
-what to install when it is missing. **No tools and no `/mm` command yet** — the
-runner (T-0176), board resolution (T-0177) and the tool surface (T-0178
-onward) land next. Installing it now gets you the health check and nothing
-else.
+The skeleton and the runner: the extension loads, checks for `mm` at session
+start, says what to install when it is missing, and can drive one `mm`
+operation with the exit codes mapped to typed failures. **No tools and no `/mm`
+command yet** — board resolution (T-0177) and the tool surface (T-0178 onward)
+land next. Installing it now gets you the health check and nothing else.
 
 ## Requirements
 
@@ -74,3 +74,13 @@ Runtime dependencies are limited to `typebox` and the pi packages (spec §3.1).
 The test runner is node's own, and the tests spawn real shims rather than
 faking `spawn` — what they are checking is what happens when running a program
 goes wrong.
+
+`src/mm-contract.test.ts` goes further and drives the **real** `mm`, so the
+runner is checked against the CLI rather than against a fixture's idea of it.
+It skips with a reason when `mm` is not on PATH, so the suite still runs on a
+machine that has never built the Go implementation:
+
+```bash
+npm test                       # 30 pass, 1 skipped without mm
+PATH=/path/to/mm/bin:$PATH npm test   # 31 pass
+```
