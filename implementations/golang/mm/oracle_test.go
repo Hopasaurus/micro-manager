@@ -360,6 +360,50 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 		}
 	})
 
+	t.Run("after a tickler lifecycle", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "mm")
+		s, _, err := Init(dir, InitRequest{Project: "Tickler", Wip: 2}, today)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compareValidators(t, "init", dir)
+
+		// A scheduled someday item: both validators must accept what the API
+		// wrote, and reject the hand-edit the API refuses.
+		one, _, err := s.Add(AddRequest{
+			Title: "Prune", Section: SectionSomeday, Tickler: "2026-09-01@08:00",
+			Created: Date{2026, 7, 20},
+		}, today)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec, _, err := s.Add(AddRequest{
+			Title: "Watering", Section: SectionSomeday, Tickler: "first-mon@08:00",
+			Created: Date{2026, 7, 27},
+		}, today)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compareValidators(t, "scheduled items", dir)
+
+		// A fire: the one-shot moves to Ready, the recurring spawns. The
+		// directory both validators see next is exactly what the API wrote.
+		if _, err := s.Tick(Date{2026, 8, 3}, false); err != nil {
+			t.Fatal(err)
+		}
+		compareValidators(t, "after a tick", dir)
+
+		// Move the fired item out of Someday: the schedule drops, and both
+		// validators must keep agreeing that the directory is clean.
+		if _, _, err := s.Move(one.ID, MoveRequest{Section: SectionReady}, today); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := s.Move(rec.ID, MoveRequest{Section: SectionReady}, today); err != nil {
+			t.Fatal(err)
+		}
+		compareValidators(t, "after moving both out of Someday", dir)
+	})
+
 	// Archiving is the one operation that takes items OUT of the validated
 	// world, so it is the one most likely to make the two validators disagree:
 	// neither reads done-YYYY.md, and both have to agree that the items which

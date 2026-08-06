@@ -107,6 +107,13 @@ func (s *Store) Move(id ID, req MoveRequest, today Date) (Item, TxResult, error)
 		it.Blocked = ""
 	}
 
+	// I7 ties tickler: to ## Someday the same way: an item that leaves Someday
+	// drops its schedule (spec-tools.md §5.1.7). tickled: is history, not a
+	// placement claim, so it travels.
+	if to != SectionSomeday {
+		it.Tickler = ""
+	}
+
 	before := RenderItemLine(it)
 
 	// Remove first, then resolve the index against what remains. Resolving

@@ -340,7 +340,7 @@ uppercase ASCII letters.
 mm --add TITLE [--top] [--section ready|blocked|someday]
              [--prio high|med|low] [--tag T]... [--blocked REASON]
              [--detail] [--detail-text TEXT] [--detail-file PATH]
-             [--created DATE]
+             [--created DATE] [--tickler SCHEDULE]
 ```
 
 Allocates the ID from `next_id`, writes the item line, increments `next_id`.
@@ -351,6 +351,12 @@ Allocates the ID from `next_id`, writes the item line, increments `next_id`.
 - `--section` defaults to `ready`. `--section blocked` REQUIRES `--blocked`;
   supplying `--blocked` implies `--section blocked` if no section was named.
 - `--created` defaults to today. It exists for backfilling.
+- `--tickler SCHEDULE` schedules the item (a SCHEDULE expression,
+  spec-file-format §3.3). It REQUIRES `--section someday` — I7 allows the field
+  nowhere else — and the item's `created:` anchors a never-fired recurring
+  schedule's first fire. The GUI composes this value from its Wake-up controls
+  (spec-gui §5.6); the CLI accepts the same grammar, which is the one the
+  library parses.
 - `--tag` accumulates: `--tag infra --tag ci` produces `tags:infra,ci`.
 
 Detail file, at most one of:
@@ -553,6 +559,11 @@ Moves an item to `done.md`: box becomes `x`, `done` is set (default today),
 `outcome` is set (default `shipped`), all other fields are preserved, and the
 line is inserted at the **top** of the month group matching the `done` date,
 creating that group if absent and placing it in newest-first order.
+
+One field does not survive: a scheduled item carries `tickler:` nowhere but
+`## Someday` (format spec I7), and `done.md` is not it, so finishing a
+scheduled item drops the schedule — the user's way to retire a prototype.
+`tickled:` is kept, it is historical (§5.3.3).
 
 MUST work from a working slot (resetting it to idle) and from `backlog.md`
 directly — closing something without ever starting it is normal, and

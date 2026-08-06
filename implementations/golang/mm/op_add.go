@@ -21,6 +21,11 @@ type AddRequest struct {
 	Blocked string
 	Created Date // defaults to today; settable for backfilling
 
+	// Tickler sets the item's schedule (a SCHEDULE, spec-file-format.md §3.3).
+	// It requires the Someday section, where I7 allows it, and the item's
+	// created date anchors a never-fired recurring schedule's first fire.
+	Tickler string
+
 	// DetailBody, when non-empty, creates details/<ID>.md with this body.
 	// Template copying and title synchronisation are T-0016's job.
 	DetailBody string
@@ -53,22 +58,11 @@ func (s *Store) Add(req AddRequest, today Date) (Item, TxResult, error) {
 	}
 
 	// Allocate from next_id. The counter only ever moves forward: an ID is never
-	// reused, so a deleted item's number stays retired (I2). The declared
-	// grammar (id_prefix/id_width) sizes both the ID and its counter space.
+	// reused, so a deleted item's number stays retired (I2).
 	g := t.model.grammar()
-	next := ID(b.FM.Get("next_id"))
-	if !g.ValidID(string(next)) {
-		return zero, TxResult{}, fmt.Errorf(
-			"%w: backlog.md has no usable next_id (found %q)", ErrInvalidArgument, b.FM.Get("next_id"))
-	}
-	n := g.Num(string(next))
-	if n >= g.Cap() {
-		// Exhausted AT the cap, not past it: the counter after the increment
-		// would be one digit too wide to be a valid ID, so the last usable
-		// next_id is the cap itself (spec-tools.md §5.1.2).
-		return zero, TxResult{}, fmt.Errorf(
-			"%w: next_id is exhausted at %s; the %d-digit width caps a directory at %d items",
-			ErrConflict, g.NewID(g.Cap()), g.Width, g.Cap())
+	next, err := allocNext(e, b, g)
+	if err != nil {
+		return zero, TxResult{}, err
 	}
 	it.ID = next
 
@@ -78,7 +72,6 @@ func (s *Store) Add(req AddRequest, today Date) (Item, TxResult, error) {
 		index = 0
 	}
 	b.InsertItem(e, sec, index, it)
-	e.SetFM("next_id", string(g.NewID(n+1)))
 	touchUpdated(e, today)
 
 	t.record(Change{Kind: ChangeCreated, ID: it.ID, File: "backlog.md",
@@ -157,6 +150,14 @@ func buildNewItem(req AddRequest, today Date) (*Item, error) {
 	if created.IsZero() {
 		created = today
 	}
+	if req.Tickler != "" {
+		if _, err := ParseSchedule(req.Tickler); err != nil {
+			return nil, err
+		}
+		if sec != SectionSomeday {
+			return nil, fmt.Errorf("%w: a tickler: schedule only belongs in Someday", ErrInvalidArgument)
+		}
+	}
 	return &Item{
 		Title:   title,
 		State:   StateBacklog,
@@ -165,6 +166,7 @@ func buildNewItem(req AddRequest, today Date) (*Item, error) {
 		Tags:    req.Tags,
 		Refs:    req.Refs,
 		Blocked: req.Blocked,
+		Tickler: req.Tickler,
 		Created: created,
 		Extra:   req.Extra,
 	}, nil
@@ -176,6 +178,30 @@ func sectionItems(b *backlogFile, sec Section) []*Item {
 		return s.Items
 	}
 	return nil
+}
+
+// allocNext allocates the next ID from backlog.md's next_id counter, bumping
+// the counter in the edit. The declared grammar (id_prefix/id_width) sizes both
+// the ID and its counter space, and the counter only ever moves forward: an ID
+// is never reused, so a deleted item's number stays retired (I2).
+//
+// The error when the counter is exhausted names the cap rather than the counter
+// past it: the counter after the increment would be one digit too wide to be a
+// valid ID, so the last usable next_id is the cap itself (spec-tools.md §5.1.2).
+func allocNext(e *fileEdit, b *backlogFile, g IDGrammar) (ID, error) {
+	next := ID(b.FM.Get("next_id"))
+	if !g.ValidID(string(next)) {
+		return "", fmt.Errorf(
+			"%w: backlog.md has no usable next_id (found %q)", ErrInvalidArgument, b.FM.Get("next_id"))
+	}
+	n := g.Num(string(next))
+	if n >= g.Cap() {
+		return "", fmt.Errorf(
+			"%w: next_id is exhausted at %s; the %d-digit width caps a directory at %d items",
+			ErrConflict, g.NewID(g.Cap()), g.Width, g.Cap())
+	}
+	e.SetFM("next_id", string(g.NewID(n+1)))
+	return next, nil
 }
 
 // touchUpdated refreshes the updated: date, but only in a file already being

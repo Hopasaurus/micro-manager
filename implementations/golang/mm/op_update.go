@@ -214,6 +214,20 @@ func setAnyField(it *Item, key, value string) error {
 		it.Outcome = o
 	case "blocked":
 		it.Blocked = value
+	case "tickler":
+		if _, err := ParseSchedule(value); err != nil {
+			return err
+		}
+		if it.Section != SectionSomeday {
+			return fmt.Errorf("%w: a tickler: schedule only belongs in Someday", ErrConflict)
+		}
+		it.Tickler = value
+	case "tickled":
+		d, err := ParseDate(value)
+		if err != nil {
+			return err
+		}
+		it.Tickled = d
 	case "detail":
 		// The path is not free-form: I8 requires details/<this item's ID>.md.
 		if value != it.DetailPath() {
@@ -248,6 +262,10 @@ func unsetAnyField(it *Item, key string) error {
 				ErrConflict, it.ID)
 		}
 		it.Blocked = ""
+	case "tickler":
+		it.Tickler = ""
+	case "tickled":
+		it.Tickled = Date{}
 	case "done", "outcome":
 		// I6 requires both on every item in done.md.
 		if it.State == StateDone {

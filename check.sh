@@ -140,6 +140,27 @@ function istags(s) { return (s ~ /^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$/) }
 # is never a checker job (§9); the GUI owns resolution, where a tree view exists.
 function isslug(s) { return (s ~ /^[a-z][a-z0-9-]{0,15}$/) }
 function isrefs(s) { return (s ~ /^[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15}(,[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15})*$/) }
+# isschedule validates a tickler SCHEDULE expression (spec-file-format.md §3.3):
+# a calendar date, a weekday with an optional ordinal, or a month day (01-31 or
+# "last"), each with an optional @HH:MM wall time. Shape only -- the checker
+# never evaluates a schedule (§10.1). The DATE alternative must be a real
+# calendar date, so it goes through isdate.
+function isschedule(s,   at, tm) {
+  at = index(s, "@")
+  if (at > 0) {
+    tm = substr(s, at + 1)
+    if (tm !~ /^[0-9][0-9]:[0-9][0-9]$/) return 0
+    if (substr(tm, 1, 2) > "23") return 0
+    if (substr(tm, 4, 2) > "59") return 0
+    s = substr(s, 1, at - 1)
+  }
+  if (s ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) return isdate(s)
+  if (s ~ /^(first|second|third|fourth|last)-(mon|tue|wed|thu|fri|sat|sun)$/) return 1
+  if (s ~ /^(mon|tue|wed|thu|fri|sat|sun)$/) return 1
+  if (s == "last") return 1
+  if (s ~ /^(0[1-9]|[12][0-9]|3[01])$/) return 1
+  return 0
+}
 function isnull(s) { return (s == "" || s == "null") }
 # working file frontmatter: value of, and error located at, key k of file f
 function wv(f, k)      { return ((f, k) in wf) ? wf[f, k] : "" }
@@ -336,10 +357,22 @@ infm {
     err(id " has malformed tags: " fld["tags"])
   if (("refs" in fld) && !isrefs(fld["refs"]))
     err(id " has malformed refs: " fld["refs"])
-  split("created started done", datekey, " ")
+  if (("tickler" in fld) && !isschedule(fld["tickler"]))
+    err(id " has tickler:" fld["tickler"] " (want a SCHEDULE: a date, a weekday, or a month day, each with optional @HH:MM)")
+  split("created started done tickled", datekey, " ")
   for (i in datekey)
     if ((datekey[i] in fld) && !isdate(fld[datekey[i]]))
       err(id " has " datekey[i] ":" fld[datekey[i]] " (want an ISO 8601 date, YYYY-MM-DD)")
+
+  # invariant 7: tickler belongs in ## Someday and needs created, the anchor
+  # a never-fired recurring schedule needs (spec-file-format.md §5.1). Shape
+  # only: the checker never evaluates a schedule (§10.1).
+  if ("tickler" in fld) {
+    if (base != "backlog.md" || section != "Someday")
+      err(id " carries tickler: outside ## Someday (the only valid home)")
+    if (!("created" in fld))
+      err(id " carries tickler: but has no created: field")
+  }
 
   if (base == "backlog.md") {
     # invariant 5
@@ -400,6 +433,15 @@ END {
         werr(f, "created", "created:" wv(f, "created") " (want an ISO 8601 date, YYYY-MM-DD)")
       if (!isdate(wv(f, "started")))
         werr(f, "started", "started:" wv(f, "started") " (want an ISO 8601 date, YYYY-MM-DD; set when the item starts)")
+      if (!isnull(wv(f, "tickler")) && !isschedule(wv(f, "tickler")))
+        werr(f, "tickler", "tickler:" wv(f, "tickler") " (want a SCHEDULE: a date, a weekday, or a month day, each with optional @HH:MM)")
+      if (!isnull(wv(f, "tickled")) && !isdate(wv(f, "tickled")))
+        werr(f, "tickled", "tickled:" wv(f, "tickled") " (want an ISO 8601 date, YYYY-MM-DD)")
+      # invariant 7: a working slot is not ## Someday, so tickler: there is
+      # residue of a half-finished transition (reported at the id line, where
+      # the Go checker reports its placement finding).
+      if (!isnull(wv(f, "tickler")))
+        werr(f, "id", wv(f, "id") " carries tickler: in a working slot (## Someday is the only valid home)")
 
     } else if (st == "idle") {
       nk = split("id title prio tags refs detail created started", wk, " ")

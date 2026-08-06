@@ -114,6 +114,9 @@ func (s *Store) Finish(id ID, req FinishRequest, today Date) (Item, TxResult, er
 	it.Outcome = outcome
 	it.Slot = 0
 	it.Section = SectionNone
+	// The tickler is Someday-only (I7); finishing a scheduled item retires its
+	// prototype. tickled: is history and travels, like created:.
+	it.Tickler = ""
 
 	// InsertItem sets State to done, which is what flips the box to [x]: the box
 	// is a function of the file an item lives in, not a field of its own.

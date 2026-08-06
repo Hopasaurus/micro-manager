@@ -82,7 +82,7 @@ func (s *Store) Start(id ID, req StartRequest, today Date) (Item, TxResult, erro
 	it.Slot = w.Number
 	it.Started = today
 	it.Blocked = ""
-
+	it.Tickler = "" // Someday-only (I7); the slot frontmatter does not carry it
 	e := t.working(w)
 	for _, f := range workingFields(it) {
 		e.SetFM(f.Key, f.Value)

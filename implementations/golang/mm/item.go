@@ -177,6 +177,9 @@ func (d Date) Before(e Date) bool {
 	return d.Day < e.Day
 }
 
+// After reports whether d sorts after e.
+func (d Date) After(e Date) bool { return e.Before(d) }
+
 // ---------------------------------------------------------------------------
 // Enumerations
 // ---------------------------------------------------------------------------
@@ -423,6 +426,8 @@ type Item struct {
 	Done    Date
 	Outcome Outcome
 	Blocked string
+	Tickler string // a SCHEDULE (spec-file-format.md §3.3); Someday only (I7)
+	Tickled Date   // the last tickler fire, the at-most-once guard (spec-tools.md §5.3.3)
 
 	// Extra holds fields this implementation does not recognise, in the order
 	// they appeared. Unregistered keys are the format's extension point

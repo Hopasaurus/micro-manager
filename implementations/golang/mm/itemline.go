@@ -216,6 +216,17 @@ func (it *Item) setField(file string, lineNo int, key, val string) error {
 		it.Outcome = o
 	case "blocked":
 		it.Blocked = val
+	case "tickler":
+		if _, err := ParseSchedule(val); err != nil {
+			return parseErrf(file, lineNo, "%s has tickler:%s (%v)", it.ID, val, err)
+		}
+		it.Tickler = val
+	case "tickled":
+		d, err := ParseDate(val)
+		if err != nil {
+			return parseErrf(file, lineNo, "%s has tickled:%s (want YYYY-MM-DD)", it.ID, val)
+		}
+		it.Tickled = d
 	default:
 		// Unregistered. Keep it exactly as written, in position. This is the
 		// format's extension point; dropping it destroys data belonging to a
@@ -229,7 +240,7 @@ func (it *Item) setField(file string, lineNo int, key, val string) error {
 // Readers must not depend on it; it exists so that lines a writer touches come
 // out consistent.
 var fieldOrder = []string{"prio", "tags", "refs", "detail", "created", "started",
-	"blocked", "done", "outcome"}
+	"blocked", "tickler", "tickled", "done", "outcome"}
 
 // RenderItemLine serialises an item back to one line.
 //
@@ -287,6 +298,10 @@ func (it *Item) fieldValue(key string) string {
 		return string(it.Outcome)
 	case "blocked":
 		return it.Blocked
+	case "tickler":
+		return it.Tickler
+	case "tickled":
+		return it.Tickled.String()
 	}
 	return ""
 }

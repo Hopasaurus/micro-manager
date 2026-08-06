@@ -21,6 +21,7 @@ func (m *dirModel) validate() []Violation {
 	vs = append(vs, m.checkBacklog()...) // I3, I5, backlog structure
 	vs = append(vs, m.checkDone()...)    // I3, I6
 	vs = append(vs, m.checkProject()...) // I7
+	vs = append(vs, m.checkTickler()...) // I7: tickler placement
 	vs = append(vs, m.checkDetails()...) // I8, I9
 	sortViolations(vs)
 	return vs
@@ -198,6 +199,61 @@ func (m *dirModel) checkProject() []Violation {
 		}}
 	}
 	return nil
+}
+
+// checkTickler covers I7's tickler rules (spec-file-format.md §5.1, §7).
+// Shape — the SCHEDULE grammar — is enforced at parse time, which is why a
+// malformed expression is reported on the line that carries it rather than
+// here. What remains is placement and the created requirement, for items in
+// every state:
+//
+//   - Someday is the only section a tickler item may sit in (else it would be
+//     silently dropped when the item starts — the working slots do not carry
+//     the field);
+//   - a tickler item must also carry created, the anchor a never-fired
+//     recurring schedule needs (a mon@08:00 written on a Tuesday must fire the
+//     following Monday, not be judged overdue against the epoch).
+//
+// Like the rest of I7 this validates SHAPE, never meaning: whether a schedule
+// is due is the caller's clock, which may not enter the format (§10.1).
+func (m *dirModel) checkTickler() []Violation {
+	var vs []Violation
+	for _, it := range m.items() {
+		if it.Tickler == "" {
+			continue
+		}
+		if it.Section != SectionSomeday {
+			vs = append(vs, Violation{
+				Invariant: "I7", At: it.Source,
+				Message: fmt.Sprintf("%s carries tickler: but sits in %s; Someday is the only valid home",
+					it.ID, itemWhere(it)),
+			})
+		}
+		if it.Created.IsZero() {
+			vs = append(vs, Violation{
+				Invariant: "I7", At: it.Source,
+				Message: fmt.Sprintf("%s carries tickler: but has no created: (the anchor a never-fired schedule needs)",
+					it.ID),
+			})
+		}
+	}
+	return vs
+}
+
+// itemWhere names where an item sits, for a violation message.
+func itemWhere(it *Item) string {
+	switch it.State {
+	case StateWorking:
+		return "a working slot"
+	case StateDone:
+		return "done.md"
+	case StateBacklog:
+		if it.Section == "" {
+			return "no section"
+		}
+		return "## " + string(it.Section)
+	}
+	return ""
 }
 
 // checkDetails covers I8 (every detail: path resolves and is named for its item)

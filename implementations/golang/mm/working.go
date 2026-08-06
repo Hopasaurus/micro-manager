@@ -290,6 +290,25 @@ func parseWorkingG(name string, data []byte, g IDGrammar) (*workingFile, []Viola
 		it.Detail = fm.Get("detail")
 	}
 
+	// tickler/tickled have no place in a working file - Start drops them and
+	// checkTickler rejects the residue - but a hand edit can put them there.
+	// Parse them into the named fields (never Extra) so the I7 placement check
+	// sees them; the shape rules are the same as on an item line.
+	if !fm.IsNull("tickler") {
+		if _, err := ParseSchedule(fm.Get("tickler")); err != nil {
+			bad("tickler", "tickler:"+fm.Get("tickler")+" (want a SCHEDULE: a date, a weekday, or a month day, each with optional @HH:MM)")
+		} else {
+			it.Tickler = fm.Get("tickler")
+		}
+	}
+	if !fm.IsNull("tickled") {
+		if d, err := ParseDate(fm.Get("tickled")); err != nil {
+			bad("tickled", "tickled:"+fm.Get("tickled")+" (want YYYY-MM-DD)")
+		} else {
+			it.Tickled = d
+		}
+	}
+
 	// Unregistered fields. They arrived with the item and must leave with it, or
 	// --start followed by --pause quietly destroys data written by another tool
 	// (spec-file-format.md §9).
@@ -314,6 +333,10 @@ func isRegisteredWorkingField(key string) bool {
 		if k == key {
 			return true
 		}
+	}
+	switch key {
+	case "tickler", "tickled":
+		return true // named Item fields, though Start never writes them
 	}
 	return false
 }
