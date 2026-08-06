@@ -73,14 +73,29 @@ export interface ToolDefinition {
   ): Promise<ToolResult>;
 }
 
-const text = (body: string, details: Record<string, unknown> = {}, isError = false): ToolResult => ({
+export const text = (body: string, details: Record<string, unknown> = {}, isError = false): ToolResult => ({
   content: [{ type: "text", text: body }],
   details,
   ...(isError ? { isError: true } : {}),
 });
 
+/**
+ * The environment gate, on its own (§2.1).
+ *
+ * Tools that validate their parameters first would otherwise answer "mm_move
+ * needs a destination" to a user whose real problem is that the plugin cannot
+ * work at all — two round trips to reach the actionable message. So every tool
+ * asks this before it inspects what it was called with: the environment
+ * failure is the more fundamental one, and it is the same answer whatever the
+ * arguments were.
+ */
+export async function ready(deps: ToolDeps): Promise<ToolResult | undefined> {
+  const state = await deps.health();
+  return state.ok ? undefined : text(state.message, {}, true);
+}
+
 /** An envelope's `result`, read as the shape the caller expects. */
-function resultOf<T>(envelope: Envelope): T | undefined {
+export function resultOf<T>(envelope: Envelope): T | undefined {
   return (envelope.result ?? undefined) as T | undefined;
 }
 
@@ -90,7 +105,7 @@ function resultOf<T>(envelope: Envelope): T | undefined {
  * Every read tool is this plus a formatter, which is the point: the gates, the
  * `--dir`, the error mapping and the `details` shape are decided once.
  */
-async function operate(
+export async function operate(
   deps: ToolDeps,
   args: readonly string[],
   signal: AbortSignal | undefined,

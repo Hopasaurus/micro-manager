@@ -79,22 +79,29 @@ function withMmOnPath(body: string): () => void {
   };
 }
 
-test("the factory registers the lifecycle and the read surface", () => {
+test("the factory registers the lifecycle, the read surface and the write surface", () => {
   const pi = fakePi();
   micromanager(pi.api as never);
 
   assert.ok(pi.events.has("session_start"), "the mm check runs at session start (§2.1)");
   assert.ok(pi.events.has("session_shutdown"), "shutdown is stated, not omitted (§7)");
 
-  // §4.2's required READ set (T-0178). The write, workflow and removal tools
-  // are T-0179-T-0181; registering half of one would be worse than none.
+  // §4.2's required read set (T-0178) and write set (T-0179). The workflow
+  // tools and mm_remove are T-0180-T-0181; registering half of one would be
+  // worse than none.
   const names = pi.tools.map((t) => (t as { name: string }).name).sort();
   assert.deepEqual(names, [
+    "mm_add",
     "mm_board",
     "mm_check",
+    "mm_describe",
+    "mm_edit",
     "mm_find",
+    "mm_init",
     "mm_list",
+    "mm_move",
     "mm_next",
+    "mm_note",
     "mm_show",
     "mm_status",
   ]);

@@ -21,9 +21,10 @@
           command. Not on session_start, not on agent_settled, not ever.
 
   What is built so far: the skeleton and the mm check (T-0175), the runner
-  (T-0176), board resolution and the pin (T-0177), and the required READ tools
-  (T-0178). The write, workflow and removal tools (T-0179-T-0181), the /mm
-  command (T-0182) and context injection (T-0183) land here next.
+  (T-0176), board resolution and the pin (T-0177), the required READ tools
+  (T-0178) and the WRITE tools (T-0179). The workflow tools (T-0180),
+  mm_remove's double guard (T-0181), the /mm command (T-0182) and context
+  injection (T-0183) land here next.
 */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -38,6 +39,7 @@ import {
 import { presence, presenceMessage, resetPresence, type Presence } from "./presence.ts";
 import { run } from "./runner.ts";
 import { readTools } from "./tools-read.ts";
+import { writeTools } from "./tools-write.ts";
 
 /** The status-line and notification key. One id, so nothing else is clobbered. */
 export const STATUS_KEY = "micro-manager";
@@ -62,7 +64,7 @@ export async function health(): Promise<
 
 export default function micromanager(pi: ExtensionAPI): void {
   /*
-    The read surface (§4.2). Registered at load rather than at session_start so
+    The tool surface (§4.2). Registered at load rather than at session_start so
     the tools exist for every mode pi runs in; each one gates on health() and on
     a resolved board itself, so registering them before either is known is safe
     — and an agent that calls one without mm gets the remedy rather than a
@@ -72,13 +74,14 @@ export default function micromanager(pi: ExtensionAPI): void {
     ctx.ui.setStatus?.(STATUS_KEY, line || "no board");
   };
   let ui: ExtensionContext | undefined;
-  for (const tool of readTools({
+  const deps = {
     health,
     run,
-    onPin: (line) => {
+    onPin: (line: string) => {
       if (ui) setStatus(ui, line);
     },
-  })) {
+  };
+  for (const tool of [...readTools(deps), ...writeTools(deps)]) {
     pi.registerTool(tool as never);
   }
 

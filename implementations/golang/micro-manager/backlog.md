@@ -22,7 +22,6 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0179] Write tools: mm_add, mm_edit, mm_move, mm_note, mm_init, mm_describe | prio:med | tags:plugin | detail:details/T-0179.md | created:2026-08-05
 - [ ] [T-0180] Workflow tools: mm_start, mm_pause, mm_finish | prio:med | tags:plugin | detail:details/T-0180.md | created:2026-08-05
 - [ ] [T-0181] mm_remove with the double guard | prio:med | tags:plugin | detail:details/T-0181.md | created:2026-08-05
 - [ ] [T-0192] Make sure the UI has a place to enter the time when setting a wakeup type. | prio:med | detail:details/T-0192.md | created:2026-08-06

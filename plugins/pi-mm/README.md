@@ -10,8 +10,8 @@ writes the board's files itself (§2.1).
 
 ## Status
 
-Readable. The extension loads, checks for `mm`, resolves and pins a board, and
-provides the seven **read** tools of spec §4.2:
+Readable and writable. The extension loads, checks for `mm`, resolves and pins
+a board, and provides the read and write tools of spec §4.2:
 
 | Tool | What it answers |
 |---|---|
@@ -22,9 +22,16 @@ provides the seven **read** tools of spec §4.2:
 | `mm_board` | which board is in use, how it resolved, and its status |
 | `mm_find` | every board that can be located, the one in use marked |
 | `mm_check` | the ten invariants, violations as `path:line` |
+| `mm_add` | add an item, and report the ID it was assigned |
+| `mm_edit` | change fields in place, including unregistered keys |
+| `mm_move` | reposition, or move between backlog sections |
+| `mm_note` | append a dated note |
+| `mm_init` | create a board and pin it for the session |
+| `mm_describe` | set the board's description, through `mm` |
 
-**Nothing writes yet.** The write, workflow and removal tools (T-0179–T-0181),
-the `/mm` command (T-0182) and per-turn context injection (T-0183) land next.
+**No state changes yet.** `mm_start` / `mm_pause` / `mm_finish` (T-0180),
+`mm_remove` and its double guard (T-0181), the `/mm` command (T-0182) and
+per-turn context injection (T-0183) land next.
 
 ## Requirements
 
@@ -91,6 +98,6 @@ It skips with a reason when `mm` is not on PATH, so the suite still runs on a
 machine that has never built the Go implementation:
 
 ```bash
-npm test                       # 30 pass, 1 skipped without mm
-PATH=/path/to/mm/bin:$PATH npm test   # 31 pass
+npm test                       # 72 pass, 3 skipped without mm
+PATH=/path/to/mm/bin:$PATH npm test   # 75 pass
 ```

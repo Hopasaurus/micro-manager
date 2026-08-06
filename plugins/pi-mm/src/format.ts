@@ -32,6 +32,13 @@ export interface ItemView {
   readonly outcome?: string;
   readonly blocked?: string;
   readonly tickler?: string;
+  /**
+   * Fields the format does not register — its extension point (§9 of the
+   * format spec). They are carried, never dropped: a view that hid them would
+   * make the plugin lossy about a format whose whole point is that a tool it
+   * has never heard of can add a key.
+   */
+  readonly extra?: Readonly<Record<string, string>>;
   readonly file?: string;
   readonly line?: number;
 }
@@ -80,6 +87,9 @@ export function itemDetail(item: ItemView): string {
   field("blocked:", item.blocked);
   field("wakes:", item.tickler);
   field("detail:", item.detail);
+  for (const [key, value] of Object.entries(item.extra ?? {})) {
+    lines.push(`  ${`${key}:`.padEnd(8)} ${value}`);
+  }
   return lines.join("\n");
 }
 

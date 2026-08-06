@@ -23,6 +23,7 @@ import { clearPin, setPin } from "./board.ts";
 import { probe } from "./presence.ts";
 import { run } from "./runner.ts";
 import { readTools } from "./tools-read.ts";
+import { writeTools } from "./tools-write.ts";
 
 const present = await probe("mm", 5_000);
 
@@ -130,4 +131,70 @@ test("the read tools work against a real board", { skip: present.ok ? false : `n
   assert.doesNotThrow(() => body("mm_find"));
 
   t.diagnostic("covered: mm_status, mm_next, mm_list, mm_show, mm_check, mm_board, mm_find");
+});
+
+/*
+  The write tools against a real board and a real mm (§4.2, §3.3, §3.4).
+
+  These are the ones where a wrong argv changes files, so the check that
+  matters is that mm accepts what they build and the board says afterwards what
+  the tool claimed.
+*/
+test("the write tools work against a real board", { skip: present.ok ? false : `no mm on PATH (${present.reason})` }, async (t) => {
+  const dir = join(mkdtempSync(join(tmpdir(), "mm-write-")), "board");
+  const deps = { health: async () => ({ ok: true as const, version: "real" }), run };
+  const tools = new Map(
+    [...readTools(deps), ...writeTools(deps)].map((x) => [x.name, x]),
+  );
+  const call = async (name: string, params: Record<string, unknown> = {}) => {
+    const result = await tools.get(name)!.execute("id", params);
+    return { text: result.content[0]?.text ?? "", isError: result.isError === true };
+  };
+  const must = async (name: string, params: Record<string, unknown> = {}) => {
+    const r = await call(name, params);
+    assert.equal(r.isError, false, `${name}: ${r.text}`);
+    return r.text;
+  };
+
+  clearPin();
+  t.after(clearPin);
+
+  // mm_init pins the board it creates, so everything after acts on it without
+  // a --dir of its own (§3.3).
+  const created = await must("mm_init", { project: "Garden", dir, prefix: "G", slots: 2 });
+  assert.match(created, /created Garden/);
+  assert.match(created, /ids are G-0001/);
+  assert.match(created, /pinned for this session/);
+
+  const added = await must("mm_add", { title: "water the beds", prio: "high", tags: ["outdoor"] });
+  // The board's declared prefix is what the new ID uses — the reason --prefix
+  // belongs at init rather than later.
+  const id = /\b(G-\d{4})\b/.exec(added)?.[1];
+  assert.ok(id, `mm_add did not report an ID: ${added}`);
+
+  await must("mm_edit", { id: id!, title: "water the raised beds", set: ["owner=dana"] });
+  const shown = await must("mm_show", { id: id! });
+  assert.match(shown, /water the raised beds/);
+  assert.match(shown, /owner/, "an unregistered key survives the round trip (§4.2)");
+
+  await must("mm_move", { id: id!, section: "someday", top: true });
+  assert.match(await must("mm_show", { id: id! }), /someday/);
+
+  await must("mm_note", { id: id!, text: "the hose is in the shed" });
+  assert.match(await must("mm_show", { id: id!, detail: true }), /hose is in the shed/);
+
+  // mm_describe: this build has no --describe, so the tool must degrade with
+  // the build message and MUST NOT have touched structure.md itself (§3.4).
+  const described = await call("mm_describe", { text: "Garden chores." });
+  if (described.isError) {
+    assert.match(described.text, /not available in the installed mm build/);
+    t.diagnostic("mm_describe: degraded on a build without --describe, as §3.4 requires");
+  } else {
+    assert.match(described.text, /description set/);
+  }
+
+  // The board is still valid after everything above — the point of driving mm
+  // rather than the files.
+  assert.match(await must("mm_check"), /clean: no violations/);
+  t.diagnostic("covered: mm_init, mm_add, mm_edit, mm_move, mm_note, mm_describe, mm_check");
 });
