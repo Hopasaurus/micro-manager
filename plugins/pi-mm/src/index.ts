@@ -20,15 +20,24 @@
           mutates the board except in direct response to a tool call or a /mm
           command. Not on session_start, not on agent_settled, not ever.
 
-  What is built so far: the skeleton, the install, and the mm-on-PATH check
-  (T-0175). The runner (T-0176), board resolution (T-0177) and the tool surface
-  (T-0178 onward) land in this directory next; `health()` below is what they
-  gate on.
+  What is built so far: the skeleton and the mm check (T-0175), the runner
+  (T-0176), board resolution and the pin (T-0177), and the required READ tools
+  (T-0178). The write, workflow and removal tools (T-0179-T-0181), the /mm
+  command (T-0182) and context injection (T-0183) land here next.
 */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
+import {
+  boardStatusLine,
+  clearPin,
+  pinFromBranch,
+  pinnedBoard,
+  setPin,
+} from "./board.ts";
 import { presence, presenceMessage, resetPresence, type Presence } from "./presence.ts";
+import { run } from "./runner.ts";
+import { readTools } from "./tools-read.ts";
 
 /** The status-line and notification key. One id, so nothing else is clobbered. */
 export const STATUS_KEY = "micro-manager";
@@ -53,6 +62,27 @@ export async function health(): Promise<
 
 export default function micromanager(pi: ExtensionAPI): void {
   /*
+    The read surface (§4.2). Registered at load rather than at session_start so
+    the tools exist for every mode pi runs in; each one gates on health() and on
+    a resolved board itself, so registering them before either is known is safe
+    — and an agent that calls one without mm gets the remedy rather than a
+    missing tool.
+  */
+  const setStatus = (ctx: ExtensionContext, line: string) => {
+    ctx.ui.setStatus?.(STATUS_KEY, line || "no board");
+  };
+  let ui: ExtensionContext | undefined;
+  for (const tool of readTools({
+    health,
+    run,
+    onPin: (line) => {
+      if (ui) setStatus(ui, line);
+    },
+  })) {
+    pi.registerTool(tool as never);
+  }
+
+  /*
     The probe runs at session_start rather than at load (§2.1: "verify mm exists
     at session start"). Two reasons, and pi's own extension guidance gives the
     second: a factory may run in an invocation that never starts a session, and
@@ -63,12 +93,23 @@ export default function micromanager(pi: ExtensionAPI): void {
     // to notice; anything else keeps the session's cached answer.
     if (_event.reason === "reload") resetPresence();
 
+    ui = ctx;
     const state = await health();
     if (state.ok) {
-      // The board's identity replaces this once resolution exists (T-0177,
-      // §3.2.1's persistent status line). Until then the status says what the
-      // plugin knows: which mm it will drive.
-      ctx.ui.setStatus?.(STATUS_KEY, state.version);
+      /*
+        §7: the pin is reconstructed from the ACTIVE BRANCH, never carried over
+        from the previous session's memory. A fork that changed the board must
+        not leak into the other branch, and the in-memory pin is only ever a
+        cache of what the branch says.
+      */
+      clearPin();
+      const restored = pinFromBranch(ctx.sessionManager?.getBranch?.() ?? []);
+      if (restored) setPin(restored);
+
+      // §3.2.1: the persistent status line says which board the agent is
+      // operating on — set at session start, updated whenever the pin changes,
+      // and reading "no board" rather than a stale name when there is none.
+      setStatus(ctx, boardStatusLine(pinnedBoard()) || state.version);
       return;
     }
 
@@ -91,5 +132,6 @@ export default function micromanager(pi: ExtensionAPI): void {
   */
   pi.on("session_shutdown", () => {
     resetPresence();
+    clearPin();
   });
 }

@@ -79,15 +79,26 @@ function withMmOnPath(body: string): () => void {
   };
 }
 
-test("the factory registers lifecycle handlers and nothing else yet", () => {
+test("the factory registers the lifecycle and the read surface", () => {
   const pi = fakePi();
   micromanager(pi.api as never);
 
   assert.ok(pi.events.has("session_start"), "the mm check runs at session start (§2.1)");
   assert.ok(pi.events.has("session_shutdown"), "shutdown is stated, not omitted (§7)");
-  // The tool surface is T-0178 onward. A skeleton that registered half a tool
-  // would be worse than one that registers none.
-  assert.equal(pi.tools.length, 0);
+
+  // §4.2's required READ set (T-0178). The write, workflow and removal tools
+  // are T-0179-T-0181; registering half of one would be worse than none.
+  const names = pi.tools.map((t) => (t as { name: string }).name).sort();
+  assert.deepEqual(names, [
+    "mm_board",
+    "mm_check",
+    "mm_find",
+    "mm_list",
+    "mm_next",
+    "mm_show",
+    "mm_status",
+  ]);
+  // The /mm command is T-0182.
   assert.equal(pi.commands.length, 0);
 });
 

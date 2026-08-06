@@ -10,11 +10,21 @@ writes the board's files itself (§2.1).
 
 ## Status
 
-The skeleton and the runner: the extension loads, checks for `mm` at session
-start, says what to install when it is missing, and can drive one `mm`
-operation with the exit codes mapped to typed failures. **No tools and no `/mm`
-command yet** — board resolution (T-0177) and the tool surface (T-0178 onward)
-land next. Installing it now gets you the health check and nothing else.
+Readable. The extension loads, checks for `mm`, resolves and pins a board, and
+provides the seven **read** tools of spec §4.2:
+
+| Tool | What it answers |
+|---|---|
+| `mm_status` | WIP, counts, what is in work, what is next |
+| `mm_next` | the top of `## Ready` |
+| `mm_list` | items in on-disk order, filtered |
+| `mm_show` | one item in full, optionally with its detail file |
+| `mm_board` | which board is in use, how it resolved, and its status |
+| `mm_find` | every board that can be located, the one in use marked |
+| `mm_check` | the ten invariants, violations as `path:line` |
+
+**Nothing writes yet.** The write, workflow and removal tools (T-0179–T-0181),
+the `/mm` command (T-0182) and per-turn context injection (T-0183) land next.
 
 ## Requirements
 

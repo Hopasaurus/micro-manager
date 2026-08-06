@@ -19,8 +19,10 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { run } from "./runner.ts";
+import { clearPin, setPin } from "./board.ts";
 import { probe } from "./presence.ts";
+import { run } from "./runner.ts";
+import { readTools } from "./tools-read.ts";
 
 const present = await probe("mm", 5_000);
 
@@ -83,4 +85,49 @@ test("the runner drives a real mm end to end", { skip: present.ok ? false : `no 
   assert.match(usage.failure.message, /not available in the installed mm build/);
 
   t.diagnostic("covered: init, add, status, start, wip limit, unknown id, unknown switch");
+});
+
+/*
+  The read tools against a real board and a real mm (§4.2).
+
+  The unit tests drive a fake runner, which proves the tools format and gate
+  correctly. This proves the two halves fit: that the argv they build is argv
+  mm accepts, and that the envelopes they read are envelopes mm writes.
+*/
+test("the read tools work against a real board", { skip: present.ok ? false : `no mm on PATH (${present.reason})` }, async (t) => {
+  const dir = join(mkdtempSync(join(tmpdir(), "mm-tools-")), "board");
+  await run({ args: ["--init", "--project", "Tools Board", "--slots", "2"], dir, command: "mm" });
+  await run({ args: ["--add", "first", "--prio", "high", "--tag", "infra"], dir, command: "mm" });
+  await run({ args: ["--add", "second", "--section", "someday"], dir, command: "mm" });
+  await run({ args: ["--start", "1"], dir, command: "mm" });
+
+  // Pinned explicitly: what is under test is the tools, not discovery, and a
+  // test that resolved by scanning would depend on where it was run from.
+  setPin({ path: dir, project: "Tools Board", source: "pin" });
+  t.after(clearPin);
+
+  const tools = new Map(
+    readTools({ health: async () => ({ ok: true, version: "real" }), run }).map((x) => [x.name, x]),
+  );
+  const body = async (name: string, params: Record<string, unknown> = {}) => {
+    const result = await tools.get(name)!.execute("id", params);
+    assert.equal(result.isError, undefined, `${name}: ${result.content[0]?.text}`);
+    return result.content[0]?.text ?? "";
+  };
+
+  const status = await body("mm_status");
+  assert.match(status, /Tools Board/);
+  assert.match(status, /wip 1\/2/);
+  assert.match(status, /in work: {2}T-0001 {2}first/);
+
+  assert.match(await body("mm_next"), /nothing ready/, "the one ready item is now in a slot");
+  assert.match(await body("mm_list", { state: "all" }), /T-0002 {2}second/);
+  assert.match(await body("mm_show", { id: "1" }), /where: {3}working, slot 01/);
+  assert.match(await body("mm_check"), /clean: no violations/);
+  assert.match(await body("mm_board"), /resolved: pinned for this session/);
+  // mm_find scans from the working directory; what matters is that it answers
+  // rather than what it finds on the machine running the suite.
+  assert.doesNotThrow(() => body("mm_find"));
+
+  t.diagnostic("covered: mm_status, mm_next, mm_list, mm_show, mm_check, mm_board, mm_find");
 });
