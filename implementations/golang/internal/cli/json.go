@@ -74,6 +74,8 @@ type jsonItem struct {
 	Detail   string            `json:"detail,omitempty"`
 	Created  string            `json:"created,omitempty"`
 	Started  string            `json:"started,omitempty"`
+	Tickler  string            `json:"tickler,omitempty"`
+	Tickled  string            `json:"tickled,omitempty"`
 	Done     string            `json:"done,omitempty"`
 	Outcome  string            `json:"outcome,omitempty"`
 	Blocked  string            `json:"blocked,omitempty"`
@@ -95,6 +97,8 @@ func toJSONItem(it mm.Item) jsonItem {
 		Detail:   it.Detail,
 		Created:  it.Created.String(),
 		Started:  it.Started.String(),
+		Tickler:  it.Tickler,
+		Tickled:  it.Tickled.String(),
 		Done:     it.Done.String(),
 		Outcome:  string(it.Outcome),
 		Blocked:  it.Blocked,
@@ -523,6 +527,36 @@ func toJSONSearch(hits []mm.SearchHit) any {
 		})
 	}
 	return out
+}
+
+// toJSONTick is --tick: what fired and what errored, exactly the two halves
+// spec-tools.md §5.3.3 requires a run to report. Each fired entry names its
+// kind and the spawned ID, so a caller can drive a board off a cron without
+// parsing prose; errors carry the per-item failure verbatim.
+func toJSONTick(res mm.TickResult) any {
+	fired := make([]map[string]any, 0, len(res.Fired))
+	for _, f := range res.Fired {
+		out := map[string]any{
+			"id":      string(f.ID),
+			"kind":    string(f.Kind),
+			"tickled": f.Tickled.String(),
+		}
+		if f.Kind == mm.FireSpawn {
+			out["spawned"] = string(f.Spawned)
+		}
+		fired = append(fired, out)
+	}
+	errors := make([]map[string]any, 0, len(res.Errors))
+	for _, e := range res.Errors {
+		errors = append(errors, map[string]any{
+			"id":    string(e.ID),
+			"error": e.Error.Error(),
+		})
+	}
+	return map[string]any{
+		"fired":  fired,
+		"errors": errors,
+	}
 }
 
 // toJSONCheck is --check: the violations, as file/line/invariant/message, which

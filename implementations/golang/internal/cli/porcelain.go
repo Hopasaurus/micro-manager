@@ -50,6 +50,11 @@ var porcelainFields = map[Op][]string{
 	OpArchive: {"id", "file", "detail"},
 	OpMigrate: {"kind", "file", "line", "after"},
 	OpStats:   {"bucket", "since", "until", "closed", "wipPeak", "wipMean"},
+	// One record per outcome of a tick run. outcome is the discriminator:
+	// move (a one-shot fired), spawn (a recurring schedule fired and created
+	// spawned), or error. spawned and tickled are empty on an error row,
+	// message on the other two — one record type per operation, never a mix.
+	OpTick: {"id", "outcome", "spawned", "tickled", "message"},
 }
 
 // porcelainOut accumulates records, for the same reason the JSON envelope does:
@@ -93,6 +98,19 @@ func (p *porcelainOut) search(hits []mm.SearchHit) {
 		}
 		p.row(string(h.Item.ID), state, string(h.Field),
 			h.At.File, strconv.Itoa(h.At.Line), h.Text)
+	}
+}
+
+// tick appends one record per fire and per error, so a pipeline reading a
+// tick's output sees everything the run did — the "what errored" half of the
+// required report (§5.3.3) is data, not prose on stderr.
+func (p *porcelainOut) tick(res mm.TickResult) {
+	for _, f := range res.Fired {
+		p.row(string(f.ID), string(f.Kind), string(f.Spawned),
+			f.Tickled.String(), "")
+	}
+	for _, e := range res.Errors {
+		p.row(string(e.ID), "error", "", "", e.Error.Error())
 	}
 }
 

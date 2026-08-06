@@ -240,6 +240,35 @@ func (s Schedule) String() string {
 // recur, making their item a prototype.
 func (s Schedule) IsOneShot() bool { return s.kind == schedOneShot }
 
+// Weekday returns the weekday a weekday schedule fires on, and whether the
+// schedule IS the weekday shape. The UI's Wake-up group parses an item's
+// tickler back into its controls (spec-gui.md §5.6 pre-fill) through these
+// shape accessors rather than re-implementing the grammar.
+func (s Schedule) Weekday() (Weekday, bool) {
+	if s.kind != schedWeekday {
+		return 0, false
+	}
+	return s.weekday, true
+}
+
+// Ordinal returns the ordinal a weekday schedule is narrowed to, or "" when it
+// fires every occurrence, and whether the schedule IS the weekday shape.
+func (s Schedule) Ordinal() (string, bool) {
+	if s.kind != schedWeekday {
+		return "", false
+	}
+	return string(s.ordinal), true
+}
+
+// Monthday returns the day a monthday schedule fires on — 0 meaning the last
+// day of the month — and whether the schedule IS the monthday shape.
+func (s Schedule) Monthday() (int, bool) {
+	if s.kind != schedMonthday {
+		return 0, false
+	}
+	return s.monthday, true
+}
+
 // FireDate returns a one-shot's date, or the zero Date when the schedule
 // recurs.
 func (s Schedule) FireDate() Date {

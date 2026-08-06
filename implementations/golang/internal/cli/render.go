@@ -377,6 +377,8 @@ func renderShow(env Env, item mm.Item, detail *mm.Detail) {
 	show("detail", item.Detail)
 	show("created", item.Created.String())
 	show("started", item.Started.String())
+	show("tickler", item.Tickler)
+	show("tickled", item.Tickled.String())
 	show("done", item.Done.String())
 	show("outcome", string(item.Outcome))
 	show("blocked", item.Blocked)
@@ -486,5 +488,37 @@ func renderSearch(env Env, in *Invocation, hits []mm.SearchHit) {
 		}
 		out(env, "%-12s %-7s %-7s %-24s %s\n",
 			state, h.Item.ID, h.Field, h.At, h.Text)
+	}
+}
+
+// renderTick reports what a tick run fired and what it could not fire
+// (spec-tools.md §5.3.3). Every fire names its kind, because "fired" is two
+// different mutations: a one-shot moves, a recurring schedule spawns, and
+// which one happened is the first thing a cron wants to know. The dry-run
+// prefix marks the whole report, so reading the output IS how you preview a
+// run.
+//
+// A run with nothing due says so in as many words — a scheduled cron's silence
+// would otherwise be indistinguishable from the process never running.
+// Per-item errors go to stderr and survive --quiet, like --archive's warnings:
+// they are the "what errored" half of the required report, not commentary.
+func renderTick(env Env, in *Invocation, res mm.TickResult) {
+	if len(res.Fired) == 0 {
+		if !in.Quiet && len(res.Errors) == 0 {
+			out(env, "%snothing due; no someday item has a schedule to fire\n", prefix(in))
+		}
+	} else {
+		for _, f := range res.Fired {
+			if f.Kind == mm.FireMove {
+				out(env, "%s%s: moved to Ready (tickled %s)\n",
+					prefix(in), f.ID, f.Tickled)
+			} else {
+				out(env, "%s%s: spawned %s into Ready (tickled %s)\n",
+					prefix(in), f.ID, f.Spawned, f.Tickled)
+			}
+		}
+	}
+	for _, e := range res.Errors {
+		fmt.Fprintf(env.Stderr, "mm: %s did not fire: %v\n", e.ID, e.Error)
 	}
 }

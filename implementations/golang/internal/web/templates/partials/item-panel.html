@@ -58,7 +58,30 @@
              value="{{$i.Reason}}" placeholder="why it cannot start yet">
     </label>
 
-    {{if $d.New}}<input type="hidden" name="section" value="{{$d.Section}}">{{end}}
+    {{/* §5.6: the section selector, new panel only. It seeds the form's
+         section and decides whether the Wake-up group below is visible; the
+         selector defaults to Ready, where the group is hidden. */}}
+    {{if $d.New}}
+    <label class="mm-field">
+      <span>Section</span>
+      <select data-testid="item-field-section" name="section">
+        <option value="ready" {{if eq $d.Section "ready"}}selected{{end}}>Ready</option>
+        <option value="blocked" {{if eq $d.Section "blocked"}}selected{{end}}>Blocked</option>
+        <option value="someday" {{if eq $d.Section "someday"}}selected{{end}}>Someday</option>
+      </select>
+    </label>
+    {{end}}
+
+    {{/* §5.6: the Wake-up group, one partial served by both panels. The new
+         panel renders it always — hidden until its section selector is Someday,
+         so switching the selector client-side reveals it. The item panel
+         renders it for a someday item only: a ready or blocked item has no
+         schedule to set. */}}
+    {{if $d.New}}
+      {{template "tickler-group" dict "Group" $d.Tickler "New" true "Section" $d.Section}}
+    {{else if and (eq $i.State "backlog") (eq $i.Section "someday")}}
+      {{template "tickler-group" dict "Group" $d.Tickler "New" false "Section" ""}}
+    {{end}}
 
     <label class="mm-field">
       <span>Detail</span>

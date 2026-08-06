@@ -72,6 +72,14 @@ type itemData struct {
 	Outcome   string
 	Refs      []refView
 	Actions   []actionData
+
+	// Tickler is the someday card's schedule (§5.5): data-tickler on the
+	// article, and the next-fire badge. TicklerNext is the computed data-next
+	// date, empty when the schedule is spent or already due; TicklerText is
+	// what the badge reads. Only a someday card carrying tickler: sets them.
+	Tickler     string
+	TicklerNext string
+	TicklerText string
 }
 
 // actionData is one entry in an item's menu.
@@ -391,6 +399,17 @@ func (s *Server) itemView(it mm.Item, dir mm.Directory, position int, resolver *
 		d.Slot = fmt.Sprintf("%02d", it.Slot)
 	}
 	d.Actions = actionsFor(it, dir)
+
+	// The someday card's next-fire badge (§5.5), computed on every render from
+	// the service's own clock — the same clock every mutation and the tickler
+	// service use, so the badge and the next tick agree about today.
+	if it.State == mm.StateBacklog && it.Section == mm.SectionSomeday && it.Tickler != "" {
+		today, err := mm.ParseDate(mm.NewTimestamp(s.registry.now()).String()[:10])
+		if err == nil {
+			d.Tickler = it.Tickler
+			d.TicklerText, d.TicklerNext = ticklerBadge(it, today)
+		}
+	}
 	return d
 }
 

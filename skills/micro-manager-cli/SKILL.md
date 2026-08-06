@@ -68,6 +68,7 @@ positional word: `mm --add "…"`, not `mm add "…"`.
 | `mm --archive [--before YYYY-MM \| --age DAYS]` | roll old month groups out of `done.md` into `done-YYYY.md` |
 | `mm --migrate [--project NAME]` | bring a directory written by an older revision up to the current format |
 | `mm --stats [--bucket day\|week\|month]` | throughput, cycle time, work in flight and tag distribution |
+| `mm --tick [--dry-run]` | fire the `## Someday` items whose `tickler:` schedule is due |
 
 Run `mm --help` for the full list and `mm --help --OPERATION` for one
 operation's exact switches — trust that over anything paraphrased here.
@@ -121,6 +122,14 @@ Notes worth internalizing:
   `tags: [infra, ci]` flow sequence to `tags:infra,ci` — those three shapes and
   nothing else. It is safe to run twice, and it will not refuse over a
   violation it does not own, which `--fix` will.
+- **`--tick` is the tickler, and it never runs itself.** A someday item can
+  carry `tickler:` — a date (`2026-09-01`), a weekday (`mon@08:00`,
+  `first-mon@08:00`) or a month day (`15@08:00`, `last@08:00`), set with
+  `mm --add --section someday --tickler ...`. A bare date is one-shot: the item
+  moves to Ready and the schedule is consumed. A recurring one keeps the item
+  in Someday as a prototype and spawns a fresh Ready item each time it fires.
+  Both stamp `tickled:`. Fire them with `mm --tick` from a cron entry, and
+  dry-run it first — it reports what fired and what errored either way.
 - **`--stats` measures flight, not slots.** Cycle time is `done:` minus
   `started:` in whole days, and the in-flight series counts an item from its
   started date to its done date whatever happened in between — a pause leaves

@@ -302,8 +302,11 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 	// plumbing the server could not do itself - and T-0139 moved the polling
 	// backstop from the templates' triggers into mm.js (the SSE-down interval),
 	// which took the ceiling to 780. T-0152 added the collapsed-column drop
-	// resolver — a hit test, which only the client can do — for 795.
-	if lines := strings.Count(js, "\n"); lines > 795 {
+	// resolver — a hit test, which only the client can do — for 795. T-0173
+	// added the Wake-up group's visibility toggles (kind select chooses the
+	// shape; the new panel's section selector reveals the group) — a response
+	// to a select that must be instant, which only the client can do — for 900.
+	if lines := strings.Count(js, "\n"); lines > 900 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }

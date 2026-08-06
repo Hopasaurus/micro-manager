@@ -43,6 +43,7 @@ Operations:
   --archive                 roll old month groups out of done.md
   --migrate                 bring an older directory up to the current format
   --stats                   throughput, cycle time, work in flight, tags
+  --tick                    fire due someday schedules (tickler)
   --help, --version
 
 Global modifiers:
@@ -89,7 +90,7 @@ structure.md. Without --dir, creates ./micro-manager.
   --id-width N              digits in item IDs (4; 3-6 recommended)
 `,
 	OpAdd: `mm --add TITLE [--prio P] [--tag T]... [--section S] [--top]
-              [--blocked REASON] [--created DATE]
+              [--blocked REASON] [--created DATE] [--tickler SCHEDULE]
               [--detail | --detail-text TEXT | --detail-file PATH]
 
 Appends to the BOTTOM of the section by default: a new item is not automatically
@@ -102,6 +103,10 @@ title; mm --add -- TITLE is the spelling for a title that starts with a dash.
   --top                     insert at the top instead
   --section ready|blocked|someday
   --blocked REASON          implies --section blocked
+  --tickler SCHEDULE        schedule the item: a date (2026-09-01), a weekday
+                            (mon@08:00, first-mon@08:00), or a month day
+                            (15@08:00, last@08:00), each with an optional
+                            @HH:MM time. REQUIRES --section someday
   --tag T                   accumulates: --tag infra --tag ci
   --detail                  create details/<ID>.md from the template, and open
                             it in $VISUAL or $EDITOR
@@ -336,6 +341,32 @@ it.
                             says so
 
 Porcelain columns: bucket since until closed wipPeak wipMean
+`,
+	OpTick: `mm --tick [--dry-run]
+
+Runs the tickler once (spec-tools.md §5.3.3): every ## Someday item carrying
+` + "`tickler:`" + ` is evaluated against today, and the due ones fire. Two kinds
+of fire, decided by the schedule value:
+
+  one-shot (2026-09-01)     the item moves to ## Ready, the schedule is
+                            consumed (tickler: dropped), tickled:<today> stamped
+  recurring (mon@08:00,     the item is a PROTOTYPE: it stays in ## Someday,
+  first-mon@08:00,          tickled:<today> stamped, and a fresh Ready item is
+  15@08:00, last@08:00)     spawned with the title, prio and tags only — no
+                            detail, no refs — under a new ID from next_id
+
+The default is manual, like every operation; a scheduled run is a cron entry
+(` + "`mm --tick --dir ...`" + ` from a timer). Fires live entirely in backlog.md, so
+the run is safe to overlap with the UI service's own ticker (spec-gui.md §2.4):
+the tickled stamp and pre-commit validation keep two runners from firing one
+item twice.
+
+A run always reports what fired and what errored. A failing item never aborts
+the run: it is reported per-item and the rest proceed. --dry-run prints exactly
+what a real run would, prefixed "would:".
+
+Porcelain columns: id outcome spawned tickled message
+(outcome is move, spawn or error)
 `,
 	OpSearch: `mm --search QUERY [--regex] [--field F]... [--state S] [--limit N]
 

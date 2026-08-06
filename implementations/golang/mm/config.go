@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Configuration for the front ends (spec-gui.md §9).
@@ -113,6 +114,7 @@ var systemOnlyKeys = []string{
 	"ui.favoritesCount",
 	"ui.recentMaxStored",
 	"scan",
+	"tickler",
 	"server",
 }
 
@@ -125,11 +127,12 @@ var systemOnlyKeys = []string{
 // It is what a front end reads. Writing goes through ConfigFile, which keeps the
 // raw document so that keys this implementation has never heard of survive.
 type Config struct {
-	Theme  ThemeSelection
-	UI     UIConfig
-	Report ReportConfig
-	Scan   ScanConfig
-	Server ServerConfig
+	Theme   ThemeSelection
+	UI      UIConfig
+	Report  ReportConfig
+	Scan    ScanConfig
+	Tickler TicklerConfig
+	Server  ServerConfig
 }
 
 // ThemeSelection names a theme in the library (spec-gui.md §8.7 steps 2 and 4).
@@ -179,6 +182,19 @@ type ScanConfig struct {
 	MaxResults     int
 	TimeoutMs      int
 	RescanOnFocus  bool
+}
+
+// TicklerConfig is the tickler object (spec-gui.md §9.2, §2.4). System-scoped:
+// the tickler service is a process concern, not a board's, and a project config
+// MUST NOT set it.
+//
+// Interval is the raw duration string ("1m", "30s"). The empty string means
+// off, the default; applyConfig validates the value parses as a duration and
+// reports a warning otherwise, rather than letting a typo silently turn the
+// service on or off. Parsing is the front end's: the library is told the
+// interval as a string and never runs a clock itself.
+type TicklerConfig struct {
+	Interval string
 }
 
 // ServerConfig is the server object (spec-gui.md §9.2, §9.6). System-scoped, and
@@ -543,6 +559,26 @@ func applyConfig(cfg *Config, f *ConfigFile) []ConfigWarning {
 	num("scan.maxResults", &cfg.Scan.MaxResults)
 	num("scan.timeoutMs", &cfg.Scan.TimeoutMs)
 	boolean("scan.rescanOnFocus", &cfg.Scan.RescanOnFocus)
+
+	// tickler.interval is a duration string, and a value that does not parse is
+	// a warning rather than a refusal: the service still starts, with the
+	// tickler off, and says why (§2.4's opt-in must not silently become a
+	// different opt-in).
+	if v := get("tickler.interval"); v != nil {
+		if s, ok := v.(string); ok {
+			if _, err := time.ParseDuration(s); err != nil {
+				w = append(w, ConfigWarning{f.Path, "tickler.interval",
+					fmt.Sprintf("%q is not a duration: %v", s, err)})
+			} else {
+				cfg.Tickler.Interval = s
+			}
+		} else if v != nil {
+			// null is the documented "off" value and is not a mistake.
+			if _, isNull := v.(nilValue); !isNull {
+				w = append(w, ConfigWarning{f.Path, "tickler.interval", "want a duration like \"1m\" or null"})
+			}
+		}
+	}
 
 	str("server.bind", &cfg.Server.Bind)
 	num("server.port", &cfg.Server.Port)

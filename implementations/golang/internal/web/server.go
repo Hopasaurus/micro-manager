@@ -256,6 +256,17 @@ func (s *Server) Start(ctx context.Context) error {
 		s.shutdownOnce.Do(func() { close(s.shutdown) })
 	}()
 
+	// The tickler service (spec-gui.md §2.4): an opt-in background pass over
+	// every held board, on the system config's tickler.interval. Absent or null
+	// means off — a process that mutates boards on its own initiative must not
+	// start quietly — and a value that failed to parse was already reported as
+	// a config warning at load, leaving Interval empty. The loop stops with the
+	// context, like every other goroutine here.
+	if interval := s.ticklerInterval(); interval > 0 {
+		s.log.Info("tickler service on", "interval", interval.String())
+		go s.ticklerLoop(ctx, interval)
+	}
+
 	if s.opts.Socket != "" {
 		ln, err := s.listenUnix()
 		if err != nil {
@@ -271,6 +282,22 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	s.broker.close()
 	return nil
+}
+
+// ticklerInterval is the configured tickler service interval, or 0 for off
+// (spec-gui.md §2.4). The value reached the merged config already validated —
+// applyConfig warned on anything that did not parse — so this is a guarded
+// parse, not a second validation: a malformed value would have left Interval
+// empty.
+func (s *Server) ticklerInterval() time.Duration {
+	if s.opts.Config.Tickler.Interval == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(s.opts.Config.Tickler.Interval)
+	if err != nil {
+		return 0
+	}
+	return d
 }
 
 // listenUnix binds a Unix domain socket, the most restrictive option

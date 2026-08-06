@@ -51,6 +51,7 @@ const (
 	OpArchive Op = "archive"
 	OpMigrate Op = "migrate"
 	OpStats   Op = "stats"
+	OpTick    Op = "tick"
 )
 
 // takesValue reports whether an operation switch consumes the argument after it
@@ -77,6 +78,9 @@ var operations = map[string]Op{
 	// modifier because there are two spellings of it and neither is the thing
 	// being archived, and --migrate acts on the whole directory.
 	"archive": OpArchive, "migrate": OpMigrate, "stats": OpStats,
+	// §5.3.3: the tickler, on the directory --dir resolves. No subject: the
+	// schedule being evaluated lives on the items, not in the invocation.
+	"tick": OpTick,
 }
 
 // Invocation is one parsed command line.
@@ -133,7 +137,8 @@ var valueModifiers = map[string]bool{
 	"detail-text": true, "detail-file": true, "slot": true,
 	"project": true, "slots": true, "slot-width": true,
 	"prefix": true, "id-width": true,
-	"period": true, "week": true, "since": true, "until": true,
+	"tickler": true,
+	"period":  true, "week": true, "since": true, "until": true,
 	"group-by": true, "state": true, "limit": true,
 	"reason": true, "closing-note": true,
 	"age": true, "bucket": true,

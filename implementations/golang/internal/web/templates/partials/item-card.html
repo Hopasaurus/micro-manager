@@ -21,7 +21,8 @@
          data-has-detail="{{yesno $i.HasDetail}}"
          data-position="{{$i.Position}}"
          {{if $i.Slot}}data-slot="{{$i.Slot}}"{{end}}
-         {{if $i.Outcome}}data-outcome="{{$i.Outcome}}"{{end}}>
+         {{if $i.Outcome}}data-outcome="{{$i.Outcome}}"{{end}}
+         {{if $i.Tickler}}data-tickler="{{$i.Tickler}}"{{end}}>
 
   <h3 data-testid="item-{{$i.ID}}-title" class="mm-item__title">
     <a href="{{with $p}}/p/{{.ID}}/item/{{$i.ID}}{{end}}"
@@ -60,6 +61,16 @@
 
   <span data-testid="item-{{$i.ID}}-detail-indicator" class="mm-item__detail"
         {{if not $i.HasDetail}}hidden{{end}} aria-label="Has a detail file">&#9998;</span>
+
+  {{/* §5.5: a someday card carrying tickler: gets its next-fire badge, computed
+       server-side on every render. data-next is absent when the schedule is
+       spent or already due — the badge then reads "due" and the next tick
+       fires it. The badge is the affordance: visible text, never a
+       colour-only or tooltip-only hint. */}}
+  {{if $i.Tickler}}
+  <span data-testid="item-{{$i.ID}}-tickler" class="mm-item__tickler"
+        {{if $i.TicklerNext}}data-next="{{$i.TicklerNext}}"{{end}}>{{$i.TicklerText}}</span>
+  {{end}}
 
   {{if $i.Blocked}}
   <span data-testid="item-{{$i.ID}}-blocked-reason" class="mm-item__blocked">{{$i.Reason}}</span>

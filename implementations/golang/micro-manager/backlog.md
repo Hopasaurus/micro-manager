@@ -2,8 +2,8 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0189
-updated: 2026-08-05
+next_id: T-0198
+updated: 2026-08-06
 ---
 
 # Backlog
@@ -22,7 +22,14 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0173] mm --tick and the UI tickler service goroutine | prio:med | tags:cli,gui | detail:details/T-0173.md | created:2026-08-05
+- [ ] [T-0175] Plugin skeleton and install: directory extension, package.json, mm-on-PATH check | prio:med | tags:plugin | detail:details/T-0175.md | created:2026-08-05
+- [ ] [T-0176] mm runner: subprocess with --json, --dir pin, timeout, exit-code mapping | prio:med | tags:plugin | detail:details/T-0176.md | created:2026-08-05
+- [ ] [T-0177] Board resolution, pinning, and session/branch state | prio:med | tags:plugin | detail:details/T-0177.md | created:2026-08-05
+- [ ] [T-0178] Read tools: mm_status, mm_next, mm_list, mm_show, mm_board, mm_check, mm_find | prio:med | tags:plugin | detail:details/T-0178.md | created:2026-08-05
+- [ ] [T-0179] Write tools: mm_add, mm_edit, mm_move, mm_note, mm_init, mm_describe | prio:med | tags:plugin | detail:details/T-0179.md | created:2026-08-05
+- [ ] [T-0180] Workflow tools: mm_start, mm_pause, mm_finish | prio:med | tags:plugin | detail:details/T-0180.md | created:2026-08-05
+- [ ] [T-0181] mm_remove with the double guard | prio:med | tags:plugin | detail:details/T-0181.md | created:2026-08-05
+- [ ] [T-0192] Make sure the UI has a place to enter the time when setting a wakeup type. | prio:med | detail:details/T-0192.md | created:2026-08-06
 
 ## Blocked
 
@@ -35,15 +42,16 @@ thing that can be started.
 ## Someday
 
 - [ ] [T-0165] Refine settings and theme config. | prio:med | detail:details/T-0165.md | created:2026-08-04
-- [ ] [T-0175] Plugin skeleton and install: directory extension, package.json, mm-on-PATH check | prio:med | tags:plugin | detail:details/T-0175.md | created:2026-08-05
-- [ ] [T-0176] mm runner: subprocess with --json, --dir pin, timeout, exit-code mapping | prio:med | tags:plugin | detail:details/T-0176.md | created:2026-08-05
-- [ ] [T-0177] Board resolution, pinning, and session/branch state | prio:med | tags:plugin | detail:details/T-0177.md | created:2026-08-05
-- [ ] [T-0178] Read tools: mm_status, mm_next, mm_list, mm_show, mm_board, mm_check, mm_find | prio:med | tags:plugin | detail:details/T-0178.md | created:2026-08-05
-- [ ] [T-0179] Write tools: mm_add, mm_edit, mm_move, mm_note, mm_init, mm_describe | prio:med | tags:plugin | detail:details/T-0179.md | created:2026-08-05
-- [ ] [T-0180] Workflow tools: mm_start, mm_pause, mm_finish | prio:med | tags:plugin | detail:details/T-0180.md | created:2026-08-05
-- [ ] [T-0181] mm_remove with the double guard | prio:med | tags:plugin | detail:details/T-0181.md | created:2026-08-05
 - [ ] [T-0182] /mm command surface | prio:med | tags:plugin | detail:details/T-0182.md | created:2026-08-05
 - [ ] [T-0183] Context injection and configuration | prio:med | tags:plugin | detail:details/T-0183.md | created:2026-08-05
 - [ ] [T-0184] Recommended tools: mm_block/unblock, mm_search, mm_report, mm_tick, mm_archive | prio:low | tags:plugin | detail:details/T-0184.md | created:2026-08-05
 - [ ] [T-0185] Conformance tests: runner, exit codes, §8.1 smoke test | prio:med | tags:plugin | detail:details/T-0185.md | created:2026-08-05
 - [ ] [T-0187] mm cli: add the ability to bulk add tasks | prio:med | tags:new-feature | created:2026-08-05
+- [ ] [T-0189] Need a way to bulk move from someday to ready | prio:med | created:2026-08-06
+- [ ] [T-0190] Need a way to make drag scroll down | prio:med | detail:details/T-0190.md | created:2026-08-06
+- [ ] [T-0191] update the spec so that if backlog.md and done.md are missing it skips the directory. | prio:med | detail:details/T-0191.md | created:2026-08-06
+- [ ] [T-0194] detect multiple mm directories in the same directory | prio:med | tags:needs-refinement | detail:details/T-0194.md | created:2026-08-06
+- [ ] [T-0195] slim down the skill | prio:med | tags:needs-refinement | detail:details/T-0195.md | created:2026-08-06
+- [ ] [T-0196] think about removing the spec from the project files | prio:med | tags:needs-refinement | detail:details/T-0196.md | created:2026-08-06
+- [ ] [T-0193] This will wake up at 6:44 | prio:med | tags:test | detail:details/T-0193.md | created:2026-08-06 | tickler:2026-08-06@06:44
+- [ ] [T-0197] GUI: the monthly Wake-up control cannot express last (spec-gui §5.6) | prio:med | tags:gui,spec | detail:details/T-0197.md | created:2026-08-06

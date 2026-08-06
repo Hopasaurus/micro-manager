@@ -272,7 +272,12 @@ func TestNewItemPanel(t *testing.T) {
 	if hasTestid(body, "item-actions") {
 		t.Error("the add panel offers item actions")
 	}
-	if !strings.Contains(body, `name="section" value="someday"`) {
+	// The section selector (§5.6, item-field-section) carries the column it was
+	// opened from as the selected option.
+	if !strings.Contains(body, `data-testid="item-field-section" name="section"`) {
+		t.Error("the add panel is missing its section selector")
+	}
+	if !strings.Contains(body, `<option value="someday" selected>`) {
 		t.Error("the add panel did not carry the column it was opened from")
 	}
 }

@@ -358,6 +358,56 @@
     });
   });
 
+  /* --------------------------------------------------------- tickler */
+
+  /*
+    §5.6: the Wake-up group. Two visibility rules, both client-side so the
+    form responds without a round trip:
+
+      - the kind select shows the matching control and hides the others; the
+        time control shows for every kind but never;
+      - in the NEW panel the group is hidden until the section selector is
+        Someday — the server renders it hidden, this reveals it.
+
+    The server's answers stay authoritative: what these toggles reveal is
+    still composed and validated server-side on save (§4.2).
+  */
+  function applyTicklerGroup(group) {
+    if (!group) return;
+    const kindSelect = group.querySelector('[data-testid="tickler-kind"]');
+    const selected = kindSelect ? kindSelect.value : 'never';
+    group.querySelectorAll('[data-kind]').forEach((control) => {
+      const kind = control.getAttribute('data-kind');
+      control.hidden = kind === 'time' ? selected === 'never' : kind !== selected;
+    });
+  }
+
+  function applyTicklerSection(form) {
+    if (!form) return;
+    const group = form.querySelector('[data-testid="item-tickler"]');
+    const section = form.querySelector('[data-testid="item-field-section"]');
+    if (!group || !section) return;
+    group.hidden = section.value !== 'someday';
+  }
+
+  document.addEventListener('change', (event) => {
+    const target = event.target;
+    if (!target || !target.getAttribute) return;
+    if (target.getAttribute('data-testid') === 'tickler-kind') {
+      applyTicklerGroup(target.closest('[data-testid="item-tickler"]'));
+    }
+    if (target.getAttribute('data-testid') === 'item-field-section') {
+      applyTicklerSection(target.closest('form'));
+    }
+  });
+
+  /* A swap can replace the panel wholesale (save-and-add-another re-opens a
+     fresh form), so after every settle the group's controls are re-reconciled
+     with its kind select. */
+  document.body.addEventListener('htmx:afterSettle', () => {
+    document.querySelectorAll('[data-testid="item-tickler"]').forEach(applyTicklerGroup);
+  });
+
   /* ================================================================ §7 */
 
   /*

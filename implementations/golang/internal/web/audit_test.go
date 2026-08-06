@@ -243,6 +243,7 @@ func patternInstances(projectID string) map[string][]string {
 		"item-<ID>-tags":                item("-tags"),
 		"item-<ID>-tag-<tag>":           {"item-T-0001-tag-infra", "item-T-0001-tag-ci"},
 		"item-<ID>-detail-indicator":    item("-detail-indicator"),
+		"item-<ID>-tickler":             {"item-T-0005-tickler"},
 		"item-<ID>-menu":                item("-menu"),
 		"item-<ID>-action-<operation>":  itemOps(),
 		"item-field-<field>":            {"item-field-title", "item-field-prio", "item-field-tags", "item-field-blocked", "item-field-detail"},

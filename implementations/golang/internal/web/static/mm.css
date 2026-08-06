@@ -435,6 +435,33 @@ body {
 .mm-item__detail { color: var(--mm-color-fg-subtle); }
 .mm-item__blocked { grid-column: 1 / -1; color: var(--mm-color-state-blocked); font-size: var(--mm-font-size-xs); }
 
+/* §5.5: the someday card's next-fire badge. Visible text is the affordance —
+   never a colour-only or tooltip-only hint — so the badge is a bordered chip
+   with the text itself; the "due" state reads as text too, not just colour. */
+.mm-item__tickler {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 0 var(--mm-space-2);
+  border: var(--mm-border-width-thin) solid var(--mm-color-fg-muted);
+  border-radius: var(--mm-radius-md);
+  color: var(--mm-color-fg-muted);
+  font-size: var(--mm-font-size-xs);
+}
+.mm-item__tickler:not([data-next]) { border-color: var(--mm-color-state-blocked); color: var(--mm-color-state-blocked); }
+
+/* §5.6: the Wake-up group. The kind select chooses the shape; the matching
+   control is shown and the others hidden (by mm.js and on first render). */
+.mm-tickler { display: flex; flex-direction: column; gap: var(--mm-space-2); }
+.mm-tickler legend { color: var(--mm-color-fg-muted); font-size: var(--mm-font-size-sm); }
+.mm-tickler__kind { display: flex; flex-direction: column; gap: var(--mm-space-1); }
+.mm-tickler__kind > span,
+.mm-tickler__control span { color: var(--mm-color-fg-muted); font-size: var(--mm-font-size-sm); }
+.mm-tickler__control { display: flex; flex-direction: column; gap: var(--mm-space-1); }
+.mm-tickler__control label { display: flex; flex-direction: column; gap: var(--mm-space-1); }
+.mm-tickler select,
+.mm-tickler input { font: inherit; padding: var(--mm-space-1) var(--mm-space-2); }
+.mm-tickler[hidden] { display: none; }
+
 .mm-item[data-blocked="true"] { border-left: var(--mm-border-width-thick) solid var(--mm-color-state-blocked); }
 .mm-item[data-item-state="done"] { opacity: 0.7; }
 .mm-item[data-item-state="done"] .mm-item__title a { text-decoration: line-through; }

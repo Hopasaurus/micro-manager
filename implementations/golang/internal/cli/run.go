@@ -111,6 +111,8 @@ func dispatch(env Env, in *Invocation) error {
 		return runMigrate(env, in, store)
 	case OpStats:
 		return runStats(env, in, store)
+	case OpTick:
+		return runTick(env, in, store)
 	}
 	return usagef("--%s is not implemented", in.Op)
 }
@@ -269,6 +271,13 @@ func runAdd(env Env, in *Invocation, s *mm.Store) error {
 			return err
 		}
 		req.Created = d
+	}
+	if v := in.Value("tickler"); v != "" {
+		// §5.1.2: a SCHEDULE expression (spec-file-format.md §3.3), validated
+		// by the library like every value. The library also enforces I7 — the
+		// field needs --section someday — and a violation of that is its error
+		// to raise, not a second copy of the rule here.
+		req.Tickler = v
 	}
 	body, err := detailBody(in)
 	if err != nil {
@@ -1090,6 +1099,46 @@ func runMigrate(env Env, in *Invocation, s *mm.Store) error {
 		env.json.warn(w)
 	}
 	renderMigrate(env, in, res)
+	return nil
+}
+
+// runTick wires spec-tools.md §5.3.3's --tick, the fourth optional operation
+// to reach the CLI, and the one a cron is expected to run on a schedule.
+//
+// The whole run reports what fired and what errored: the two kinds of fire are
+// the output's first column, and per-item failures go to stderr exactly like
+// --archive's warnings, because a run that mostly succeeded must still say the
+// part that did not. The exit code stays 0 when an item errored: the run
+// completed, the error is a result the caller acts on, not a crashed process
+// (spec-tools.md §5.3.3: "a failing item never aborts the run").
+func runTick(env Env, in *Invocation, s *mm.Store) error {
+	res, err := s.Tick(env.Today, in.DryRun)
+	if err != nil {
+		return err
+	}
+	for _, e := range res.Errors {
+		env.json.warn(string(e.ID) + ": " + e.Error.Error())
+	}
+	env.json.setResult(toJSONTick(res))
+	env.porcelain.tick(res)
+	// The change set is synthesised from the fires, exactly as the human
+	// renderer reports them: each one-shot is a move within backlog.md, each
+	// recurring fire updates its prototype and creates the spawned item.
+	for _, f := range res.Fired {
+		if f.Kind == mm.FireMove {
+			env.json.changes = append(env.json.changes, jsonChange{
+				Kind: "moved", ID: string(f.ID), File: "backlog.md",
+				Before: f.Before, After: f.After,
+			})
+		} else {
+			env.json.changes = append(env.json.changes,
+				jsonChange{Kind: "updated", ID: string(f.ID), File: "backlog.md",
+					Before: f.Before, After: f.After},
+				jsonChange{Kind: "created", ID: string(f.Spawned), File: "backlog.md"},
+			)
+		}
+	}
+	renderTick(env, in, res)
 	return nil
 }
 

@@ -98,6 +98,53 @@ const COLLAPSED_HTML = BOARD_HTML.replace(
    <section data-testid="board-column-ready"`,
 );
 
+// The board with an item panel over it, carrying the Wake-up group of §5.6 as
+// the server renders it (T-0173). The `hidden` attributes are the server's
+// first render — the group hidden until the section selector says someday, and
+// every control but the selected kind's hidden — and what these tests drive is
+// mm.js keeping them right afterwards.
+//
+// panelHTML(kind, section) builds the panel for a starting state, because both
+// visibility rules are about a state CHANGING and the starting point decides
+// what a change proves.
+function panelHTML(kind = 'never', section = 'ready') {
+  const hide = (k) => (k === kind ? '' : 'hidden');
+  const panel = `
+  <aside data-testid="item-panel" class="mm-panel">
+    <form data-testid="item-form">
+      <select data-testid="item-field-section" name="section">
+        <option value="ready" ${section === 'ready' ? 'selected' : ''}>Ready</option>
+        <option value="someday" ${section === 'someday' ? 'selected' : ''}>Someday</option>
+      </select>
+      <fieldset data-testid="item-tickler" class="mm-tickler"
+                data-present="${kind === 'never' ? 'false' : 'true'}"
+                ${section === 'someday' ? '' : 'hidden'}>
+        <select data-testid="tickler-kind" name="tickler-kind">
+          <option value="never" ${kind === 'never' ? 'selected' : ''}>Never</option>
+          <option value="one-time" ${kind === 'one-time' ? 'selected' : ''}>One-time</option>
+          <option value="weekly" ${kind === 'weekly' ? 'selected' : ''}>Weekly</option>
+          <option value="monthly" ${kind === 'monthly' ? 'selected' : ''}>Monthly</option>
+        </select>
+        <div class="mm-tickler__control" data-kind="one-time" ${hide('one-time')}>
+          <input data-testid="tickler-date" type="date" name="tickler-date">
+        </div>
+        <div class="mm-tickler__control" data-kind="weekly" ${hide('weekly')}>
+          <select data-testid="tickler-weekday" name="tickler-weekday"></select>
+          <select data-testid="tickler-ordinal" name="tickler-ordinal"></select>
+        </div>
+        <div class="mm-tickler__control" data-kind="monthly" ${hide('monthly')}>
+          <input data-testid="tickler-monthday" type="number" name="tickler-monthday">
+        </div>
+        <div class="mm-tickler__control" data-kind="time" ${kind === 'never' ? 'hidden' : ''}>
+          <input data-testid="tickler-time" type="time" name="tickler-time">
+        </div>
+      </fieldset>
+    </form>
+  </aside>
+`;
+  return BOARD_HTML.replace('<div data-testid="toast-region"', panel + '  <div data-testid="toast-region"');
+}
+
 // htmx double: records every ajax call, and lets a test fire htmx:* events on
 // document.body the way the real htmx does (CustomEvent, bubbles).
 function makeHtmx(win) {
@@ -359,6 +406,92 @@ test('the focus trap cycles Tab within the dialog', (t) => {
   a.dispatchEvent(shifted);
   assert.equal(shifted.defaultPrevented, true, 'Shift+Tab from the first is swallowed');
   assert.equal(win.document.activeElement, b, 'Shift+Tab from the first wraps to the last');
+});
+
+/* ------------------------------------------------- the Wake-up group (T-0173) */
+
+/*
+  §5.6's two visibility rules. Both are client-side because a select must
+  answer instantly, and both are only ever a VIEW: what they reveal is still
+  composed and validated server-side on save (§4.2), so nothing here decides
+  what a schedule means.
+*/
+
+const groupOf = (win) => byTestid(win, 'item-tickler');
+const controlFor = (win, kind) =>
+  groupOf(win).querySelector(`[data-kind="${kind}"]`);
+const change = (win, el) => el.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+test('the kind select shows the matching control and hides the others', (t) => {
+  const { win } = load(t, panelHTML('never', 'someday'));
+  const kind = byTestid(win, 'tickler-kind');
+
+  // Starting state: kind never, so every control is hidden, the time one too.
+  for (const k of ['one-time', 'weekly', 'monthly', 'time']) {
+    assert.equal(controlFor(win, k).hidden, true, `${k} starts hidden`);
+  }
+
+  kind.value = 'weekly';
+  change(win, kind);
+  assert.equal(controlFor(win, 'weekly').hidden, false, 'weekly is revealed');
+  assert.equal(controlFor(win, 'one-time').hidden, true, 'one-time stays hidden');
+  assert.equal(controlFor(win, 'monthly').hidden, true, 'monthly stays hidden');
+  assert.equal(controlFor(win, 'time').hidden, false, 'the time control shows for every kind but never');
+
+  kind.value = 'monthly';
+  change(win, kind);
+  assert.equal(controlFor(win, 'monthly').hidden, false, 'monthly is revealed');
+  assert.equal(controlFor(win, 'weekly').hidden, true, 'the previous kind is hidden again');
+
+  kind.value = 'never';
+  change(win, kind);
+  for (const k of ['one-time', 'weekly', 'monthly', 'time']) {
+    assert.equal(controlFor(win, k).hidden, true, `${k} is hidden again by never`);
+  }
+});
+
+test('the new panel reveals the group when the section becomes Someday', (t) => {
+  const { win } = load(t, panelHTML('never', 'ready'));
+  const section = byTestid(win, 'item-field-section');
+
+  assert.equal(groupOf(win).hidden, true, 'the selector defaults to Ready, where the group is hidden');
+
+  section.value = 'someday';
+  change(win, section);
+  assert.equal(groupOf(win).hidden, false, 'Someday reveals it without a round trip');
+
+  section.value = 'ready';
+  change(win, section);
+  assert.equal(groupOf(win).hidden, true, 'and switching back hides it again');
+});
+
+test('a swap re-reconciles the group with its kind select', (t) => {
+  // save-and-add-another replaces the panel wholesale, so the settle handler is
+  // what keeps a freshly swapped form's controls matching its own select.
+  const { win, htmx } = load(t, panelHTML('never', 'someday'));
+  const kind = byTestid(win, 'tickler-kind');
+
+  // A swap lands a form whose select says one-time while the controls still
+  // carry the previous render's hidden flags.
+  kind.value = 'one-time';
+  assert.equal(controlFor(win, 'one-time').hidden, true, 'stale, as a swap can leave it');
+
+  htmx.fire('htmx:afterSettle', { requestConfig: { verb: 'get' } });
+  assert.equal(controlFor(win, 'one-time').hidden, false, 'the settle reconciles it');
+  assert.equal(controlFor(win, 'time').hidden, false, 'and the time control with it');
+});
+
+test('a board with no Wake-up group is left alone', (t) => {
+  // The group is absent from a ready or blocked item's panel, and from the
+  // board on its own. Neither handler may throw when it finds nothing.
+  const { win, htmx } = load(t);
+  const section = win.document.createElement('select');
+  section.setAttribute('data-testid', 'item-field-section');
+  win.document.body.appendChild(section);
+
+  change(win, section);
+  htmx.fire('htmx:afterSettle', { requestConfig: { verb: 'get' } });
+  assert.equal(byTestid(win, 'item-tickler'), null, 'nothing was invented');
 });
 
 /* ---------------------------------------------------------------- toasts */

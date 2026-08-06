@@ -33,12 +33,14 @@ Working today:
 - **The file format**, and `check.sh` / `find.sh` at the repository root.
 - **The `mm` CLI**, in `implementations/golang`. Every operation of
   `spec-tools.md` §5.1 is implemented, plus `--block`, `--unblock`, `--note`,
-  `--wip`, `--find` and the optional `--archive`, `--migrate` and `--stats`.
-  `--dry-run`,
-  `--json` and `--porcelain` work on everything.
+  `--wip`, `--find` and the optional `--archive`, `--migrate`, `--stats` and
+  `--tick`. `--dry-run`, `--json` and `--porcelain` work on everything.
+- **The UI service** of `spec-gui.md`, in the same module: `mm-ui` serves the
+  board, the item panel, the report and the check view, and runs the tickler
+  on `tickler.interval` when the system config sets one.
 
-Not built: the **UI service** of `spec-gui.md`, the **TUI** of `spec-tui.md`, and
-the Python, TypeScript and Erlang implementations.
+Not built: the **TUI** of `spec-tui.md`, and the Python, TypeScript and Erlang
+implementations.
 
 **Prefer the CLI when it is available** — see *Using the CLI* below. It is the
 only way to get `next_id` allocation, atomic multi-file writes and pre-commit
@@ -158,6 +160,8 @@ Regex to recognize one:
 | `outcome` | `shipped` `cancelled` `obsolete` | required in `done.md` |
 | `blocked` | free text | required in `## Blocked`, forbidden elsewhere |
 | `detail` | `details/T-0042.md` | must match the item's own ID |
+| `tickler` | `2026-09-01` `mon@08:00` `first-mon@08:00` `15@08:00` `last@08:00` | a wake-up schedule; **`## Someday` only**, and the item must carry `created` |
+| `tickled` | `YYYY-MM-DD` | when the schedule last fired; audit trail |
 
 ## The files
 
@@ -242,6 +246,10 @@ mm --archive --before 2026-01                  # roll old months into done-YYYY.
 mm --archive --age 30                          # the same cutoff as a policy
 mm --migrate --project "Acme"                  # bring an older directory up to date
 mm --stats --bucket month                      # throughput, cycle time, flight, tags
+
+mm --add "Renew the domain" --section someday --tickler 2026-09-01
+mm --tick --dry-run                            # what the schedules would fire today
+mm --tick                                      # fire them
 ```
 
 `--archive` is the one operation that takes data OUT of the validated set:

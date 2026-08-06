@@ -292,6 +292,14 @@ func templateFuncs() template.FuncMap {
 			}
 			return template.HTMLAttr(fmt.Sprintf(`%s="%s"`, name, template.HTMLEscapeString(value)))
 		},
+		// weekdays and ordinals are the option lists of the Wake-up group's
+		// weekly controls (§5.6), in the one order the library's parser accepts.
+		"weekdays": func() []string {
+			return []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+		},
+		"ordinals": func() []string {
+			return []string{"first", "second", "third", "fourth", "last"}
+		},
 		// yesno renders the true/false strings the spec's data-* attributes use.
 		// Go's default for a bool is the same text, but going through here makes
 		// the intent explicit and survives a future change of spelling.

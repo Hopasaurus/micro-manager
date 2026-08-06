@@ -40,6 +40,11 @@ type panelData struct {
 	// form with nothing filled in (§4.1, /p/:id/new).
 	New     bool
 	Section string
+
+	// Tickler pre-fills the Wake-up group (§5.6): the controls parsed back out
+	// of the item's schedule, or kind never with everything empty for an
+	// unscheduled someday item and for the new-item form.
+	Tickler ticklerGroupData
 }
 
 type noteLine struct {
@@ -126,7 +131,11 @@ func (s *Server) newItemPanel(c *echo.Context) error {
 	if _, ok := parseSection(section); !ok {
 		section = sectionKey(mm.SectionReady)
 	}
-	v, err = s.withBoard(c, store, v, panelData{New: true, Section: section, Item: itemData{Prio: "med"}})
+	v, err = s.withBoard(c, store, v, panelData{
+		New: true, Section: section,
+		Item:    itemData{Prio: "med"},
+		Tickler: ticklerGroupData{Kind: "never"},
+	})
 	if err != nil {
 		return err
 	}
@@ -151,6 +160,13 @@ func (s *Server) panelView(c *echo.Context, store *mm.Store, it mm.Item) (view, 
 		Created: it.Created.String(),
 		Started: it.Started.String(),
 		Done:    it.Done.String(),
+	}
+	// The Wake-up group's pre-fill: a someday item's schedule, when it has one
+	// (§5.6). Everything else renders kind never with empty controls — an
+	// unscheduled someday item can gain a tickler here, and no other state has
+	// a schedule to edit.
+	if it.State == mm.StateBacklog && it.Section == mm.SectionSomeday {
+		data.Tickler = prefillTickler(it)
 	}
 
 	// The long-form description, when the item has one.
@@ -466,6 +482,15 @@ func (s *Server) editItem(c *echo.Context) error {
 		req.Blocked = &v
 	}
 
+	// §4.2: the Wake-up group's controls compose the tickler: value; present
+	// but empty (kind never) removes an existing one, absent leaves it alone —
+	// a non-someday item's form has no group on it.
+	schedule, present, err := composeTickler(c)
+	if err != nil {
+		return err
+	}
+	applyTicklerUpdate(&req, schedule, present)
+
 	today, err := mm.ParseDate(mm.NewTimestamp(s.registry.now()).String()[:10])
 	if err != nil {
 		return err
@@ -526,6 +551,14 @@ func (s *Server) addItem(c *echo.Context) error {
 	req.Blocked = c.Request().FormValue("blocked")
 	req.DetailBody = c.Request().FormValue("detail")
 	req.DryRun = c.Request().FormValue("dryRun") == "true"
+
+	// §4.2: the Wake-up group's controls compose the tickler: value server-side;
+	// the library validates it (and I7's Someday-only placement) on write.
+	schedule, present, err := composeTickler(c)
+	if err != nil {
+		return err
+	}
+	applyTicklerAdd(&req, schedule, present)
 
 	today, err := mm.ParseDate(mm.NewTimestamp(s.registry.now()).String()[:10])
 	if err != nil {
@@ -660,7 +693,11 @@ func (s *Server) afterMutationAddAnother(c *echo.Context, store *mm.Store, it mm
 	if err != nil {
 		return err
 	}
-	v.Data = itemPageData{Board: board, Panel: panelData{New: true, Section: string(section), Item: itemData{Prio: "med"}}}
+	v.Data = itemPageData{Board: board, Panel: panelData{
+		New: true, Section: sectionKey(section),
+		Item:    itemData{Prio: "med"},
+		Tickler: ticklerGroupData{Kind: "never"},
+	}}
 	return s.render(c, http.StatusOK, "board", "board-swap-again", v)
 }
 

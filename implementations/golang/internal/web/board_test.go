@@ -152,8 +152,8 @@ func TestColumnAddLinksSwapThePanel(t *testing.T) {
 	if strings.Contains(frag, `data-testid="app-header"`) {
 		t.Error("the htmx add-link GET returned the whole shell, not the panel fragment")
 	}
-	// The fragment carries the seeded section into the form.
-	if !strings.Contains(frag, `name="section" value="ready"`) {
+	// The fragment carries the seeded section into the form's selector.
+	if !strings.Contains(frag, `<option value="ready" selected>`) {
 		t.Error("the new-item form is not seeded with section=ready")
 	}
 }

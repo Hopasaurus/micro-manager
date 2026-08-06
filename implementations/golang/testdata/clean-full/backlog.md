@@ -21,4 +21,4 @@ Prose between the heading and the first section, which readers must ignore.
 
 ## Someday
 
-- [ ] [T-0005] Maybe one day | created:2026-07-23
+- [ ] [T-0005] Maybe one day | created:2026-07-23 | tickler:2026-09-01

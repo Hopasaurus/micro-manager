@@ -141,7 +141,7 @@ func TestAddAnotherKeepsFreshPanel(t *testing.T) {
 	if !strings.Contains(panel, `hx-post="/p/`+id+`/items"`) {
 		t.Error("the re-opened form does not POST to the add route")
 	}
-	if !strings.Contains(panel, `name="section" value="Ready"`) {
+	if !strings.Contains(panel, `<option value="ready" selected>`) {
 		t.Error("the re-opened form lost the section of the item just added")
 	}
 	if strings.Contains(panel, "First of many") {
