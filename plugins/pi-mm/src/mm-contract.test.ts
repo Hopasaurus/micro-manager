@@ -23,6 +23,7 @@ import { clearPin, setPin } from "./board.ts";
 import { probe } from "./presence.ts";
 import { run } from "./runner.ts";
 import { readTools } from "./tools-read.ts";
+import { removeTools } from "./tools-remove.ts";
 import { workflowTools } from "./tools-workflow.ts";
 import { writeTools } from "./tools-write.ts";
 
@@ -257,4 +258,52 @@ test("the workflow tools work against a real board", { skip: present.ok ? false 
 
   assert.match(await must("mm_check"), /clean: no violations/);
   t.diagnostic("covered: mm_start, the WIP limit and its remedy, mm_pause, mm_finish");
+});
+
+/*
+  mm_remove against a real board and a real mm (§8.2).
+
+  The guards are only worth anything if the thing behind them really deletes,
+  and if the refusals really leave the item there. Both are checked against a
+  board on disk rather than against a fake that could agree with either.
+*/
+test("mm_remove's guards hold against a real board", { skip: present.ok ? false : `no mm on PATH (${present.reason})` }, async (t) => {
+  const dir = join(mkdtempSync(join(tmpdir(), "mm-remove-")), "board");
+  const deps = { health: async () => ({ ok: true as const, version: "real" }), run };
+  const tools = new Map(
+    [...readTools(deps), ...writeTools(deps), ...removeTools(deps)].map((x) => [x.name, x]),
+  );
+  const call = async (name: string, params: Record<string, unknown> = {}, ctx?: unknown) => {
+    const r = await tools.get(name)!.execute("id", params, undefined, undefined, ctx as never);
+    return { text: r.content[0]?.text ?? "", isError: r.isError === true };
+  };
+
+  clearPin();
+  t.after(clearPin);
+  await call("mm_init", { project: "Removals", dir });
+  await call("mm_add", { title: "a duplicate" });
+
+  // Guard 1: no confirmation, and the item is still there afterwards.
+  const unconfirmed = await call("mm_remove", { id: "1" });
+  assert.equal(unconfirmed.isError, true);
+  assert.match((await call("mm_list", {})).text, /a duplicate/, "nothing was removed");
+
+  // Guard 2: a user who declines. Same again — still there.
+  const declining = { hasUI: true, ui: { confirm: async () => false } };
+  const declined = await call("mm_remove", { id: "1", confirmed: true }, declining);
+  assert.equal(declined.isError, false, "declining is an answer, not a failure");
+  assert.match(declined.text, /the user declined/);
+  assert.match((await call("mm_list", {})).text, /a duplicate/, "still nothing was removed");
+
+  // Both guards satisfied: it really goes.
+  const accepting = { hasUI: true, ui: { confirm: async () => true } };
+  const removed = await call("mm_remove", { id: "1", confirmed: true }, accepting);
+  assert.equal(removed.isError, false, removed.text);
+  assert.match(removed.text, /removed T-0001/);
+  assert.match((await call("mm_list", {})).text, /no items match/);
+
+  // And the board is still valid: --force is a guard, not a bypass of the
+  // transaction envelope.
+  assert.match((await call("mm_check", {})).text, /clean: no violations/);
+  t.diagnostic("covered: unconfirmed refusal, declined prompt, real removal, board still clean");
 });

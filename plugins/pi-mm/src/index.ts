@@ -22,9 +22,10 @@
 
   What is built so far: the skeleton and the mm check (T-0175), the runner
   (T-0176), board resolution and the pin (T-0177), the required READ tools
-  (T-0178), the WRITE tools (T-0179) and the workflow tools (T-0180).
-  mm_remove's double guard (T-0181), the /mm command (T-0182) and context
-  injection (T-0183) land here next.
+  (T-0178), the WRITE tools (T-0179), the workflow tools (T-0180) and
+  mm_remove with its double guard (T-0181) — the whole required surface of
+  §4.2. The /mm command (T-0182), context injection (T-0183) and the
+  recommended tools (T-0184) land here next.
 */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -39,6 +40,7 @@ import {
 import { presence, presenceMessage, resetPresence, type Presence } from "./presence.ts";
 import { run } from "./runner.ts";
 import { readTools } from "./tools-read.ts";
+import { removeTools } from "./tools-remove.ts";
 import { workflowTools } from "./tools-workflow.ts";
 import { writeTools } from "./tools-write.ts";
 
@@ -82,7 +84,12 @@ export default function micromanager(pi: ExtensionAPI): void {
       if (ui) setStatus(ui, line);
     },
   };
-  for (const tool of [...readTools(deps), ...writeTools(deps), ...workflowTools(deps)]) {
+  for (const tool of [
+    ...readTools(deps),
+    ...writeTools(deps),
+    ...workflowTools(deps),
+    ...removeTools(deps),
+  ]) {
     pi.registerTool(tool as never);
   }
 

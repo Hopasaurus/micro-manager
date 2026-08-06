@@ -50,6 +50,25 @@ export interface ToolDeps {
   readonly timeoutMs?: number;
   /** Called whenever the pin changes, so the TUI status line follows it (§3.2.1). */
   readonly onPin?: (line: string) => void;
+  /**
+   * §9's `confirmRemove`: the master switch for mm_remove's interactive prompt
+   * (§8.2 step 2). It never weakens the schema guard — `confirmed: true` is
+   * required either way. Defaults to on; the config reader is T-0183.
+   */
+  readonly confirmRemove?: boolean;
+}
+
+/**
+ * The slice of pi's ExtensionContext the tools use.
+ *
+ * Narrow on purpose: a tool that took the whole context could reach anything,
+ * and what these actually need is "is there a user, and may I ask them?".
+ */
+export interface ToolContext {
+  readonly hasUI?: boolean;
+  readonly ui?: {
+    confirm?: (title: string, message: string) => Promise<boolean> | boolean;
+  };
 }
 
 /** The tool-result shape pi expects, narrowed to what these tools produce. */
@@ -70,6 +89,10 @@ export interface ToolDefinition {
     toolCallId: string,
     params: Record<string, unknown>,
     signal?: AbortSignal,
+    // pi's own tool signature. onUpdate streams progress, which nothing here
+    // needs; ctx is what mm_remove asks the user through (§8.2).
+    onUpdate?: unknown,
+    ctx?: ToolContext,
   ): Promise<ToolResult>;
 }
 

@@ -31,9 +31,15 @@ a board, and provides the read and write tools of spec §4.2:
 | `mm_start` | move an item into a working slot |
 | `mm_pause` | return a working item to the backlog |
 | `mm_finish` | close an item into `done.md` with an outcome |
+| `mm_remove` | delete an item — guarded three times over |
 
-**Not yet.** `mm_remove` and its double guard (T-0181), the `/mm` command
-(T-0182) and per-turn context injection (T-0183).
+That is the **whole required tool set** of spec §4.2. `mm_remove` needs
+`confirmed: true` (a schema default of `false` makes a missing parameter a
+refusal), asks the user as well when there is a UI, and only then passes
+`--force` — the CLI's own guard being the third line rather than the first.
+
+**Not yet.** The `/mm` command (T-0182), per-turn context injection (T-0183),
+and the recommended tools (T-0184).
 
 ## Requirements
 
@@ -100,6 +106,6 @@ It skips with a reason when `mm` is not on PATH, so the suite still runs on a
 machine that has never built the Go implementation:
 
 ```bash
-npm test                       # 83 pass, 4 skipped without mm
-PATH=/path/to/mm/bin:$PATH npm test   # 87 pass
+npm test                       # 94 pass, 5 skipped without mm
+PATH=/path/to/mm/bin:$PATH npm test   # 99 pass
 ```

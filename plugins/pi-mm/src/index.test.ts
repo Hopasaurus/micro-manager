@@ -86,9 +86,8 @@ test("the factory registers the lifecycle and the tool surface built so far", ()
   assert.ok(pi.events.has("session_start"), "the mm check runs at session start (§2.1)");
   assert.ok(pi.events.has("session_shutdown"), "shutdown is stated, not omitted (§7)");
 
-  // §4.2's required read set (T-0178), write set (T-0179) and workflow set
-  // (T-0180). mm_remove is T-0181; registering half a tool would be worse than
-  // registering none.
+  // §4.2's whole REQUIRED set: read (T-0178), write (T-0179), workflow
+  // (T-0180) and mm_remove (T-0181). The recommended set is T-0184.
   const names = pi.tools.map((t) => (t as { name: string }).name).sort();
   assert.deepEqual(names, [
     "mm_add",
@@ -104,6 +103,7 @@ test("the factory registers the lifecycle and the tool surface built so far", ()
     "mm_next",
     "mm_note",
     "mm_pause",
+    "mm_remove",
     "mm_show",
     "mm_start",
     "mm_status",
