@@ -176,12 +176,18 @@ The test runner is node's own, and the tests spawn real shims rather than
 faking `spawn` — what they are checking is what happens when running a program
 goes wrong.
 
+`src/conformance.test.ts` is the spec §10 checklist: the two conformance
+tiers, a sweep that runs every tool at its widest and asserts that no switch
+reached `mm` which the spec does not name, that one tool call is one operation,
+that no lifecycle handler mutates anything, and the §8.1 smoke test that the
+plugin never opens a board file.
+
 `src/mm-contract.test.ts` goes further and drives the **real** `mm`, so the
 runner is checked against the CLI rather than against a fixture's idea of it.
 It skips with a reason when `mm` is not on PATH, so the suite still runs on a
 machine that has never built the Go implementation:
 
 ```bash
-npm test                       # 159 pass, 7 skipped without mm
-PATH=/path/to/mm/bin:$PATH npm test   # 166 pass
+npm test                       # 167 pass, 7 skipped without mm
+PATH=/path/to/mm/bin:$PATH npm test   # 174 pass
 ```

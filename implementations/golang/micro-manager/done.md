@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0185] Conformance tests: runner, exit codes, §8.1 smoke test | prio:med | tags:plugin | detail:details/T-0185.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0184] Recommended tools: mm_block/unblock, mm_search, mm_report, mm_tick, mm_archive | prio:low | tags:plugin | detail:details/T-0184.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0183] Context injection and configuration | prio:med | tags:plugin | detail:details/T-0183.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0182] /mm command surface | prio:med | tags:plugin | detail:details/T-0182.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped

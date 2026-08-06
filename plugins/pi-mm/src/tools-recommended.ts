@@ -46,6 +46,7 @@ import {
 import type { Pin } from "./board.ts";
 import type { Envelope } from "./runner.ts";
 import {
+  listOf,
   operate,
   pinDetailsFor,
   ready,
@@ -209,7 +210,7 @@ export function recommendedTools(deps: ToolDeps): ToolDefinition[] {
 
         const step = await operate(deps, args, signal);
         if (!step.ok) return step.result;
-        const hits = resultOf<SearchHit[]>(step.envelope) ?? [];
+        const hits = listOf<SearchHit>(step.envelope);
         return text(withWarnings(searchHits(hits), step.envelope), stepDetails(step));
       },
     },

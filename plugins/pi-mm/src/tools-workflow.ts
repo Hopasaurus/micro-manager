@@ -157,7 +157,7 @@ export function workflowTools(deps: ToolDeps): ToolDefinition[] {
       promptSnippet: "Close an item into done.md with an outcome",
       promptGuidelines: [
         "Use mm_finish when an item is done, and pass outcome cancelled or obsolete rather than mm_remove when work is being abandoned — the record is the point.",
-        "Put what was learned in closing_note; it lands in the item's detail file, which outlives the conversation.",
+        "Pass what was learned to mm_finish as closing_note; it lands in the item's detail file, which outlives the conversation.",
       ],
       parameters: Type.Object({
         id: Type.String({ description: "The item's ID" }),

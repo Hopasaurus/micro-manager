@@ -124,6 +124,18 @@ export function resultOf<T>(envelope: Envelope): T | undefined {
 }
 
 /**
+ * An envelope's `result` when it is a list.
+ *
+ * Defensive for the same reason the runner's `Envelope` has no required field:
+ * a tool that assumed the shape turns one unexpected envelope into a thrown
+ * TypeError, which pi sees as a crashed tool rather than as a result. An
+ * empty list renders as "no items match", which is a thing a model can act on.
+ */
+export function listOf<T>(envelope: Envelope): T[] {
+  return Array.isArray(envelope.result) ? (envelope.result as T[]) : [];
+}
+
+/**
  * Runs one operation against the resolved board.
  *
  * Every read tool is this plus a formatter, which is the point: the gates, the
@@ -290,7 +302,7 @@ export function readTools(deps: ToolDeps): ToolDefinition[] {
 
         const step = await operate(deps, args, signal);
         if (!step.ok) return step.result;
-        const items = resultOf<ItemView[]>(step.envelope) ?? [];
+        const items = listOf<ItemView>(step.envelope);
         return text(
           withWarnings(itemList(items, "no items match."), step.envelope),
           details(step.envelope, step.pin),
@@ -430,13 +442,13 @@ export function readTools(deps: ToolDeps): ToolDefinition[] {
           // exit code is what a script gates on, and a broken board is exactly
           // what this tool is for reporting.
           const envelope = step.result.details["envelope"] as Envelope | undefined;
-          const results = envelope ? resultOf<CheckResult[]>(envelope) : undefined;
+          const results = envelope ? listOf<CheckResult>(envelope) : undefined;
           if (results?.length) {
             return text(checkReport(results), { ...step.result.details, violations: true });
           }
           return step.result;
         }
-        const results = resultOf<CheckResult[]>(step.envelope) ?? [];
+        const results = listOf<CheckResult>(step.envelope);
         return text(
           withWarnings(checkReport(results), step.envelope),
           details(step.envelope, step.pin),
