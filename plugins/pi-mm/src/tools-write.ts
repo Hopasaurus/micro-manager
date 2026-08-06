@@ -20,11 +20,12 @@
 
 import { Type } from "typebox";
 
-import { boardStatusLine, boardFromEnvelope, pinDetails, setPin } from "./board.ts";
+import { boardStatusLine, boardFromEnvelope, pinDetails, setPin, type Pin } from "./board.ts";
 import { itemDetail, itemLine, withWarnings, type ItemView } from "./format.ts";
 import type { Envelope } from "./runner.ts";
 import {
   operate,
+  pinDetailsFor,
   ready,
   resultOf,
   text,
@@ -393,8 +394,8 @@ export function writeTools(deps: ToolDeps): ToolDefinition[] {
   ];
 }
 
-function stepDetails(step: { envelope: Envelope; pin: { path: string } }): Record<string, unknown> {
-  return { ...pinDetails(step.pin as never), envelope: step.envelope };
+function stepDetails(step: { envelope: Envelope; pin: Pin }): Record<string, unknown> {
+  return { ...pinDetailsFor(step.pin), envelope: step.envelope };
 }
 
 /** Reads an array-of-strings parameter, ignoring anything that is not one. */

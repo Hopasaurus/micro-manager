@@ -152,6 +152,11 @@ export async function operate(
   return { ok: true, envelope: outcome.envelope, pin: resolution.pin };
 }
 
+/** The pin as `details` carries it (§7), for tool files that assemble their own. */
+export function pinDetailsFor(pin: Pin): Record<string, unknown> {
+  return pinDetails(pin);
+}
+
 /** `details` for a successful read: the envelope, plus the pin (§4.1, §7). */
 function details(envelope: Envelope, pin: Pin): Record<string, unknown> {
   return { ...pinDetails(pin), envelope };

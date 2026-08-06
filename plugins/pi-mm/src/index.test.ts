@@ -79,16 +79,16 @@ function withMmOnPath(body: string): () => void {
   };
 }
 
-test("the factory registers the lifecycle, the read surface and the write surface", () => {
+test("the factory registers the lifecycle and the tool surface built so far", () => {
   const pi = fakePi();
   micromanager(pi.api as never);
 
   assert.ok(pi.events.has("session_start"), "the mm check runs at session start (§2.1)");
   assert.ok(pi.events.has("session_shutdown"), "shutdown is stated, not omitted (§7)");
 
-  // §4.2's required read set (T-0178) and write set (T-0179). The workflow
-  // tools and mm_remove are T-0180-T-0181; registering half of one would be
-  // worse than none.
+  // §4.2's required read set (T-0178), write set (T-0179) and workflow set
+  // (T-0180). mm_remove is T-0181; registering half a tool would be worse than
+  // registering none.
   const names = pi.tools.map((t) => (t as { name: string }).name).sort();
   assert.deepEqual(names, [
     "mm_add",
@@ -97,12 +97,15 @@ test("the factory registers the lifecycle, the read surface and the write surfac
     "mm_describe",
     "mm_edit",
     "mm_find",
+    "mm_finish",
     "mm_init",
     "mm_list",
     "mm_move",
     "mm_next",
     "mm_note",
+    "mm_pause",
     "mm_show",
+    "mm_start",
     "mm_status",
   ]);
   // The /mm command is T-0182.
@@ -197,23 +200,35 @@ test("health() is what every later tool gates on", async () => {
 });
 
 /*
-  §8.1's conformance smoke test, worth having from the first commit: "a test
-  that greps the plugin's source for the board filenames and finds none".
+  §8.1's conformance smoke test: "a test that greps the plugin's source for the
+  board filenames and finds none".
 
-  Two greps, because the filename one alone is both too weak and too strong —
-  too weak (a plugin could read backlog.md through a path it assembled) and too
-  strong (prose describing the board is not a file access). So:
+  The rule has been narrowed twice, both times because it fired on prose rather
+  than on an access — a parameter description saying "working.NN.md", a result
+  line saying an item landed in "done.md". Naming a board file is how you TALK
+  about a board; opening one is the thing that must never happen. So what is
+  asserted now is the mechanism rather than the vocabulary:
 
-    1. no plugin module imports node:fs at all. You cannot read or write a
-       board without it, and the plugin's one legitimate way out to the world
-       is spawning mm.
-    2. no board filename appears inside a STRING LITERAL. Comments may say what
-       a board is made of; code may not name its files.
+    1. No plugin module imports node:fs. You cannot read or write a board
+       without it, and the plugin's one way out to the world is spawning mm —
+       whose argv the runner's own tests pin. This is the load-bearing rule.
+    2. No board filename appears as a PATH: a bare filename literal
+       ("backlog.md"), or one after a separator ("details/T-0042.md"). A
+       filename inside a sentence is prose and is allowed; a filename that IS
+       the string is a path being built.
 */
 test("the plugin reaches the board only through mm (§8.1)", async () => {
   const { readdirSync, readFileSync } = await import("node:fs");
   const dir = new URL(".", import.meta.url).pathname;
-  const names = ["backlog\\.md", "done\\.md", "working\\.[0-9N]", "details/"];
+  // Each needle is a board FILE. The details one carries its directory,
+  // because "details" alone is also pi's word for a tool result's payload —
+  // which is how this rule fired on board.ts reading message["details"].
+  const names = [
+    "backlog\\.md",
+    "done\\.md",
+    "working\\.[0-9N]+\\.md",
+    "details/[^\"'`\\s]*\\.md",
+  ];
 
   let checked = 0;
   for (const name of readdirSync(dir)) {
@@ -227,15 +242,15 @@ test("the plugin reaches the board only through mm (§8.1)", async () => {
       `${name} imports node:fs; the plugin never touches board files (§2.1, §8.1)`,
     );
     for (const needle of names) {
-      const inAString = new RegExp(`["'\`][^"'\`\n]*${needle}`);
+      const asAPath = new RegExp(`["'\`](${needle}|[^"'\`\n]*/${needle})["'\`]`);
       assert.doesNotMatch(
         source,
-        inAString,
-        `${name} names a board file in a string literal; go through mm (§2.1, §8.1)`,
+        asAPath,
+        `${name} builds a path to a board file; go through mm (§2.1, §8.1)`,
       );
     }
   }
   // A smoke test that silently covered nothing is the failure mode this file
   // cannot afford (the same reason the Go side logs its fixture counts).
-  assert.ok(checked >= 2, `only ${checked} plugin module(s) were scanned`);
+  assert.ok(checked >= 5, `only ${checked} plugin module(s) were scanned`);
 });

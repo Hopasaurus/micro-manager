@@ -23,6 +23,7 @@ import { clearPin, setPin } from "./board.ts";
 import { probe } from "./presence.ts";
 import { run } from "./runner.ts";
 import { readTools } from "./tools-read.ts";
+import { workflowTools } from "./tools-workflow.ts";
 import { writeTools } from "./tools-write.ts";
 
 const present = await probe("mm", 5_000);
@@ -197,4 +198,63 @@ test("the write tools work against a real board", { skip: present.ok ? false : `
   // rather than the files.
   assert.match(await must("mm_check"), /clean: no violations/);
   t.diagnostic("covered: mm_init, mm_add, mm_edit, mm_move, mm_note, mm_describe, mm_check");
+});
+
+/*
+  The workflow tools against a real board and a real mm (§4.2, §4.3).
+
+  The WIP limit is the case worth spending a real board on: it is the one
+  failure the spec asks the plugin to make ACTIONABLE, and its remedy is text
+  mm composes, so only the real binary can prove it survives the trip.
+*/
+test("the workflow tools work against a real board", { skip: present.ok ? false : `no mm on PATH (${present.reason})` }, async (t) => {
+  const dir = join(mkdtempSync(join(tmpdir(), "mm-flow-")), "board");
+  const deps = { health: async () => ({ ok: true as const, version: "real" }), run };
+  const tools = new Map(
+    [...readTools(deps), ...writeTools(deps), ...workflowTools(deps)].map((x) => [x.name, x]),
+  );
+  const call = async (name: string, params: Record<string, unknown> = {}) => {
+    const r = await tools.get(name)!.execute("id", params);
+    return { text: r.content[0]?.text ?? "", isError: r.isError === true };
+  };
+  const must = async (name: string, params: Record<string, unknown> = {}) => {
+    const r = await call(name, params);
+    assert.equal(r.isError, false, `${name}: ${r.text}`);
+    return r.text;
+  };
+
+  clearPin();
+  t.after(clearPin);
+
+  // One slot, so the second start is a real WIP limit rather than a staged one.
+  await must("mm_init", { project: "Flow", dir, slots: 1 });
+  await must("mm_add", { title: "alpha" });
+  await must("mm_add", { title: "beta" });
+
+  assert.match(await must("mm_start", { id: "1" }), /started T-0001 {2}alpha → slot 01/);
+
+  const blocked = await call("mm_start", { id: "2" });
+  assert.equal(blocked.isError, true, "the second start must fail at the limit");
+  assert.match(blocked.text, /wip limit reached \(1\/1\)/);
+  // The remedy, composed by mm and passed through untouched (§4.3).
+  assert.match(blocked.text, /slot 01 {2}T-0001 {2}alpha/);
+  assert.match(blocked.text, /finish one, pause one/);
+
+  // Pause frees the slot, so the same start now succeeds — no chaining, two
+  // tool calls, exactly as §4.1 requires.
+  assert.match(await must("mm_pause", { id: "1" }), /paused T-0001 {2}alpha/);
+  assert.match(await must("mm_start", { id: "2" }), /started T-0002 {2}beta → slot 01/);
+
+  const finished = await must("mm_finish", {
+    id: "2",
+    outcome: "shipped",
+    closing_note: "done and dusted",
+  });
+  assert.match(finished, /finished T-0002 {2}beta → done\.md \(shipped\)/);
+  // The closing note lands in the detail file, which is where it outlives the
+  // conversation.
+  assert.match(await must("mm_show", { id: "2", detail: true }), /done and dusted/);
+
+  assert.match(await must("mm_check"), /clean: no violations/);
+  t.diagnostic("covered: mm_start, the WIP limit and its remedy, mm_pause, mm_finish");
 });

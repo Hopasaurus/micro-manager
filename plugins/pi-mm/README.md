@@ -28,10 +28,12 @@ a board, and provides the read and write tools of spec §4.2:
 | `mm_note` | append a dated note |
 | `mm_init` | create a board and pin it for the session |
 | `mm_describe` | set the board's description, through `mm` |
+| `mm_start` | move an item into a working slot |
+| `mm_pause` | return a working item to the backlog |
+| `mm_finish` | close an item into `done.md` with an outcome |
 
-**No state changes yet.** `mm_start` / `mm_pause` / `mm_finish` (T-0180),
-`mm_remove` and its double guard (T-0181), the `/mm` command (T-0182) and
-per-turn context injection (T-0183) land next.
+**Not yet.** `mm_remove` and its double guard (T-0181), the `/mm` command
+(T-0182) and per-turn context injection (T-0183).
 
 ## Requirements
 
@@ -98,6 +100,6 @@ It skips with a reason when `mm` is not on PATH, so the suite still runs on a
 machine that has never built the Go implementation:
 
 ```bash
-npm test                       # 72 pass, 3 skipped without mm
-PATH=/path/to/mm/bin:$PATH npm test   # 75 pass
+npm test                       # 83 pass, 4 skipped without mm
+PATH=/path/to/mm/bin:$PATH npm test   # 87 pass
 ```
