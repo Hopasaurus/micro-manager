@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0169] Spec: tickler fields and grammar — SCHEDULE token, placement, I7 (from T-0164 spike) | prio:med | tags:format,spec | detail:details/T-0169.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0186] Spec: add --prefix P to mm --init so a board's id_prefix can be set at creation | prio:med | tags:cli,spec | detail:details/T-0186.md | created:2026-08-05 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
 - [x] [T-0188] Spec: --describe TEXT, the board description in --status, and --init --description (spec-tools.md) | prio:low | tags:cli,spec | detail:details/T-0188.md | created:2026-08-05 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
 - [x] [T-0174] Implement the pi plugin per project/spec-pi-mm-plugin.md | prio:med | tags:plugin | detail:details/T-0174.md | created:2026-08-05 | done:2026-08-05 | outcome:obsolete

@@ -82,6 +82,7 @@ SHOULD be stripped by writers.
 | `WEEK` | ISO 8601 week date, year and week only | `2026-W30` |
 | `TIME` | ISO 8601 wall time, extended format | `09:14:00` |
 | `TIMESTAMP` | ISO 8601 combined date and time with a UTC offset | `2026-07-29T09:14:00Z` |
+| `SCHEDULE` | a tickler schedule expression — a calendar date, a weekday optionally prefixed by an ordinal, or a month day, each with an optional `@HH:MM` wall time (not the `TIME` token: no seconds, no offset) | `2026-09-01`, `mon@08:00`, `first-mon@08:00`, `15@08:00`, `last@08:00` |
 | `TAG` | one or more of `A-Z a-z 0-9 . _ -` | `ci`, `infra-2` |
 | `TAGLIST` | one or more `TAG`, comma-separated, no spaces | `infra,ci` |
 | `SLUG` | one to sixteen ASCII characters: a lowercase letter, then lowercase letters, digits or hyphens | `py`, `python-impl` |
@@ -130,6 +131,12 @@ by the four files of §5**. Those are deliberately date-granular: an item's
 in the data model needs a clock. A tool MUST NOT introduce a time-of-day field
 into these files without a spec revision — see §10 for what that granularity
 costs and why it is still the right trade.
+
+The `tickler` field is the one sanctioned exception (§3.3, §6): its `SCHEDULE`
+value MAY carry an `@HH:MM` wall time inside the expression. That time is part
+of the schedule's grammar, read only by the process evaluating the schedule in
+its own zone — it is not a time-of-day field, and the checker validates its
+shape without ever consulting a clock (§10.1).
 
 #### 3.3.2 The ID grammar is directory-configurable
 
@@ -332,6 +339,11 @@ inside one of the three sections — never before the first heading.
   priority within equal `prio`. Items here MUST NOT carry `blocked`.
 - `## Blocked` — every item MUST carry a `blocked` field.
 - `## Someday` — order is not significant. Items MUST NOT carry `blocked`.
+  This is the only section an item carrying `tickler` (§6) MAY sit in, and a
+  `tickler` item MUST also carry `created` — a never-fired recurring schedule
+  anchors its first fire on `created`, and without the anchor a fresh
+  `mon@08:00` written on a Tuesday would be judged overdue against the epoch
+  and fire for the Monday that already passed.
 
 Non-item content (prose, comments, blank lines) MAY appear anywhere and MUST be
 ignored by readers.
@@ -597,6 +609,8 @@ accept it, and a writer moving an item between files MUST preserve it verbatim
 | `done` | `DATE` | **yes** in `done.md` | done | |
 | `outcome` | `shipped` / `cancelled` / `obsolete` | **yes** in `done.md` | done | |
 | `blocked` | free text, no `|` | **yes** in `## Blocked` | backlog | Forbidden in `## Ready` and `## Someday`. |
+| `tickler` | `SCHEDULE` | no | `## Someday` only | Fires when the schedule's next instant arrives — a bare date is one-shot (the item moves to Ready); a weekday or monthday spec recurs, making the item a prototype that spawns a new Ready item on each fire. Placement and the `created` requirement: §5.1. |
+| `tickled` | `DATE` | no | all | Date the item's `tickler` last fired. Audit trail; harmless after a manual move. |
 | `detail` | `DETAILPATH` | no | all | MUST equal `details/<this item's ID>.md`. In an archived file it is `details-YYYY/<ID>.md` instead (§5.6); archived files are not validated. |
 
 `refs` names items in *other* directories — each element is a target board's
@@ -613,7 +627,7 @@ ambiguous link never invalidates a directory.
 Writers SHOULD emit fields in this order. Readers MUST NOT require it.
 
 ```
-prio, tags, refs, detail, created, started, blocked, done, outcome, <unregistered...>
+prio, tags, refs, detail, created, started, blocked, tickler, tickled, done, outcome, <unregistered...>
 ```
 
 ## 7. Cross-file constraints
@@ -648,6 +662,11 @@ ten; the identifiers match the numbering in `structure.md`.
   no key is repeated within an item line. `prio`, `tags`, `created`, and
   `started` are validated identically wherever they appear — item line or
   working-file frontmatter — since §5.2 gives them the same lexical form in both.
+  A `tickler` value is checked for shape only — it MUST match the `SCHEDULE`
+  grammar of §3.3 and MUST NOT be evaluated: no clock enters the format, and a
+  schedule can never make a directory invalid because a clock disagrees (§10.1).
+  An item carrying `tickler` MUST sit in `## Someday` and MUST also carry
+  `created` (§5.1); `tickled` is a valid `DATE` wherever it appears.
   `backlog.md` frontmatter carries a non-empty `project` (§5.1).
 - **I8 — Detail references resolve.** Every `detail` value equals
   `details/<ID>.md` for the ID that carries it, and that file exists.
@@ -718,6 +737,14 @@ without a spec revision.
    days. This is deliberate — a clock in a hand-edited file is a field people get
    wrong, and month grouping is the only ordering `done.md` actually needs — but
    it does mean the format cannot answer "which did I finish first" within a day.
+   The tickler keeps the discipline: its schedule expression may name an
+   `@HH:MM` wall time (§3.3), but that time lives inside the expression, read
+   only by the evaluating process in its own zone. The checker validates the
+   schedule's *shape*, never its meaning, so a schedule cannot make a directory
+   invalid because a clock disagrees — and two processes with different zones
+   see the same data while their judgement of "due" can differ by up to an
+   hour, which is exactly the wall-clock behaviour a "Monday at 08:00" promise
+   implies.
 2. **A pipe in a title is usually, not always, caught.** `Fix a | b` splits into
    a title and a bogus field `b`, which fails the key:value rule and is
    reported. But `Fix a | b: c` splits into a title and a well-formed
@@ -782,6 +809,8 @@ MONTH           ^[0-9]{4}-[0-9]{2}$
 WEEK            ^[0-9]{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$
 TIME            ^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$
 TIMESTAMP       ^[0-9]{4}-[0-9]{2}-[0-9]{2}T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$
+SCHEDULE        ^([0-9]{4}-[0-9]{2}-[0-9]{2}|(first|second|third|fourth|last)-(mon|tue|wed|thu|fri|sat|sun)|mon|tue|wed|thu|fri|sat|sun|0[1-9]|[12][0-9]|3[01]|last)(@([01][0-9]|2[0-3]):[0-5][0-9])?$
+                                             (the DATE alternative must be a real calendar date, per the DATE note)
 TAGLIST         ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$
 SLUG            ^[a-z][a-z0-9-]{0,15}$
 LINKLIST        ^[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15}(,[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15})*$
