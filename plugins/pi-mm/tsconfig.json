@@ -1,0 +1,20 @@
+{
+  "//": "Relative imports keep their .ts extension — that is what node's own type stripping wants when it runs src/*.test.ts, and what jiti resolves when pi loads the extension. Types only. pi loads the extension through jiti, so nothing here is ever built — `npm run typecheck` is the whole point of this file.",
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["src/**/*.ts"]
+}

@@ -92,11 +92,16 @@ dependencies.
 **Source-tree naming caution.** This repository's own `find.sh`/`check.sh`
 recognize a *todo directory* by name alone, including the name `micro-manager`
 (see `project/SKILL.md`). The plugin's source in this repository MUST
-therefore live under a different directory name (the `implementations/`
-placeholder for TypeScript is a natural home), and only the *installed* copy
-in pi's extension directory is named `micro-manager`. The destination name is
-the plugin's identity for `/reload` and for humans; the source name is an
-implementation detail.
+therefore live under a different directory name — it is `plugins/pi-mm/`, and
+only the *installed* copy in pi's extension directory is named
+`micro-manager`. The destination name is the plugin's identity for `/reload`
+and for humans; the source name is an implementation detail.
+
+(`implementations/typescript/` was the obvious home when this was written and
+is no longer: that workspace is the TypeScript *implementation* of the format —
+library, CLI, service, web client, with its own build and its own rules — and
+the plugin is an agent-side companion that drives the Go `mm`. Putting it there
+would enrol it in a build it has nothing to do with.)
 
 ### 3.2 Board resolution
 

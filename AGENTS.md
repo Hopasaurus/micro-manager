@@ -29,6 +29,7 @@ project/
   spec-tools.md               library/CLI contract, transactions, errors, exit codes
   spec-gui.md                 web UI: DOM contract, routes, theming, binding
   spec-tui.md                 terminal UI
+  spec-pi-mm-plugin.md        pi extension: tools, /mm command, per-turn context
   SKILL.md                    how to use the format day to day
   session-001.md              what happened in the first session
 implementations/
@@ -40,7 +41,12 @@ implementations/
     micro-manager/            this implementation's own todo directory
     project/                  architecture.md, architecture-echo-v5.md
   python/mmx                  partial Python implementation; the tracking stopgap
-  erlang/, typescript/        empty placeholders
+  typescript/                 TypeScript implementation — scaffold only
+  erlang/                     empty placeholder
+plugins/
+  pi-mm/                      the pi extension of spec-pi-mm-plugin.md. NOT named
+                              micro-manager: find.sh matches on name alone, and
+                              only the INSTALLED copy carries that name
 sample-data/                  example micro-manager directories, used as fixtures
   sample1/ sample2/           conventional names
   hidden/ symbol/ symbol-hidden/

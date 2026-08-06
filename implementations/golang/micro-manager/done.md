@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0175] Plugin skeleton and install: directory extension, package.json, mm-on-PATH check | prio:med | tags:plugin | detail:details/T-0175.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0173] mm --tick and the UI tickler service goroutine | prio:med | tags:cli,gui | detail:details/T-0173.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0172] Library: schedule parser + calendar math, tickler/tickled fields, Store.tick/ticklers | prio:med | tags:library | detail:details/T-0172.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0171] Spec: tickler UI — panel controls, next-fire badge (spec-gui) | prio:low | tags:gui,spec | detail:details/T-0171.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped

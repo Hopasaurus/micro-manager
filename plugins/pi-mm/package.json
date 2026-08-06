@@ -1,0 +1,25 @@
+{
+  "name": "micro-manager-pi-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "pi extension: a micro-manager board as tools, a /mm command, and per-turn context (project/spec-pi-mm-plugin.md)",
+  "license": "UNLICENSED",
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --test src/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "typebox": "1.1.38"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.82.1",
+    "@types/node": "^26.1.2",
+    "typescript": "^5.9.3"
+  }
+}
