@@ -2,7 +2,7 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0203
+next_id: T-0204
 updated: 2026-08-06
 ---
 

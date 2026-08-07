@@ -31,15 +31,19 @@ project/
   spec-tui.md                 terminal UI
   spec-pi-mm-plugin.md        pi extension: tools, /mm command, per-turn context
   SKILL.md                    how to use the format day to day
-  session-001.md              what happened in the first session
+  session-00N.md              what happened in each session, oldest first
+  code-review-00N.md          review passes, and what they changed
+  report-lsp-results.md       what the language server caught, and its limits
 implementations/
   golang/                     the Go implementation — furthest along
     AGENTS.md                 working rules for this implementation
-    mm/                       THE LIBRARY (8,201 lines, 164 tests)
-    cmd/mm/                   CLI entry point — a stub so far
+    mm/                       THE LIBRARY (~12,700 lines, 471 tests)
+    cmd/mm/                   CLI entry point
+    cmd/mm-ui/                UI service entry point
     internal/cli/             wrapper: flags, rendering, exit codes
+    internal/web/             the UI service of spec-gui.md: routes, SSE, theming
     micro-manager/            this implementation's own todo directory
-    project/                  architecture.md, architecture-echo-v5.md
+    project/                  architecture.md, and the plan-*.md that phase the work
   python/mmx                  partial Python implementation; the tracking stopgap
   typescript/                 TypeScript implementation — scaffold only
   erlang/                     empty placeholder
@@ -92,17 +96,27 @@ Also non-obvious:
 ./check.sh --all                     # validate every directory
 ./find.sh                            # list micro-manager directories
 implementations/python/mmx golang status
-implementations/python/mmx golang start  T-0018
-implementations/python/mmx golang note   T-0018 "some finding"
-implementations/python/mmx golang finish T-0018
+implementations/python/mmx golang start  T-0202
+implementations/python/mmx golang note   T-0202 "some finding"
+implementations/python/mmx golang finish T-0202
 go -C implementations/golang test ./...
 ```
 
-`mmx` is the tracking stopgap until `mm --start`/`--finish` exist. It is
-permitted without prompting because its target is confined to
-`implementations/<name>/micro-manager` — see `.claude/settings.local.json`. Invoke
-it by **absolute path**: a `cd` in an earlier command changes the working
-directory for later ones and breaks the relative form.
+`mmx` was the stopgap until `mm --start`/`--finish` existed. They exist now, and
+`mm` is the better tool — but `mmx` remains the default for tracking here
+because it needs no build and is permitted without prompting: its target is
+confined to `implementations/<name>/micro-manager`, see
+`.claude/settings.local.json`. Invoke it by **absolute path**: a `cd` in an
+earlier command changes the working directory for later ones and breaks the
+relative form.
+
+The real CLI is one build away and does everything `mmx` cannot — `--add`,
+`--add-many`, `--check`, `--report`:
+
+```bash
+go -C implementations/golang build -o bin/mm ./cmd/mm
+implementations/golang/bin/mm --status --dir implementations/golang/micro-manager
+```
 
 Track your own work in `implementations/golang/micro-manager/`. Start an item
 before working on it and finish it when done — `mmx` re-runs `check.sh` after
@@ -110,14 +124,34 @@ every transition, so a bad edit surfaces immediately.
 
 ## Current state
 
-- **Go library**: T-0001 … T-0017 shipped. Parsers, writers, validator, atomic
-  writes, transaction envelope, and `Add`/`Update`/`Move`/detail operations.
-- **28 tasks remain**, next is **T-0018** (`--start` with WIP enforcement).
-  Detail files already exist for the subtle ones: T-0018, T-0024, T-0028, T-0030.
-- **No working CLI.** `cmd/mm` returns exit 2. T-0030–T-0034 build the wrapper.
-- **No GUI or TUI code.** Both fully specified, nothing written.
-- **T-0040 is blocked**: the module path is the placeholder `micromanager`
-  because there is no VCS remote. `git init` would unblock it.
+Read the board rather than this list where the two disagree —
+`implementations/golang/micro-manager/` is the record, and this is a summary of
+it that will drift again.
+
+- **Go library**: parsers, writers, validator, atomic writes, the transaction
+  envelope, and every operation of `spec-tools.md` §6.2 **except**
+  `setDescription`. Plus `addMany` and `parseAddLine` (§5.2.1), `archive`,
+  `migrate`, `stats`, `tick`, `fix` and discovery.
+- **The `mm` CLI is built and is what this repository tracks its own work
+  with.** Every required operation of §5.1, plus `--block`/`--unblock`,
+  `--note`, `--search`, `--find`, `--wip`, `--add-many`, `--fix`, `--archive`,
+  `--migrate`, `--stats` and `--tick`. `--dry-run`, `--json` and `--porcelain`
+  work on all of them. **Not built**: `--describe` (§5.3.2), `--detail ID` and
+  `--subtask` as operations (§5.2 — `--detail` exists only as a modifier of
+  `--add`/`--show`), `--export` and `--top-up` (§5.3).
+- **The UI service is built** (`internal/web`, `cmd/mm-ui`): the board, the item
+  panel, the report and the check view of `spec-gui.md`, plus the tickler on
+  `tickler.interval`. Build both with `make build-all`.
+- **The pi plugin is built** (`plugins/pi-mm`, spec `spec-pi-mm-plugin.md`):
+  the whole required tool surface, the recommended tools gated on the installed
+  `mm`, the `/mm` command and per-turn context.
+- **No TUI code.** `spec-tui.md` is fully specified and nothing is written.
+- **20 items in the backlog**, 168 done. The top of `## Ready` is genuinely
+  next; `## Blocked` is mostly the GUI flicker-fix phases of
+  `implementations/golang/project/research-app-fllicker.md`.
+- **Python, TypeScript, Erlang are stubs.** `python/mmx` tracks work here and
+  implements start/finish/note/status and nothing else; `typescript/` is a
+  four-package scaffold; `erlang/` is a placeholder.
 
 ## Working rules for the Go implementation
 
@@ -125,8 +159,9 @@ Full detail in `implementations/golang/AGENTS.md`. The short version:
 
 - The library `mm/` has **zero third-party dependencies** and is compiled into
   every front end, so it must not print, call `os.Exit`, read the environment, or
-  hold global state. **This is not yet enforced by a test** — T-0029 adds one.
-  Until then, check it by hand:
+  hold global state. This **is** enforced, by `mm/hygiene_test.go`, which parses
+  the sources rather than grepping them — so it is about calls rather than about
+  the characters in a comment. The grep is still the quick check:
 
   ```bash
   grep -rnE 'os\.Exit|fmt\.Print|os\.Getenv|log\.Fatal' \
@@ -177,11 +212,12 @@ cannot tell a skipping test from a passing one, and it does not know the ten
 invariants. Those still need `check.sh` and a careful read. A clean diagnostic
 stream is the floor, not the ceiling.
 
-**"No references" is not "safe to delete."** Most of `mm/`'s exported surface has
-zero callers today because the CLI and the UI service that the specs require are
-not written yet. Reference counts answer "who calls this now", never "should this
-exist". See `project/report-lsp-results.md` for what it caught here and the
-seven ways it can mislead.
+**"No references" is not "safe to delete."** The CLI and the UI service now call
+most of `mm/`'s exported surface, so a zero-reference symbol is a sharper signal
+than it was — but not a verdict: what is left unclaimed is largely what the TUI
+of `spec-tui.md` will need, and that is unwritten. Reference counts answer "who
+calls this now", never "should this exist". See `project/report-lsp-results.md`
+for what it caught here and the seven ways it can mislead.
 
 Prefer an absolute `filePath` — relative paths are rejected. If a diagnostic
 contradicts a clean `go build`, believe the build and re-check.
