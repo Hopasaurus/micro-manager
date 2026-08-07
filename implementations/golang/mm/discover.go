@@ -70,6 +70,56 @@ func IsBoardDirectory(path string) bool {
 	return false
 }
 
+// CollidingSiblings returns the other micro-manager directories sitting beside
+// this one, by name, sorted (spec-file-format.md Appendix B).
+//
+// One parent holds at most one board. `micro-manager` beside `.micro-manager`
+// is the pair that actually happens — a rename that copied instead of moving,
+// or two tools disagreeing about which spelling to create — and it is a
+// mistake because NOTHING JOINS THEM: both start at T-0001, so the same id
+// means two different items, and a report over the project covers one of them.
+//
+// This is deliberately not part of Validate. I1-I10 are properties of one
+// directory's files, and a mutation validating before it commits must not
+// depend on what sits beside the board it is writing. The finding belongs to
+// the tools that already look at the parent: a checker, and discovery.
+//
+// An unreadable parent yields nothing rather than an error. This answers "is
+// there a second board here", and "I cannot tell" is a no — the caller is
+// reporting a hygiene problem, not deciding whether to write.
+func CollidingSiblings(path string) []string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil
+	}
+	parent := filepath.Dir(abs)
+	if parent == abs {
+		return nil // the filesystem root has no parent to scan
+	}
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return nil
+	}
+
+	self := filepath.Base(abs)
+	var out []string
+	for _, e := range entries {
+		name := e.Name()
+		if name == self || !e.IsDir() || !IsDirectoryName(name) {
+			continue
+		}
+		// A sibling that is not a board is not a collision — it is the
+		// emptiness test's business, and reporting an empty directory as a
+		// rival board would send someone to fix the wrong thing.
+		if !IsBoardDirectory(filepath.Join(parent, name)) {
+			continue
+		}
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // Discover walks the configured roots and returns every micro-manager directory
 // below them.
 //

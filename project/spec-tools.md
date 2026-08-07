@@ -268,7 +268,10 @@ in it to be answered with `--dir`.
 
 If more than one candidate is found at the resolving step, the tool MUST fail
 with a not-found error listing the candidates and their `project` names, rather
-than guessing. Ambiguity is never resolved silently.
+than guessing. Ambiguity is never resolved silently. Two recognized names in
+ONE parent — `micro-manager` beside `.micro-manager` — reach this rule as a
+matter of course, and `--check` reports them as the mistake they are
+(`spec-file-format.md` Appendix B).
 
 `--all`, where an operation documents support for it, applies the operation
 across every directory discovered by step 4 — and therefore never across one
@@ -697,6 +700,13 @@ sorted by path then numeric line. Exits 1 if any directory has a violation.
 holding neither `backlog.md` nor `done.md` (`spec-file-format.md` Appendix B).
 A directory named explicitly is checked whatever it holds: failing the same
 test there is an error, since the user asked about that directory.
+
+`--check` MUST also report a **sibling collision** — two recognized names in
+one parent directory, `spec-file-format.md` Appendix B — against each colliding
+directory, so that checking either one reports it. It is not one of I1–I10 and
+does not come from the library's validator: a collision is a property of the
+parent, and per-directory validation must not depend on where a board sits.
+The finding counts toward the exit code like any other.
 
 This MUST be the same validation code the mutating operations run before
 committing (§8). Two implementations of the invariants will diverge.

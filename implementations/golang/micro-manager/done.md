@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0194] detect multiple mm directories in the same directory | prio:med | detail:details/T-0194.md | created:2026-08-06 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0191] update the spec so that if backlog.md and done.md are missing it skips the directory. | prio:med | detail:details/T-0191.md | created:2026-08-06 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0203] AGENTS.md: refresh the stale Current state and its neighbours | prio:med | tags:docs | detail:details/T-0203.md | created:2026-08-06 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0187] mm cli: add the ability to bulk add tasks | prio:med | tags:new-feature | detail:details/T-0187.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped

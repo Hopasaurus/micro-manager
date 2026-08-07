@@ -919,3 +919,40 @@ Discovery implementations SHOULD additionally prune well-known directories that
 never contain projects (`.git`, `.claude`, `node_modules`, `vendor`, `target`,
 `dist`, `build`, `.venv`) and SHOULD let the user add to that list. That pruning
 is a convenience and an optimisation; the emptiness test above is the rule.
+
+### Two boards in one place
+
+**One parent directory holds at most one micro-manager directory.** Two of the
+recognized names side by side — `micro-manager` and `.micro-manager` is the
+pair that actually happens — is a mistake, and a checker MUST report it.
+
+It is a mistake because nothing joins them. Two boards in one place share no
+`next_id`, so both start at `T-0001` and the same ID means two different items;
+`--report` over the project covers one of them; and a person who adds an item
+today has no way to know which board yesterday's went into. It is usually the
+residue of a rename that copied instead of moving, or of two tools disagreeing
+about which spelling to create.
+
+**It is not an invariant.** I1–I10 are properties of one directory's files, and
+a conforming reader MUST be able to validate a board it was handed without
+reading the directory above it. A collision is a property of the PARENT, so it
+is a **checker and discovery finding** — reported by the tools that already
+look at the parent, and absent from the per-directory validation that mutations
+run before they commit (`spec-tools.md` §8). Making it I11 would oblige every
+reader to walk upward, which nothing else in this format requires.
+
+What the tools MUST do:
+
+- **A checker** reports it against each colliding directory and exits non-zero,
+  the same as any other finding. Against each, rather than once against the
+  parent, because a person who checks one board has to be told — and because a
+  finding no result carries is one a machine caller cannot see.
+- **Discovery** lists both, and SHOULD say they collide. Hiding one would pick a
+  winner, which is the one thing the format never does with ambiguity.
+- **Resolution** already refuses: two candidates at the resolving step is the
+  ambiguity of `spec-tools.md` §4, and it fails with both paths listed rather
+  than guessing.
+
+The fix is the user's: keep one directory, move any items worth keeping into it
+by hand — they carry their own IDs, and two boards' IDs overlap, so a merge is
+a decision no tool can make.

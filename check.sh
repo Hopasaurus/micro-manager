@@ -44,6 +44,12 @@ trap 'rm -f "$tmp".*' EXIT
 
 problem() { echo "$1" >> "$tmp.derr"; }
 
+# The two micro signs, for the sibling-collision test below. U+00B5 MICRO SIGN
+# is the one writers should use; U+03BC GREEK SMALL LETTER MU renders
+# identically and must be recognized anyway (spec-file-format.md Appendix B).
+MU=$(printf '\xc2\xb5')
+MMU=$(printf '\xce\xbc')
+
 # Read one frontmatter key out of a markdown file.
 fm_get() {
   awk -v want="$2" '
@@ -118,6 +124,44 @@ check_dir() {
     echo "  $dir: not a todo directory" >&2
     return 1
   fi
+
+  # --- one parent, one board (spec-file-format.md Appendix B) --------------
+  # Two recognized names side by side -- micro-manager and .micro-manager is
+  # the pair that actually happens -- is a mistake, because NOTHING JOINS
+  # THEM: both start at T-0001, so the same id means two different items, and
+  # a report over the project covers one of them.
+  #
+  # Reported against each colliding directory, not once against the parent, so
+  # that checking ONE board tells you. It is deliberately not an invariant: a
+  # collision is a property of the parent, and the ten are properties of one
+  # directory's files.
+  #
+  # This runs after the structural gate above, so a directory that is not a
+  # board never reports a rival, and a sibling that is not a board is not one.
+  #
+  # The parent's ENTRIES are listed and the names compared as strings. Probing
+  # "$parent/$name" for each of the six instead would be wrong on a
+  # normalization-insensitive filesystem: APFS resolves µmanager (U+00B5) and
+  # μmanager (U+03BC) to the same directory, so a board named with one of them
+  # would report the other as a rival that does not exist. That false positive
+  # fired on this repository's own sample-data/symbol/ the first time this was
+  # written.
+  parent=$(dirname "$dir"); self=$(basename "$dir")
+  siblings=""
+  for p in "$parent"/*/ "$parent"/.*/; do
+    [ -d "$p" ] || continue
+    n=${p%/}; n=${n##*/}
+    case "$n" in .|..) continue ;; esac
+    [ "$n" != "$self" ] || continue
+    case "$n" in
+      micro-manager|.micro-manager|"${MU}manager"|".${MU}manager"|"${MMU}manager"|".${MMU}manager") ;;
+      *) continue ;;
+    esac
+    [ -f "$p/backlog.md" ] || [ -f "$p/done.md" ] || continue
+    siblings="${siblings:+$siblings, }$n"
+  done
+  [ -z "$siblings" ] ||
+    problem "$dir: a second micro-manager directory is beside this one ($siblings); keep one — two boards in one place share no next_id, so both start at T-0001 and the same id means two different items"
 
   # invariant 10: uniform digit width, numbered 1..N with no gaps
   w0=""

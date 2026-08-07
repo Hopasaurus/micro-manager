@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -650,5 +651,113 @@ func TestABoardMissingOneFileIsStillCheckedAndFound(t *testing.T) {
 	}
 	if !strings.Contains(got.Stdout+got.Stderr, "done.md") {
 		t.Errorf("the report should name the missing file:\n%s\n%s", got.Stdout, got.Stderr)
+	}
+}
+
+// T-0194 — two boards in one parent directory (spec-file-format.md Appendix B).
+//
+// Resolution already refuses to choose between them, which is the ambiguity of
+// §4. What this adds is that --check SAYS SO: the command a user runs to ask
+// "is anything wrong here?" answered "both clean" for a situation that splits a
+// project's history in two.
+func TestCheckReportsTwoBoardsInOneDirectory(t *testing.T) {
+	root := t.TempDir()
+	proj := filepath.Join(root, "proj")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	base := runner{cwd: proj}
+	if got := base.run("--init", "--project", "Visible"); got.Code != ExitOK {
+		t.Fatal(got)
+	}
+	if got := base.run("--init", "--project", "Hidden",
+		"--dir", filepath.Join(proj, ".micro-manager")); got.Code != ExitOK {
+		t.Fatal(got)
+	}
+
+	// Checking ONE board reports it: a person working in this directory may
+	// never run a scan that sees both.
+	got := base.run("--check", "--dir", filepath.Join(proj, "micro-manager"))
+	if got.Code != ExitInvariantViolation {
+		t.Fatalf("want a finding, got: %s", got)
+	}
+	if !strings.Contains(got.Stdout, ".micro-manager") {
+		t.Errorf("the finding must name the sibling:\n%s", got.Stdout)
+	}
+	if !strings.Contains(got.Stdout, "keep one") {
+		t.Errorf("the finding must name the fix:\n%s", got.Stdout)
+	}
+
+	// And so does the other one — symmetric, or checking the wrong half of a
+	// collision would look clean.
+	if got := base.run("--check", "--dir", filepath.Join(proj, ".micro-manager")); got.Code != ExitInvariantViolation {
+		t.Errorf("want a finding from the hidden board too, got: %s", got)
+	}
+
+	// --all reports both, and the exit code carries the verdict.
+	all := base.run("--check", "--all")
+	if all.Code != ExitInvariantViolation {
+		t.Errorf("want --all to fail, got: %s", all)
+	}
+	if strings.Count(all.Stdout, "a second micro-manager directory") != 2 {
+		t.Errorf("want the finding against each board:\n%s", all.Stdout)
+	}
+
+	// The finding travels as DATA, not only as a line: a machine caller that
+	// reads the envelope must see it, or a plugin reporting "clean" for a
+	// failed check is the result.
+	js := base.run("--check", "--dir", filepath.Join(proj, "micro-manager"), "--json")
+	var env struct {
+		Result []struct {
+			OK         bool `json:"ok"`
+			Violations []struct {
+				File    string `json:"file"`
+				Message string `json:"message"`
+			} `json:"violations"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal([]byte(js.Stdout), &env); err != nil {
+		t.Fatalf("envelope is not JSON: %v\n%s", err, js.Stdout)
+	}
+	if len(env.Result) != 1 || env.Result[0].OK {
+		t.Fatalf("the directory should not be reported ok: %+v", env.Result)
+	}
+	if len(env.Result[0].Violations) != 1 ||
+		!strings.Contains(env.Result[0].Violations[0].Message, ".micro-manager") {
+		t.Errorf("the violation should carry the collision: %+v", env.Result[0].Violations)
+	}
+	// A directory-level finding has no file to name, so it points at the
+	// directory itself — the same place I10's findings do.
+	if env.Result[0].Violations[0].File != "." {
+		t.Errorf("file = %q, want %q", env.Result[0].Violations[0].File, ".")
+	}
+}
+
+// A collision is not an invariant, and a mutation must not be blocked by one:
+// the library's validator never looks at the parent, so writing to either board
+// keeps working while the user decides which to keep.
+func TestACollisionDoesNotBlockWriting(t *testing.T) {
+	root := t.TempDir()
+	proj := filepath.Join(root, "proj")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	base := runner{cwd: proj}
+	if got := base.run("--init", "--project", "Visible"); got.Code != ExitOK {
+		t.Fatal(got)
+	}
+	if got := base.run("--init", "--project", "Hidden",
+		"--dir", filepath.Join(proj, ".micro-manager")); got.Code != ExitOK {
+		t.Fatal(got)
+	}
+
+	dir := filepath.Join(proj, "micro-manager")
+	if got := base.run("--add", "still works", "--dir", dir); got.Code != ExitOK {
+		t.Errorf("a collision must not block a write: %s", got)
+	}
+	// Resolution by SEARCH still refuses, because it cannot know which board
+	// the user means (§4).
+	if got := base.run("--status"); got.Code != ExitNotFound {
+		t.Errorf("want the ambiguity refusal, got: %s", got)
 	}
 }

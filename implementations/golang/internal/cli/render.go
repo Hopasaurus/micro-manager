@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/Hopasaurus/micro-manager/mm"
@@ -455,6 +456,31 @@ func renderFind(env Env, res mm.DiscoveryResult) {
 		fmt.Fprintf(env.Stderr, "mm: %d unreadable director%s skipped\n",
 			res.Skipped, plural(res.Skipped, "y", "ies"))
 	}
+	// Two boards in one parent (spec-file-format.md Appendix B). BOTH are
+	// listed above — hiding one would pick a winner, which is the thing the
+	// format never does with ambiguity — and the warning is what stops the
+	// list reading as two unrelated projects that happen to be adjacent.
+	for _, parent := range collidingParents(res.Directories) {
+		fmt.Fprintf(env.Stderr,
+			"mm: warning: %s holds two micro-manager directories; run --check there\n",
+			dirLabel(env.Cwd, parent))
+	}
+}
+
+// collidingParents returns the parents that hold more than one discovered
+// board, in the order they first appear, so the warning is per situation rather
+// than per directory.
+func collidingParents(dirs []mm.Directory) []string {
+	seen := map[string]int{}
+	var order []string
+	for _, d := range dirs {
+		parent := filepath.Dir(d.Path)
+		seen[parent]++
+		if seen[parent] == 2 {
+			order = append(order, parent)
+		}
+	}
+	return order
 }
 
 // renderStatus is the --status screen (spec-tools.md §5.2).

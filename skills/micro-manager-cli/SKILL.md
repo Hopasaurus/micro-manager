@@ -32,6 +32,11 @@ to share the name will not turn up in `mm --find` or capture a command run
 inside it. Name such a directory with `--dir` and you get an error, not
 silence.
 
+**Two of those names side by side is a mistake** — `micro-manager` next to
+`.micro-manager`. `mm` refuses to guess which you meant, and `mm --check`
+reports it against both: the two boards share no `next_id`, so both start at
+`T-0001` and the same ID means two different items. Keep one.
+
 You rarely need to locate it yourself — `mm` does, in this order: `--dir PATH`,
 then `$MM_DIR`, then the nearest directory above the current one that contains
 one, then a downward search from the current directory. **It refuses rather

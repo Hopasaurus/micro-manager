@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/Hopasaurus/micro-manager/mm"
 )
@@ -48,6 +49,15 @@ func runCheck(env Env, in *Invocation) error {
 			return err
 		}
 
+		// The sibling collision of spec-file-format.md Appendix B. It is not
+		// one of I1-I10 and does not come from the library's validator — a
+		// collision is a property of the PARENT, and per-directory validation
+		// must not depend on where a board sits. It is appended here, where
+		// the checker already has the path, so that it travels with that
+		// directory's findings into --json and --porcelain: a finding no
+		// result carries is one a machine caller cannot see.
+		violations = append(violations, collisionFindings(path)...)
+
 		results = append(results, checkResult{
 			Path: path, Project: dir.Project, Violations: violations,
 			Warnings: warnings,
@@ -92,6 +102,33 @@ func runCheck(env Env, in *Invocation) error {
 			len(dirs), plural(len(dirs), "y", "ies"))
 	}
 	return nil
+}
+
+// collisionFindings reports a second board sitting beside this one.
+//
+// Against each colliding directory rather than once against the parent,
+// because checking ONE board has to report it: a person working in
+// ./micro-manager who never runs --all would otherwise never be told that
+// ./.micro-manager exists and has been collecting the other half of their
+// items.
+//
+// The location is "." — the directory itself, the same place I10's
+// directory-level findings point at — because there is no file to name. The
+// message names the sibling and the fix, since neither is obvious from the
+// fact alone.
+func collisionFindings(path string) []mm.Violation {
+	siblings := mm.CollidingSiblings(path)
+	if len(siblings) == 0 {
+		return nil
+	}
+	return []mm.Violation{{
+		At: mm.Location{File: "."},
+		Message: fmt.Sprintf(
+			"a second micro-manager directory is beside this one (%s); keep one — "+
+				"two boards in one place share no next_id, so both start at T-0001 "+
+				"and the same id means two different items",
+			strings.Join(siblings, ", ")),
+	}}
 }
 
 // checkResult is one directory's verdict, kept so that --json can report the

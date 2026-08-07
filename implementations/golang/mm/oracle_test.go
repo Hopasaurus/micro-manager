@@ -12,6 +12,18 @@ import (
 
 // Cross-check against check.sh, the reference implementation of I1-I10.
 //
+// ONE DIVERGENCE IS BY DESIGN, and it is here rather than in a comment nobody
+// reads: check.sh also reports a SIBLING COLLISION — two recognized names in
+// one parent (spec-file-format.md Appendix B, T-0194) — and Store.Validate
+// deliberately does not. A collision is a property of the parent, and
+// per-directory validation must not depend on where a board sits, or every
+// mutation's pre-commit check would start reading the directory above the one
+// it is writing. The Go side reports it from the checker front end
+// (internal/cli's collisionFindings), which is where check.sh's copy lives too.
+//
+// No fixture below collides, so the comparison is unaffected. A fixture that
+// did would have to filter that finding rather than "fix" either side.
+//
 // Two independent implementations of ten invariants WILL diverge. This finds the
 // divergence for almost no effort, which is worth more than any amount of
 // reasoning about whether they agree.

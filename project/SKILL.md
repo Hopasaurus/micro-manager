@@ -108,6 +108,14 @@ and `check.sh` reports it, because that is a real failure and the alarming
 kind. Naming such a directory explicitly is always an error rather than a
 silent skip, since then you asked about it.
 
+**One parent, one board.** `micro-manager` beside `.micro-manager` is a
+mistake, and `--check` reports it against both. Nothing joins two boards in one
+place: they share no `next_id`, so both start at `T-0001` and the same ID means
+two different items, and a report covers one of them. Resolution refuses to
+choose between them, so every command in that directory needs `--dir` until one
+is gone. Keep one and move the items worth keeping by hand — their IDs overlap,
+so no tool can merge them for you.
+
 ## Directory layout
 
 ```

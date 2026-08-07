@@ -351,3 +351,77 @@ func mustAbs(t *testing.T, path string) string {
 	}
 	return abs
 }
+
+// One parent, one board (spec-file-format.md Appendix B, T-0194).
+//
+// The pair that actually happens is micro-manager beside .micro-manager: a
+// rename that copied instead of moving, or two tools disagreeing about which
+// spelling to create. Both start at T-0001, so the same id means two different
+// items — which is why it is reported rather than tolerated.
+func TestCollidingSiblings(t *testing.T) {
+	root := t.TempDir()
+	visible := mkProject(t, root, "proj/micro-manager", "Visible")
+	hidden := mkProject(t, root, "proj/.micro-manager", "Hidden")
+
+	if got := CollidingSiblings(visible); len(got) != 1 || got[0] != ".micro-manager" {
+		t.Errorf("CollidingSiblings(visible) = %v, want [.micro-manager]", got)
+	}
+	// Symmetric: checking either board has to report the other, because a
+	// person working in one may never run a scan that sees both.
+	if got := CollidingSiblings(hidden); len(got) != 1 || got[0] != "micro-manager" {
+		t.Errorf("CollidingSiblings(hidden) = %v, want [micro-manager]", got)
+	}
+}
+
+func TestCollidingSiblingsIsQuietWhenThereIsNoCollision(t *testing.T) {
+	root := t.TempDir()
+	alone := mkProject(t, root, "solo/micro-manager", "Alone")
+	if got := CollidingSiblings(alone); len(got) != 0 {
+		t.Errorf("a board on its own has no siblings, got %v", got)
+	}
+
+	// A board in a DIFFERENT parent is not a collision, however close.
+	mkProject(t, root, "other/micro-manager", "Other")
+	if got := CollidingSiblings(alone); len(got) != 0 {
+		t.Errorf("a board in another directory is not a sibling, got %v", got)
+	}
+
+	// A name-matching sibling that is not a board is the emptiness test's
+	// business, not this one's: reporting an empty directory as a rival board
+	// would send someone to fix the wrong thing.
+	if err := os.MkdirAll(filepath.Join(root, "solo", ".micro-manager"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := CollidingSiblings(alone); len(got) != 0 {
+		t.Errorf("an empty name-match is not a rival board, got %v", got)
+	}
+	// …until it becomes one.
+	mkProject(t, root, "solo/.micro-manager", "Hidden")
+	if got := CollidingSiblings(alone); len(got) != 1 {
+		t.Errorf("want the sibling once it holds a board, got %v", got)
+	}
+}
+
+// The names are compared as strings against the parent's entries, never probed
+// as paths: a normalization-insensitive filesystem (APFS) resolves µmanager
+// (U+00B5) and μmanager (U+03BC) to the same directory, so probing would report
+// a rival that does not exist. This test would pass either way on Linux, and
+// fails on macOS if the implementation ever goes back to probing.
+func TestCollidingSiblingsDoesNotInventAUnicodeTwin(t *testing.T) {
+	root := t.TempDir()
+	board := mkProject(t, root, "sym/µmanager", "Micro Sign")
+	if got := CollidingSiblings(board); len(got) != 0 {
+		t.Errorf("the same directory under another spelling is not a sibling, got %v", got)
+	}
+}
+
+func TestCollidingSiblingsSurvivesAnUnreadableParent(t *testing.T) {
+	// "I cannot tell" is a no: this answers a hygiene question, not one that
+	// decides whether to write.
+	if got := CollidingSiblings(filepath.Join(t.TempDir(), "nothing", "micro-manager")); got != nil {
+		t.Errorf("want nil for a parent that does not exist, got %v", got)
+	}
+	if got := CollidingSiblings(string(filepath.Separator)); got != nil {
+		t.Errorf("the filesystem root has no parent to scan, got %v", got)
+	}
+}
