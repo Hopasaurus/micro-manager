@@ -136,6 +136,42 @@ func toJSONChanges(res mm.TxResult) []jsonChange {
 	return out
 }
 
+// jsonCapabilities is the --help --json result (spec-tools.md §3.4.1): what
+// this build accepts.
+//
+// Built from the PARSER's tables, never from the help prose. Most of the
+// surface is optional (§5.2, §5.3), so a caller has to be able to ask what is
+// here — and asking a document written for a human is how a re-indented line
+// silently changes what a machine believes.
+//
+// Names carry no leading dashes: a caller compares strings rather than
+// stripping punctuation off them.
+type jsonCapabilities struct {
+	Version    string   `json:"version"`
+	FormatSpec string   `json:"formatSpec"`
+	Operations []string `json:"operations"`
+	Modifiers  []string `json:"modifiers"`
+	// About and Usage are set only when an operation was named, so that
+	// `mm --help --add-many --json` answers "what are its switches" as well as
+	// "does this build have it".
+	About string `json:"about,omitempty"`
+	Usage string `json:"usage,omitempty"`
+}
+
+func toJSONCapabilities(op Op) jsonCapabilities {
+	out := jsonCapabilities{
+		Version:    Version,
+		FormatSpec: FormatSpecVersion,
+		Operations: operationNames(),
+		Modifiers:  modifierNames(),
+	}
+	if op != OpNone {
+		out.About = string(op)
+		out.Usage = operationUsage[op]
+	}
+	return out
+}
+
 // jsonFix is the --fix result: every renumbering plus the next_id the repair
 // wrote (or would write).
 type jsonFix struct {

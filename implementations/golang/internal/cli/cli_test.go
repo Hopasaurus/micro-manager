@@ -374,28 +374,60 @@ func TestHelpAndVersion(t *testing.T) {
 // F1 (code-review-007): --help and --version are answers, not operation
 // output, so a machine mode must not swallow them. An empty stdout with exit
 // 0 would look exactly like a successful run that produced nothing.
+//
+// T-0202 changed one half of this: --help --json is now the capability list
+// (§3.4.1) rather than prose, because there IS a result to put in an envelope
+// and a caller who asked for JSON should not have to scrape a help page. The
+// rule the test exists for is unchanged — nothing is swallowed — and every
+// other combination still answers in prose.
 func TestHelpAndVersionUnderMachineModes(t *testing.T) {
 	r := runner{cwd: t.TempDir()}
 
-	cases := []struct {
+	prose := []struct {
 		args []string
 		want string
 	}{
-		{[]string{"--help"}, "usage:"},
-		{[]string{"--help", "--start"}, "--slot"},
-		{[]string{"--version"}, Version},
+		{[]string{"--help", "--porcelain"}, "usage:"},
+		{[]string{"--help", "--start", "--porcelain"}, "--slot"},
+		{[]string{"--version", "--json"}, Version},
+		{[]string{"--version", "--porcelain"}, Version},
 	}
-	for _, mode := range []string{"--json", "--porcelain"} {
-		for _, c := range cases {
-			args := append(append([]string{}, c.args...), mode)
-			got := r.run(args...)
-			if got.Code != ExitOK {
-				t.Errorf("%v: exit %d, want %d", args, got.Code, ExitOK)
-			}
-			if !strings.Contains(got.Stdout, c.want) {
-				t.Errorf("%v: expected %q in stdout:\n%s", args, c.want, got.Stdout)
-			}
+	for _, c := range prose {
+		got := r.run(c.args...)
+		if got.Code != ExitOK {
+			t.Errorf("%v: exit %d, want %d", c.args, got.Code, ExitOK)
 		}
+		if !strings.Contains(got.Stdout, c.want) {
+			t.Errorf("%v: expected %q in stdout:\n%s", c.args, c.want, got.Stdout)
+		}
+		if strings.HasPrefix(strings.TrimSpace(got.Stdout), "{") {
+			t.Errorf("%v: should still answer in prose:\n%s", c.args, got.Stdout)
+		}
+	}
+
+	// --help --json: the envelope, and the operation's page inside it when one
+	// is named. Nothing is swallowed either way — that is the rule.
+	for _, args := range [][]string{{"--help", "--json"}, {"--help", "--start", "--json"}} {
+		got := r.run(args...)
+		if got.Code != ExitOK {
+			t.Errorf("%v: exit %d", args, got.Code)
+		}
+		var env struct {
+			OK     bool `json:"ok"`
+			Result struct {
+				Operations []string `json:"operations"`
+				Usage      string   `json:"usage"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal([]byte(got.Stdout), &env); err != nil {
+			t.Fatalf("%v: not the envelope: %v\n%s", args, err, got.Stdout)
+		}
+		if !env.OK || len(env.Result.Operations) == 0 {
+			t.Errorf("%v: want the capability list, got %+v", args, env)
+		}
+	}
+	if got := r.run("--help", "--start", "--json"); !strings.Contains(got.Stdout, "--slot") {
+		t.Errorf("the named operation's page should ride along:\n%s", got.Stdout)
 	}
 }
 

@@ -297,6 +297,11 @@ carrying a `[T-0042]` is refused rather than renumbered: IDs are allocated, and
 reusing one breaks I2.
 
 `mm --help` lists everything; `mm --help --start` prints one operation's page.
+`mm --help --json` answers the same question as data — `result.operations` and
+`result.modifiers`, generated from the parser rather than from the prose — for
+a tool that has to know what this build supports before it calls it. The
+exit-code probe works too: `mm --help --OPERATION` is 0 when the build has it
+and 2 when it does not.
 
 **Two switch names differ from what you might guess**, because operation and
 modifier switches share one namespace and no modifier may reuse an operation's

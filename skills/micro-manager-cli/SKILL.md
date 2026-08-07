@@ -85,6 +85,21 @@ positional word: `mm --add "…"`, not `mm add "…"`.
 Run `mm --help` for the full list and `mm --help --OPERATION` for one
 operation's exact switches — trust that over anything paraphrased here.
 
+**Not every build has every operation.** The recommended and optional ones
+(`--search`, `--add-many`, `--archive`, `--tick`, `--stats`, `--describe`…) may
+be absent, and there are two ways to ask before you rely on one:
+
+```bash
+mm --help --add-many >/dev/null 2>&1 && echo supported   # exit 0 / exit 2
+mm --help --json                                         # the capability list
+```
+
+The second answers in one call: `result.operations` and `result.modifiers` name
+everything this build accepts, generated from its own parser rather than from
+the help prose, plus its `version` and `formatSpec`. An older build ignores
+`--json` here and prints the page — so if what comes back is not JSON, fall
+back to the exit-code probe rather than concluding anything.
+
 ## A typical session
 
 ```bash

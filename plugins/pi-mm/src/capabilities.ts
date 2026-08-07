@@ -11,12 +11,17 @@
 
   So this module asks once, at session start, and caches for the session:
 
-    mm --help  →  the Operations section  →  the set of operation names
+    mm --help --json  →  result.operations  →  the set of operation names
 
-  Why `--help` rather than a probe per operation: it is one subprocess instead
-  of six, and a CLI's own help is the list it maintains — spec-tools.md §3.4
-  requires `--help` to name the operations, and the Go build's usage text has a
-  test asserting it matches the parser exactly.
+  ONE subprocess, TWO readings of it. A build that implements spec-tools.md
+  §3.4.1 answers with the envelope, whose lists are generated from the parser's
+  own tables — the authoritative answer, and the reason that section exists. An
+  older build ignores `--json` and prints prose, so the same output is then read
+  as the `Operations:` section of a help page. Neither costs a second probe: the
+  fallback parses what the first one already returned.
+
+  Why `--help` at all rather than a probe per operation: it is one subprocess
+  instead of one per tool, and a CLI's own help is the list it maintains.
 
   UNKNOWN IS NOT ABSENT. A help text this cannot read leaves `known: false`,
   and `hasOperation` then answers yes to everything. Hiding a tool because a
@@ -32,14 +37,51 @@ import { spawnText } from "./presence.ts";
 export const CAPABILITY_TIMEOUT_MS = 5_000;
 
 export interface Capabilities {
-  /** The operation names `mm --help` listed, without their leading dashes. */
+  /** The operation names the build reported, without their leading dashes. */
   readonly operations: ReadonlySet<string>;
-  /** False when the help text could not be read as a list of operations. */
+  /** False when the answer could not be read at all. */
   readonly known: boolean;
+  /**
+   * How it was learned: the §3.4.1 envelope, or the prose help of an older
+   * build. Carried because it is the one thing worth saying in a diagnostic —
+   * a wrong answer from "prose" is a parsing problem, and a wrong answer from
+   * "json" is the build lying about itself.
+   */
+  readonly source?: "json" | "prose";
 }
 
 /** Nothing was learned: every gate opens (see the header). */
 export const UNKNOWN_CAPABILITIES: Capabilities = { operations: new Set(), known: false };
+
+/**
+ * Reads the capability list out of `mm --help --json` (spec-tools.md §3.4.1).
+ *
+ * The lists there are generated from the parser's tables rather than from the
+ * help prose, which is the whole point: a help text that grows a section or
+ * re-indents a line cannot change what this believes about the build.
+ *
+ * Anything unexpected returns undefined so the caller falls back to the prose
+ * reader — an older `mm` ignores `--json` on `--help` and prints a page, and
+ * that is not an error, just an older build.
+ */
+export function parseCapabilityEnvelope(stdout: string): Capabilities | undefined {
+  const text = stdout.trim();
+  if (!text.startsWith("{")) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  const result = (parsed as { result?: { operations?: unknown } } | null)?.result;
+  const listed = result?.operations;
+  if (!Array.isArray(listed)) return undefined;
+  const operations = new Set(listed.filter((op): op is string => typeof op === "string"));
+  // An envelope that reported no operations at all is not a build with none;
+  // it is an answer this cannot use, and unknown is the safe reading of that.
+  if (operations.size === 0) return undefined;
+  return { operations, known: true, source: "json" };
+}
 
 /**
  * Reads the operation names out of `mm --help`.
@@ -65,7 +107,7 @@ export function parseOperations(help: string): Capabilities {
   }
   // A section that yielded nothing is a help text shaped differently from what
   // this can read, which is the unknown case rather than "no operations".
-  return operations.size > 0 ? { operations, known: true } : UNKNOWN_CAPABILITIES;
+  return operations.size > 0 ? { operations, known: true, source: "prose" } : UNKNOWN_CAPABILITIES;
 }
 
 /**
@@ -102,12 +144,15 @@ export async function probeCapabilities(
   command = "mm",
   timeoutMs = CAPABILITY_TIMEOUT_MS,
 ): Promise<Capabilities> {
-  const outcome = await spawnText(command, ["--help"], timeoutMs);
+  const outcome = await spawnText(command, ["--help", "--json"], timeoutMs);
   // Anything other than a clean run leaves the answer unknown. There is no
   // second attempt: a plugin that retried a probe would be spending the user's
   // session start on a question whose fallback is already correct.
   if (outcome.kind !== "exit") return UNKNOWN_CAPABILITIES;
   // Some CLIs print help to stderr. Both are read rather than assuming which,
   // because the cost of guessing wrong is hiding every recommended tool.
-  return parseOperations(outcome.stdout || outcome.stderr);
+  const text = outcome.stdout || outcome.stderr;
+  // The structured answer first, the prose page second — one output, read the
+  // better way when the build offers it.
+  return parseCapabilityEnvelope(text) ?? parseOperations(text);
 }

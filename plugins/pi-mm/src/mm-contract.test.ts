@@ -395,7 +395,21 @@ test("the recommended tools work against a real board", { skip: present.ok ? fal
   t.after(clearPin);
 
   const caps = await probeCapabilities("mm", 5_000);
-  t.diagnostic(`mm operations: ${caps.known ? [...caps.operations].join(" ") : "unknown"}`);
+  t.diagnostic(
+    `mm operations (${caps.source ?? "unknown"}): ` +
+      `${caps.known ? [...caps.operations].join(" ") : "unknown"}`,
+  );
+  /*
+    The structured path, against the real binary (spec-tools.md §3.4.1). A
+    build that implements it answers `--help --json` with the envelope, and the
+    plugin reads the lists the parser generated rather than a page written for
+    a human. An older mm prints prose and is read that way — both are correct,
+    so this asserts only that whichever happened produced a usable answer.
+  */
+  if (caps.source === "json") {
+    assert.ok(caps.operations.has("check"), "a required operation must be listed");
+    assert.equal(caps.operations.has("dir"), false, "a modifier is not an operation");
+  }
 
   await must("mm_init", { project: "Recommended", dir, slots: 1 });
   await must("mm_add", { title: "water the beds", prio: "high", tags: ["outdoor"] });

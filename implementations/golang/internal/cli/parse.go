@@ -396,6 +396,31 @@ func suggest(name string) string {
 	return fmt.Sprintf(" (did you mean --%s?)", best)
 }
 
+// operationNames lists every operation this build accepts, sorted, without
+// leading dashes (spec-tools.md §3.4.1).
+func operationNames() []string {
+	out := make([]string, 0, len(operations))
+	for name := range operations {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// modifierNames lists every modifier this build accepts, sorted. The three
+// tables are one namespace to a caller: --tag accumulates and --dir does not,
+// but both are things you may write on a command line.
+func modifierNames() []string {
+	out := make([]string, 0, len(valueModifiers)+len(boolModifiers)+len(accumulating))
+	for _, table := range []map[string]bool{valueModifiers, boolModifiers, accumulating} {
+		for name := range table {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 func allSwitchNames() []string {
 	var out []string
 	for name := range operations {

@@ -17,6 +17,7 @@ import { join } from "node:path";
 import {
   capabilities,
   hasOperation,
+  parseCapabilityEnvelope,
   parseOperations,
   probeCapabilities,
   resetCapabilities,
@@ -87,6 +88,53 @@ test("an Operations section that yields nothing counts as unknown", () => {
   assert.deepEqual(caps, UNKNOWN_CAPABILITIES);
 });
 
+/* ------------------------------------------- the structured answer (§3.4.1) */
+
+/** The envelope the Go build emits, trimmed to what this reads. */
+const REAL_ENVELOPE = JSON.stringify({
+  ok: true,
+  operation: "help",
+  result: {
+    version: "0.1.0",
+    formatSpec: "1",
+    operations: ["add", "add-many", "archive", "block", "check", "tick"],
+    modifiers: ["dir", "json", "tag"],
+  },
+  changes: [],
+  warnings: [],
+  errors: [],
+});
+
+test("the capability envelope is preferred over the prose", () => {
+  const caps = parseCapabilityEnvelope(REAL_ENVELOPE);
+  assert.ok(caps, "the envelope should be readable");
+  assert.equal(caps?.known, true);
+  assert.equal(caps?.source, "json");
+  for (const op of ["add-many", "archive", "tick"]) {
+    assert.ok(caps?.operations.has(op), `--${op} was listed`);
+  }
+  // Modifiers are not operations: gating a TOOL on --dir would expose one for
+  // something that is not an operation at all.
+  assert.equal(caps?.operations.has("dir"), false);
+});
+
+test("anything that is not the envelope falls through to the prose reader", () => {
+  for (const text of [
+    REAL_HELP, // an older build: --json ignored, a help page printed
+    "", // nothing at all
+    "not json {", // a page that merely starts oddly
+    JSON.stringify({ ok: true, result: {} }), // an envelope with no list
+    JSON.stringify({ ok: true, result: { operations: [] } }), // …or an empty one
+    JSON.stringify({ ok: true, result: { operations: "add" } }), // …or the wrong shape
+  ]) {
+    assert.equal(
+      parseCapabilityEnvelope(text),
+      undefined,
+      `should not have read: ${text.slice(0, 40)}`,
+    );
+  }
+});
+
 /* --------------------------------------------------------- the subprocess */
 
 function shim(body: string): { command: string; restore: () => void } {
@@ -101,7 +149,21 @@ test("the probe reads a real subprocess's help", async () => {
   const { command } = shim(`printf '%b' ${JSON.stringify(REAL_HELP)}`);
   const caps = await probeCapabilities(command, 5_000);
   assert.equal(caps.known, true);
+  assert.equal(caps.source, "prose", "an older build answers with a page");
   assert.ok(caps.operations.has("tick"));
+});
+
+// One subprocess, two readings of it: a build that implements §3.4.1 answers
+// with the envelope, and an older one prints the page it always printed.
+test("a build that answers --help --json is read structurally", async () => {
+  const { command } = shim(`printf '%s' ${JSON.stringify(REAL_ENVELOPE)}`);
+  const caps = await probeCapabilities(command, 5_000);
+  assert.equal(caps.known, true);
+  assert.equal(caps.source, "json");
+  assert.ok(caps.operations.has("add-many"));
+  // The prose reader would have found nothing here — there is no Operations
+  // section in an envelope — so this is the structured path or nothing.
+  assert.equal(parseOperations(REAL_ENVELOPE).known, false);
 });
 
 test("a build that prints its help to stderr is still read", async () => {

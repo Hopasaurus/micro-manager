@@ -39,8 +39,10 @@ refusal), asks the user as well when there is a UI, and only then passes
 `--force` — the CLI's own guard being the third line rather than the first.
 
 The **recommended set** is registered too, but only for the operations the
-installed `mm` actually has — the plugin reads its `--help` once at session
-start and gates on what it lists:
+installed `mm` actually has — the plugin asks it once at session start, with
+`mm --help --json`, and gates on what it reports. A build new enough to answer
+that in JSON is read structurally; an older one prints its help page and is
+read as prose. Same subprocess either way:
 
 | Tool | What it does |
 |---|---|
@@ -200,6 +202,6 @@ It skips with a reason when `mm` is not on PATH, so the suite still runs on a
 machine that has never built the Go implementation:
 
 ```bash
-npm test                       # 172 pass, 7 skipped without mm
-PATH=/path/to/mm/bin:$PATH npm test   # 179 pass
+npm test                       # 175 pass, 7 skipped without mm
+PATH=/path/to/mm/bin:$PATH npm test   # 182 pass
 ```

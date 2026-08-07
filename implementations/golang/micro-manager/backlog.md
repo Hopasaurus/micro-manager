@@ -22,8 +22,6 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0202] mm --help --json: a machine-readable capability list | prio:med | tags:cli,spec | detail:details/T-0202.md | created:2026-08-06
-
 ## Blocked
 
 - [ ] [T-0135] CSS transition polish on swap (fade .htmx-added content) | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0135.md | created:2026-08-02 | blocked:report Phase 3; only if Phase 1 still feels abrupt

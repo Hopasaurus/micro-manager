@@ -117,13 +117,24 @@ func Run(env Env) int {
 	// from anywhere, including somewhere with no project at all.
 	//
 	// They print to the caller's stdout even under --json/--porcelain, where
-	// operation output is discarded: there is no operation result to put in an
-	// envelope, and swallowing the one thing the user asked for would turn a
-	// request into an empty stdout and exit 0. They are meta-answers, not
-	// operations (§3.4), so the §9.2 "one JSON object on stdout" contract does
-	// not apply to them.
+	// operation output is discarded: swallowing the one thing the user asked
+	// for would turn a request into an empty stdout and exit 0. They are
+	// meta-answers, not operations (§3.4).
+	//
+	// --help --json is the one exception, and it earns it (§3.4.1): there IS a
+	// result to put in an envelope — the capability list — and a caller who
+	// asked for JSON gets the machine form of exactly what they asked for
+	// rather than prose they would have to scrape. --version keeps its line of
+	// text, because a version string is already machine-readable, and the same
+	// two values ride along in the capability list.
 	switch {
 	case in.Help:
+		if env.json.enabled {
+			env.json.operation = "help"
+			env.json.setResult(toJSONCapabilities(in.Op))
+			env.json.emit(Env{Stdout: stdout}, nil)
+			return ExitOK
+		}
 		writeUsage(stdout, in.Op)
 		return ExitOK
 	case in.Version:

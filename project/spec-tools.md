@@ -210,10 +210,56 @@ Valid with every operation:
 | `--force` | Proceed with a guarded destructive action (§5.1.6). |
 | `--quiet` | Suppress non-essential human output. Errors still print. |
 | `--verbose` | Add detail to human output. |
-| `--help` | Print usage. With an operation switch, print that operation's usage. |
+| `--help` | Print usage. With an operation switch, print that operation's usage. With `--json`, print the capability list instead (§3.4.1). |
 | `--version` | Print tool version and the format spec version it implements. |
 
 `--json` and `--porcelain` are mutually exclusive.
+
+#### 3.4.1 `--help --json` — the capability list
+
+`--help` prints prose for a person. `--help --json` MUST instead emit the §9.2
+envelope, whose `result` states what this build accepts:
+
+```json
+{
+  "ok": true,
+  "operation": "help",
+  "result": {
+    "version": "0.1.0",
+    "formatSpec": "1",
+    "operations": ["add", "add-many", "archive", "..."],
+    "modifiers": ["age", "all", "before", "..."]
+  },
+  "changes": [], "warnings": [], "errors": []
+}
+```
+
+This exists because §5.2 and §5.3 make most of the surface OPTIONAL: a caller
+cannot assume an operation is present, and until now the only ways to find out
+were to read a help page written for a human, or to run the operation and
+interpret exit 2. Both work — `mm --help --OPERATION` exits 0 when the build
+has it and 2 when it does not, which is a fine shell test — but neither is
+structured, and a help text that grows a section or re-indents a line silently
+changes what a machine believes about the build.
+
+Rules:
+
+- The lists MUST be derived from what the parser accepts, not from the prose.
+  Two sources of truth for one surface is the drift this is meant to end.
+- Names appear **without leading dashes**, so a caller compares strings rather
+  than stripping punctuation.
+- With an operation named — `mm --help --add-many --json` — `result` MUST also
+  carry `about` (the operation) and `usage` (its page). An operation this build
+  does not have is an unknown switch and fails as one (exit 2, §10), with the
+  envelope carrying the error like any other failure.
+- Fields MAY be appended to `result` and MUST NOT be removed or repurposed,
+  the same promise §9.3 makes for porcelain columns.
+- `--version` keeps its one-line human form; the same two values appear here,
+  so one call answers both "what can you do" and "what are you".
+
+There is no `--porcelain` form. Porcelain is a stream of records — items,
+violations, hits — and a capability list is one document about the tool rather
+than a set of rows about data.
 
 `--dry-run` MUST exercise the full path including validation, and MUST report
 exactly what would change. An operation that cannot be dry-run does not exist:
@@ -1204,6 +1250,12 @@ On failure, `ok` is false, `errors` is non-empty, and each error carries `code`
 
 The envelope MUST be present in both cases — a caller should never have to
 distinguish "JSON error object" from "crash text".
+
+`--help --json` uses the same envelope, with the capability list as its
+`result` (§3.4.1). It is the one meta-answer that does: `--version` stays a
+line of text, because a version string is already machine-readable and the
+same two values ride along in the capability list for anyone who wants them
+structured.
 
 ### 9.3 `--porcelain`
 
