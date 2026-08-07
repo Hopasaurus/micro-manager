@@ -113,6 +113,15 @@ export interface RunOptions {
   /** The binary. Overridable for tests; production always uses `mm`. */
   readonly command?: string;
   readonly cwd?: string;
+  /**
+   * Text to write to `mm`'s stdin, for the one operation that reads a list
+   * rather than an argument (`--add-many`, spec-tools.md §5.2.1).
+   *
+   * A pipe, not a temp file: the plugin creates no files at all (§8.1), and a
+   * batch handed over on stdin leaves nothing behind to clean up. Undefined
+   * means the child gets no stdin, which is what every other operation wants.
+   */
+  readonly stdin?: string;
 }
 
 /**
@@ -148,7 +157,7 @@ export async function run(opts: RunOptions): Promise<RunOutcome> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const argv = buildArgs(opts.args, opts.dir);
 
-  const raw = await spawnOnce(command, argv, timeoutMs, opts.signal, opts.cwd);
+  const raw = await spawnOnce(command, argv, timeoutMs, opts.signal, opts.cwd, opts.stdin);
 
   if (raw.kind === "spawn-error") {
     return {
@@ -281,6 +290,7 @@ function spawnOnce(
   timeoutMs: number,
   signal: AbortSignal | undefined,
   cwd: string | undefined,
+  stdin: string | undefined,
 ): Promise<Raw> {
   return new Promise((resolve) => {
     let settled = false;
@@ -295,7 +305,10 @@ function spawnOnce(
     let child: ReturnType<typeof spawn>;
     try {
       child = spawn(command, [...argv], {
-        stdio: ["ignore", "pipe", "pipe"],
+        // stdin is a pipe only when there is something to write: a child that
+        // inherits nothing and is handed nothing sees EOF, which is what every
+        // operation but --add-many expects.
+        stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
         // The environment passes through untouched: MM_DIR is part of the
         // board resolution order (§3.2), and a runner that scrubbed it would
         // quietly change which board a user's shell means.
@@ -317,6 +330,13 @@ function spawnOnce(
       done({ kind: "timeout" });
     };
     signal?.addEventListener("abort", onAbort, { once: true });
+
+    if (stdin !== undefined) {
+      // An mm that exits before reading it all breaks the pipe; that is the
+      // child's exit code to report, not an error of its own.
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(stdin);
+    }
 
     let stdout = "";
     let stderr = "";

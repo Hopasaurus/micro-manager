@@ -47,6 +47,7 @@ positional word: `mm --add "…"`, not `mm add "…"`.
 |---|---|
 | `mm --init --project NAME [--slots N]` | create a new project (default: `./micro-manager`, 1 slot) |
 | `mm --add TITLE [--prio P] [--tag T]... [--top]` | append a backlog item (bottom of its section unless `--top`) |
+| `mm --add-many [FILE]` | add many items, one per input line, in ONE transaction (stdin when no FILE) |
 | `mm --list [--state S] [--tag T] [--prio P]` | list items in on-disk order (never re-sorted) |
 | `mm --show ID [--detail]` | print one item, optionally with its detail file |
 | `mm --status` | one screen: slots, WIP, counts, next item, oldest untouched item |
@@ -81,6 +82,8 @@ mm --status                                   # orient: what's queued, what's ru
 mm --add "Rotate the leaked staging token" --prio high --tag security --top
 mm --add "Write the onboarding doc" --prio low --tag docs
 
+mm --add-many < notes-from-the-meeting.txt    # a whole list, in one transaction
+
 mm --start T-0031                             # into the lowest idle slot
 mm --note T-0031 "root cause: old key still in the CI cache"
 mm --finish T-0031 --outcome shipped --closing-note "rotated, cache cleared"
@@ -97,6 +100,15 @@ Notes worth internalizing:
 - **`--add` appends to the bottom** of its section by default — a new item is
   not automatically more urgent than what's already queued. Use `--top` when it
   is.
+- **`--add-many` is how a list gets captured**, and it is one transaction: a bad
+  line means *nothing* is written, so there is never a half-added batch to
+  reconcile. Each line is an item line with the box and the ID removed —
+  `Fix the deploy script | prio:high | tags:infra,ci` — blank lines are skipped,
+  a leading `- `, `* ` or `- [ ] ` is stripped so a pasted checklist just works,
+  and the modifiers (`--prio`, `--tag`, `--section`…) are defaults that a
+  line's own fields override. It refuses a line carrying a `[T-0042]` rather
+  than renumbering it: IDs are allocated, and reusing one breaks I2. It takes no
+  `--detail` switches — one body cannot belong to several items.
 - **`--start` fails, not queues,** when every working slot is occupied (a WIP
   limit reached, exit code 4). The fix is to finish or pause something, or to
   raise the limit deliberately with `mm --wip N` — never by working around it.

@@ -74,7 +74,15 @@ const MINIMAL = [
 const FULL_EXTRA = ["mm_edit", "mm_move", "mm_note", "mm_remove", "mm_check"];
 
 /** §4.2's recommended table — SHOULD, and gated on the build (capabilities.ts). */
-const RECOMMENDED = ["mm_block", "mm_unblock", "mm_search", "mm_report", "mm_tick", "mm_archive"];
+const RECOMMENDED = [
+  "mm_add_many",
+  "mm_block",
+  "mm_unblock",
+  "mm_search",
+  "mm_report",
+  "mm_tick",
+  "mm_archive",
+];
 
 const BOARD = "/boards/conformance";
 
@@ -113,6 +121,8 @@ function resultFor(op: string): unknown {
       return { cutoff: "2026-08", months: [], items: 0, files: [], detailsMoved: [], detailOrphans: [] };
     case "--report":
       return { project: "Conformance", period: { label: "all", source: "switch" }, done: [] };
+    case "--add-many":
+      return [{ id: "T-0001", title: "an item", state: "backlog", section: "Ready" }];
     case "--remove":
       return { item: { id: "T-0001", title: "an item", state: "backlog" }, detailDeleted: false };
     default:
@@ -206,7 +216,7 @@ const ALLOWED_SWITCHES = new Set([
   "--init", "--find", "--status", "--next", "--list", "--show", "--describe",
   "--add", "--edit", "--move", "--start", "--pause", "--finish", "--note",
   "--remove", "--check", "--block", "--unblock", "--search", "--report",
-  "--tick", "--archive",
+  "--tick", "--archive", "--add-many",
   // Modifiers, Appendix B.
   "--json", "--dir", "--force", "--top", "--end", "--position", "--section",
   "--state", "--prio", "--tag", "--untag", "--set", "--limit", "--detail",
@@ -277,6 +287,13 @@ const MAXIMAL_CALLS: Record<string, Record<string, unknown>> = {
   mm_pause: { id: "T-0001", section: "ready", end: true, blocked: "waiting" },
   mm_finish: { id: "T-0001", outcome: "shipped", closing_note: "shipped in v2.1" },
   mm_remove: { id: "T-0001", confirmed: true },
+  mm_add_many: {
+    items: ["One | prio:high", "Two | tags:infra"],
+    section: "ready",
+    prio: "med",
+    tags: ["captured"],
+    top: true,
+  },
   mm_block: { id: "T-0001", reason: "waiting on the vendor" },
   mm_unblock: { id: "T-0001", end: true },
   mm_search: { query: "deploy", fields: ["title", "tags", "detail"], state: "backlog", regex: true, limit: 10 },
@@ -371,9 +388,9 @@ test("one tool call is one operation and one subprocess (§4.1)", async (t) => {
 /** The subset of ALLOWED_SWITCHES that are operations rather than modifiers. */
 const OPERATION_SWITCHES = new Set([
   "--init", "--find", "--status", "--next", "--list", "--show", "--describe",
-  "--add", "--edit", "--move", "--start", "--pause", "--finish", "--note",
-  "--remove", "--check", "--block", "--unblock", "--search", "--report",
-  "--tick", "--archive",
+  "--add", "--add-many", "--edit", "--move", "--start", "--pause", "--finish",
+  "--note", "--remove", "--check", "--block", "--unblock", "--search",
+  "--report", "--tick", "--archive",
 ]);
 
 /* ----------------------------------------------- §5: the command surface */
@@ -391,6 +408,7 @@ test("every operation §5 defines reaches a tool (§10, full conformance)", () =
     "list --section ready",
     "show T-0001",
     'add "an item"',
+    "add-many\nan item\nanother item",
     "edit T-0001 --prio high",
     "move T-0001 --top",
     "start T-0001",

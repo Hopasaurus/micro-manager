@@ -163,12 +163,20 @@ function mmShim(help: string): string {
 }
 
 /** The recommended tools of §4.2, in the order they are registered. */
-const RECOMMENDED = ["mm_block", "mm_unblock", "mm_search", "mm_report", "mm_tick", "mm_archive"];
+const RECOMMENDED = [
+  "mm_add_many",
+  "mm_block",
+  "mm_unblock",
+  "mm_search",
+  "mm_report",
+  "mm_tick",
+  "mm_archive",
+];
 
 test("the recommended set is registered against the installed build (§4.2)", async () => {
-  // A build with three of the six operations. --tick and --archive are absent,
-  // which is precisely the case §4.2 legislates: "expose only when the
-  // installed mm has it".
+  // A build with three of the seven recommended operations. --tick, --archive
+  // and --add-many are absent, which is precisely the case §4.2 legislates:
+  // "expose only when the installed mm has it".
   const restore = withMmOnPath(
     mmShim(
       "Operations:\n  --add TITLE   add a backlog item\n  --block ID    move to Blocked\n" +
@@ -188,6 +196,8 @@ test("the recommended set is registered against the installed build (§4.2)", as
       names.filter((n) => RECOMMENDED.includes(n)),
       ["mm_block", "mm_unblock", "mm_search"],
     );
+    // --add-many is not in that build's list either, so its tool is not there.
+    assert.equal(names.includes("mm_add_many"), false);
     // The Global modifiers section is not a source of operations: a modifier
     // that happens to read like one must not register a tool.
     assert.equal(names.includes("mm_report"), false);

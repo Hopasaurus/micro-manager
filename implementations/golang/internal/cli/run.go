@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -71,6 +72,8 @@ func dispatch(env Env, in *Invocation) error {
 	switch in.Op {
 	case OpAdd:
 		return runAdd(env, in, store)
+	case OpAddMany:
+		return runAddMany(env, in, store)
 	case OpList:
 		return runList(env, in, store)
 	case OpShow:
@@ -304,6 +307,185 @@ func runAdd(env Env, in *Invocation, s *mm.Store) error {
 		}
 	}
 	return nil
+}
+
+// runAddMany wires spec-tools.md §5.2.1's bulk add.
+//
+// The wrapper's whole job here is the part the library refuses to do: find the
+// lines. Reading a file or stdin is the host's (§2.2 rule 4), so this reads the
+// input, hands each line to the library's parser, applies the run-wide
+// modifiers as DEFAULTS, and calls one operation with the whole batch.
+//
+// Nothing loops over --add. A loop is the thing this operation exists to
+// replace: it would leave eleven items added and the twelfth rejected, with no
+// record of where the run stopped.
+func runAddMany(env Env, in *Invocation, s *mm.Store) error {
+	// The detail switches of §5.1.2 are refused rather than ignored: one body
+	// cannot belong to N items, and a switch that silently does nothing is
+	// worse than one that is not accepted.
+	for _, name := range []string{"detail", "detail-text", "detail-file"} {
+		if in.Has(name) {
+			return usagef("--add-many does not take --%s: one body cannot belong to "+
+				"several items. Add them, then use --edit or --detail on the ones "+
+				"that need a description", name)
+		}
+	}
+
+	defaults, err := addManyDefaults(in)
+	if err != nil {
+		return err
+	}
+
+	lines, source, err := readAddManyInput(env, in)
+	if err != nil {
+		return err
+	}
+
+	reqs := make([]mm.AddRequest, 0, len(lines))
+	// lineOf maps a request back to the input line it came from, so an error
+	// raised by the library — which counts requests, not lines — can still be
+	// reported against something the user can look at.
+	lineOf := make([]int, 0, len(lines))
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue // §5.2.1: a blank line is skipped
+		}
+		req, err := mm.ParseAddLine(i+1, line)
+		if err != nil {
+			return err
+		}
+		applyAddManyDefaults(&req, defaults)
+		req.Top = in.Bool("top")
+		req.DryRun = in.DryRun
+		reqs = append(reqs, req)
+		lineOf = append(lineOf, i+1)
+	}
+	if len(reqs) == 0 {
+		return usagef("--add-many read no items from %s; give it one item per line", source)
+	}
+
+	items, res, err := s.AddMany(reqs, env.Today)
+	if err != nil {
+		return locateAddManyError(err, lineOf)
+	}
+	env.json.setChanges(res)
+	env.json.setResult(toJSONItems(items))
+	env.porcelain.items(items)
+	renderAddMany(env, in, items)
+	return nil
+}
+
+// addManyDefaults reads the run-wide modifiers once. They are DEFAULTS: a
+// line that names the same field wins (§5.2.1).
+func addManyDefaults(in *Invocation) (mm.AddRequest, error) {
+	var d mm.AddRequest
+	d.Tags = in.Tags
+	d.Blocked = in.Value("blocked")
+	d.Tickler = in.Value("tickler")
+	if v := in.Value("section"); v != "" {
+		sec, err := mm.ParseSection(v)
+		if err != nil {
+			return d, err
+		}
+		d.Section = sec
+	}
+	if v := in.Value("prio"); v != "" {
+		p, err := mm.ParsePrio(v)
+		if err != nil {
+			return d, err
+		}
+		d.Prio = p
+	}
+	if v := in.Value("created"); v != "" {
+		c, err := mm.ParseDate(v)
+		if err != nil {
+			return d, err
+		}
+		d.Created = c
+	}
+	return d, nil
+}
+
+// applyAddManyDefaults fills in what a line did not say.
+func applyAddManyDefaults(req *mm.AddRequest, d mm.AddRequest) {
+	if req.Prio == "" {
+		req.Prio = d.Prio
+	}
+	if len(req.Tags) == 0 {
+		req.Tags = d.Tags
+	}
+	if req.Created.IsZero() {
+		req.Created = d.Created
+	}
+	if req.Tickler == "" {
+		req.Tickler = d.Tickler
+	}
+	if req.Blocked == "" {
+		req.Blocked = d.Blocked
+	}
+	// The section is last, because a line's own blocked: reason has already
+	// chosen Blocked for it (§5.1.2's implication, applied per line).
+	if req.Section == "" {
+		req.Section = d.Section
+	}
+}
+
+// readAddManyInput reads the batch, from a file or from stdin.
+//
+// A named file is opened; a bare --add-many, or one whose subject is "-", reads
+// stdin. Refusing to read a terminal is deliberate: `mm --add-many` typed at a
+// prompt with nothing piped in would otherwise look like a hang.
+func readAddManyInput(env Env, in *Invocation) ([]string, string, error) {
+	if path := in.Subject; path != "" && path != "-" {
+		abs, err := absolute(path, env.Cwd)
+		if err != nil {
+			return nil, "", err
+		}
+		data, err := os.ReadFile(abs)
+		if err != nil {
+			return nil, "", ioErrorf("could not read %s: %v", path, err)
+		}
+		return splitInputLines(string(data)), path, nil
+	}
+	if env.Stdin == nil {
+		return nil, "", usagef("--add-many needs a list: give it a FILE, or pipe one in")
+	}
+	if env.Interactive {
+		return nil, "", usagef("--add-many is reading from a terminal, which is almost " +
+			"certainly not what you meant: give it a FILE, or pipe a list in")
+	}
+	data, err := io.ReadAll(env.Stdin)
+	if err != nil {
+		return nil, "", ioErrorf("could not read stdin: %v", err)
+	}
+	return splitInputLines(string(data)), "stdin", nil
+}
+
+func splitInputLines(text string) []string {
+	return strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+}
+
+// locateAddManyError turns the library's "item N" into the input's "line N".
+//
+// The library counts requests because it never saw the input; the user counts
+// lines, and blank ones do not become requests. Without this a batch with three
+// blank lines reports a line number three short of the one to fix.
+func locateAddManyError(err error, lineOf []int) error {
+	const prefix = "item "
+	msg := err.Error()
+	if !strings.HasPrefix(msg, prefix) {
+		return err
+	}
+	rest := msg[len(prefix):]
+	digits := 0
+	for digits < len(rest) && rest[digits] >= '0' && rest[digits] <= '9' {
+		digits++
+	}
+	n, convErr := strconv.Atoi(rest[:digits])
+	if convErr != nil || n < 1 || n > len(lineOf) {
+		return err
+	}
+	return fmt.Errorf("line %d%s", lineOf[n-1], rest[digits:])
 }
 
 // detailBody resolves the three mutually exclusive detail switches.

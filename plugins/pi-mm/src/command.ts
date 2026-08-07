@@ -29,6 +29,15 @@ import type { ToolContext, ToolDefinition } from "./tools-read.ts";
 /** One parsed command line. */
 export interface ParsedCommand {
   readonly op: string;
+  /**
+   * Every line after the first, blanks dropped.
+   *
+   * One command is normally one line, and every other operation reads only
+   * that. `/mm add-many` is the exception the spec asks for (§5): its items
+   * arrive as the lines below the command, which is what makes pasting a list
+   * into the TUI work at all.
+   */
+  readonly lines: readonly string[];
   /** Everything that was not a flag, in order. */
   readonly words: readonly string[];
   /** `--key value`, accumulating: `--tag a --tag b` gives both. */
@@ -108,7 +117,12 @@ const VALUE_FLAGS = new Set([
 ]);
 
 export function parseCommand(line: string): ParsedCommand {
-  const tokens = tokenize(line.trim());
+  // The first line is the command; the rest are data for the operation that
+  // wants them. Splitting here rather than in the tokenizer keeps quoting and
+  // flags working exactly as they do for every other operation.
+  const [head = "", ...rest] = line.split("\n");
+  const lines = rest.map((l) => l.trim()).filter(Boolean);
+  const tokens = tokenize(head.trim());
   const op = (tokens.shift() ?? "").toLowerCase();
   const words: string[] = [];
   const flags = new Map<string, string[]>();
@@ -130,7 +144,7 @@ export function parseCommand(line: string): ParsedCommand {
     }
     switches.add(name);
   }
-  return { op, words, flags, switches };
+  return { op, words, flags, switches, lines };
 }
 
 function splitFlag(s: string): [string, string | undefined] {
@@ -335,6 +349,33 @@ export function plan(p: ParsedCommand): Plan {
       return { say: `context injection ${want} for this session.` };
     }
 
+    case "add-many": {
+      /*
+        The items are the lines AFTER the first: a command line is one line, so
+        `/mm add-many` on its own cannot carry a list. The TUI gives the
+        handler everything typed, newlines included, which is what makes a
+        pasted list work — and why the items are split out here rather than
+        tokenized like every other op's words.
+      */
+      const items = p.lines;
+      if (items.length === 0) {
+        return {
+          say: "/mm add-many takes one item per line, after the command line:\n" +
+            "  /mm add-many --prio high\n  Fix the deploy script\n  Rotate the leaked token",
+        };
+      }
+      return {
+        tool: "mm_add_many",
+        params: clean({
+          items,
+          section: first(p, "section"),
+          prio: first(p, "prio"),
+          tags: all(p, "tag"),
+          top: p.switches.has("top") || undefined,
+        }),
+      };
+    }
+
     case "block": {
       const [id, ...rest] = p.words;
       const reason = first(p, "reason") ?? rest.join(" ");
@@ -418,6 +459,8 @@ export function helpText(): string {
     "/mm list [--section S] [--state S] [--prio P] [--tag T] [--limit N]",
     '/mm show ID [--detail]',
     '/mm add "TITLE" [--section S] [--prio P] [--tag T]... [--top]',
+    "/mm add-many [--section S] [--prio P] [--tag T]... [--top]",
+    "    …then one item per line, below the command",
     "/mm edit ID [--title T] [--prio P] [--tag T]... [--set K=V]...",
     "/mm move ID [--section S] [--position N | --top | --end]",
     "/mm start ID | /mm pause ID | /mm finish ID [--outcome O] [--closing-note T]",

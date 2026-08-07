@@ -148,6 +148,29 @@ test("the recommended operations map onto their tools (§5, §4.2)", () => {
   });
 });
 
+test("/mm add-many takes its items from the lines below the command (§5)", () => {
+  const decided = plan(parseCommand('add-many --prio high --tag captured\nFix the deploy script\n\n  Rotate the leaked token  '));
+  assert.ok("tool" in decided);
+  assert.deepEqual(decided, {
+    tool: "mm_add_many",
+    params: {
+      items: ["Fix the deploy script", "Rotate the leaked token"],
+      prio: "high",
+      tags: ["captured"],
+    },
+  });
+
+  // Without any lines it says what the shape is rather than adding nothing.
+  const bare = plan(parseCommand("add-many"));
+  assert.ok("say" in bare);
+  assert.match("say" in bare ? bare.say : "", /one item per line/);
+
+  // Every other operation still reads only the first line, so a pasted
+  // multi-line argument cannot change what a command does.
+  const show = plan(parseCommand("show T-0001\nnot an argument"));
+  assert.deepEqual(show, { tool: "mm_show", params: { id: "T-0001" } });
+});
+
 test("/mm block insists on a reason before it spends a subprocess (I5)", () => {
   const decided = plan(parseCommand("block T-0042"));
   assert.ok("say" in decided);

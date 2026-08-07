@@ -705,6 +705,92 @@ that its absence pushes users back to editing by hand.
 | `--find` | List discovered micro-manager directories with their `project` names. The discovery step, exposed. |
 | `--detail ID` | Open, create, or print the detail file for an item. |
 | `--subtask ID TEXT` / `--subtask-done ID N` | Append to and tick off `## Plan` entries in a working slot. |
+| `--add-many [FILE]` | Add many items in ONE transaction, one per input line (§5.2.1). Sugar over repeated `--add`, except for the part that is not sugar: the whole batch commits or none of it does. |
+
+#### 5.2.1 `--add-many` in detail
+
+```
+mm --add-many [FILE] [--top] [--section ready|blocked|someday]
+              [--prio high|med|low] [--tag T]... [--blocked REASON]
+              [--created DATE] [--tickler SCHEDULE]
+```
+
+Reads a list of items and adds them all, in the order given, as one
+transaction. Input comes from `FILE`, or from **stdin** when `FILE` is absent
+or is `-`. Capture is what this exists for: a meeting, a paste from a chat, a
+`grep` over a codebase's `TODO`s — a list that already exists, going onto the
+board without one invocation per line.
+
+Reading that input is the **host's** job, not the library's: §2.2 rule 4 keeps
+files, stdin and terminals out of the library, so the CLI hands it a list of
+requests. The line grammar below is the library's, exposed as a parse function
+(§6.2) — a GUI with a paste box needs the same grammar, and a second
+implementation of it would drift.
+
+**One transaction, not N.** This is the whole reason the operation exists
+rather than being left to a shell loop. All the items are built, all their IDs
+are allocated, the result is validated once, and then `backlog.md` is written
+once (§7). A malformed line anywhere means **nothing** is written, and the
+error names the line. A loop over `--add` gives the opposite: eleven items
+added and the twelfth rejected, with no record of where the run stopped.
+
+**The line grammar** is the item line of the format spec (§4.2) with the box
+and the ID removed — the ID is allocated, never supplied:
+
+```
+TITLE
+TITLE | prio:high | tags:infra,ci
+- TITLE | prio:low
+```
+
+- A **blank line** is skipped. Trailing whitespace is trimmed.
+- A leading markdown bullet — `- `, `* `, or `- [ ] ` — is stripped, so a
+  checklist pasted out of a document is valid input as it stands.
+- The fields are the format's `key:value` pairs, separated by ` | `
+  (space pipe space), and MUST be exactly the set `--add` can set:
+  `prio`, `tags`, `refs`, `created`, `blocked`, `tickler`, and unregistered
+  keys, which are preserved verbatim as everywhere else. A registered field
+  `--add` cannot set — `detail`, `started`, `done`, `outcome`, `tickled` — is a
+  usage error naming the line, not a silently dropped value.
+- `detail:` is refused for a reason worth stating: the path must match the
+  item's own ID (I8), and the ID does not exist until this operation allocates
+  it. A caller who wants detail files adds the items and then writes them.
+- A line that carries a **bracketed ID** (`- [ ] [T-0042] …`) is a usage error.
+  It is what pasting existing items looks like, and honouring the ID would
+  reuse a retired number (I2); the fix is to delete the ID, and saying so is
+  more useful than silently renumbering. What counts as an ID here is the
+  SHAPE — `[LETTERS-DIGITS]` in any directory's grammar, not just this one's —
+  so `[WIP] Ship the thing` stays an ordinary title.
+
+**Modifiers are defaults; a line's own fields win.** `--prio high` sets the
+priority of every line that does not name one. `--section` chooses the section
+for the batch, and a line's `blocked:` reason moves that line to `## Blocked`
+exactly as it would under `--add` — so one run may write into two sections.
+
+A line's fields mean **exactly** what the same fields mean to `--add`, which
+settles the one case where the two could plausibly differ: `tickler:` does NOT
+imply `--section someday` the way `blocked:` implies `## Blocked`, because
+`--add` requires the section to be named (§5.1.2) and a bulk line is not a
+place to invent a second rule. A schedule on a line in any other section is the
+same error `--add` raises.
+
+**Order is the input's order.** Appended to the bottom of the section by
+default; `--top` inserts the batch at the top, still in the input's order. A
+`--top` that reversed the batch would be a surprise nobody wants: the list
+someone pasted is a list they had already put in an order.
+
+The detail-file switches of §5.1.2 (`--detail`, `--detail-text`,
+`--detail-file`) are NOT accepted: one body cannot belong to N items, and
+opening N editors is not a thing to do to someone.
+
+Output MUST report every assigned ID, in every output mode (§9.1) — a caller
+that just created twelve items needs twelve handles. `--json`'s `result` is the
+array of created items; `--porcelain` emits one item per line.
+
+Errors: `InvalidArgument` (any of the line rules above, an empty input, a
+detail switch), `Conflict` (`next_id` exhausted part-way through the batch —
+reported against the line that would have exceeded the cap, with nothing
+written), plus everything `--add` can raise.
 
 ### 5.3 Optional operations
 
@@ -951,6 +1037,8 @@ Store.fingerprint()             -> Fingerprint     # §2.4, cheap staleness poll
 Store.list(Filter)              -> [Item]
 Store.get(ID)                   -> Item
 Store.add(AddRequest)           -> Item
+Store.addMany([AddRequest])     -> [Item]          # --add-many (§5.2.1), ONE transaction
+Store.parseAddLine(string)      -> AddRequest      # the §5.2.1 line grammar
 Store.update(ID, UpdateRequest) -> Item
 Store.remove(ID, RemoveOptions) -> Change
 Store.move(ID, Destination)     -> Item

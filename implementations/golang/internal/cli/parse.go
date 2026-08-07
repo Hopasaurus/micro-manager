@@ -29,6 +29,7 @@ const (
 	OpNone    Op = ""
 	OpInit    Op = "init"
 	OpAdd     Op = "add"
+	OpAddMany Op = "add-many"
 	OpList    Op = "list"
 	OpShow    Op = "show"
 	OpEdit    Op = "edit"
@@ -62,13 +63,19 @@ var opTakesValue = map[Op]bool{
 	OpStart: true, OpPause: true, OpFinish: true, OpAdd: true,
 	OpWip: true, OpBlock: true, OpUnblock: true, OpNote: true,
 	OpSearch: true,
+	// §5.2.1: the subject is the FILE to read, and it is optional — a bare
+	// --add-many reads stdin, which is how a pipe is spelled.
+	OpAddMany: true,
 }
 
 // operations maps the switch name to its operation. Operation and modifier
 // switches share one namespace (§3.2), so nothing here may be reused below.
 var operations = map[string]Op{
 	"init": OpInit, "add": OpAdd, "list": OpList, "show": OpShow,
-	"edit": OpEdit, "remove": OpRemove, "move": OpMove, "start": OpStart,
+	// §5.2.1: bulk add. A separate operation rather than a repeatable --add,
+	// because §3.2 allows exactly one operation switch per invocation.
+	"add-many": OpAddMany,
+	"edit":     OpEdit, "remove": OpRemove, "move": OpMove, "start": OpStart,
 	"pause": OpPause, "finish": OpFinish, "report": OpReport, "check": OpCheck,
 	"wip": OpWip, "find": OpFind,
 	"block": OpBlock, "unblock": OpUnblock, "note": OpNote,

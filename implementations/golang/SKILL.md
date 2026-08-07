@@ -222,6 +222,10 @@ mm --add "Fix the deploy script" --prio high --tag infra --tag ci
 mm --add "Rotate the leaked token" --top
 mm --add "Needs a description" --detail        # creates details/<ID>.md, opens $EDITOR
 
+mm --add-many < items.txt                      # one item per line, ONE transaction
+mm --add-many items.txt --prio high --tag infra
+printf 'One\nTwo | prio:low\n' | mm --add-many
+
 mm --list                                      # on-disk order, never re-sorted
 mm --list --state all --tag infra
 mm --show T-0042 --detail
@@ -260,6 +264,24 @@ validates. Restoring is the same move backwards, and half a restore is caught
 by I8. The cost is printed on every run, including under `--quiet`. Dry-run it
 first.
 
+`--add-many` is the capture operation: a list that already exists — a meeting,
+a paste from a chat, a `grep` over the `TODO`s — goes onto the board in one
+transaction. Each line is an item line with the box and the ID removed, since
+the ID is allocated here:
+
+```
+Fix the deploy script | prio:high | tags:infra,ci
+- Pasted out of a checklist, bullet and all
+Waiting on legal | blocked:contract review
+```
+
+Blank lines are skipped, a leading `- `, `* ` or `- [ ] ` is stripped, and the
+modifiers are defaults a line's own fields override. **A bad line means nothing
+is written** — that is the difference from a shell loop over `--add`, which
+would leave eleven items added and no record of where it stopped. A line
+carrying a `[T-0042]` is refused rather than renumbered: IDs are allocated, and
+reusing one breaks I2.
+
 `mm --help` lists everything; `mm --help --start` prints one operation's page.
 
 **Two switch names differ from what you might guess**, because operation and
@@ -297,6 +319,11 @@ needs no tool, and this is that claim being true.
 4. If it needs more than a title: copy `details/_template.md` to
    `details/<ID>.md`, set its `id` and `title` to match, and add
    `detail:details/<ID>.md` to the line.
+
+Adding several by hand is the same steps repeated, with one thing to watch:
+allocate the IDs **in order** and bump `next_id` once per item. Write them all,
+then read the file back before you stop — a batch is where a miscounted
+`next_id` turns into two items sharing an ID, which is I1.
 
 ### Start
 

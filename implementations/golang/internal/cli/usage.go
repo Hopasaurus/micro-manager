@@ -21,6 +21,7 @@ Exactly one operation per invocation.
 Operations:
   --init                    create a directory (needs --project NAME)
   --add TITLE               add a backlog item
+  --add-many [FILE]         add many items, one per line, in one transaction
   --list                    list items
   --show ID                 print one item
   --edit ID                 change an item's fields
@@ -111,6 +112,38 @@ title; mm --add -- TITLE is the spelling for a title that starts with a dash.
   --detail                  create details/<ID>.md from the template, and open
                             it in $VISUAL or $EDITOR
   --no-edit                 create it but do not open an editor
+`,
+	OpAddMany: `mm --add-many [FILE] [--top] [--section S] [--prio P] [--tag T]...
+                   [--blocked REASON] [--created DATE] [--tickler SCHEDULE]
+
+Adds many items in ONE transaction, one per input line (spec-tools.md §5.2.1).
+Reads FILE, or stdin when FILE is absent or is "-".
+
+A bad line means NOTHING is written — that is the whole difference from a shell
+loop over --add, which would leave you with eleven items added and no record of
+where it stopped.
+
+The line grammar is the item line with the box and the id removed, because the
+id is allocated here and never supplied:
+
+  Fix the deploy script
+  Rotate the leaked token | prio:high | tags:infra,ci
+  - Pasted out of a checklist | prio:low
+
+  blank lines           skipped
+  a leading "- ", "* "  stripped, "- [ ] " too: a pasted checklist just works
+  fields                exactly what --add can set: prio, tags, refs, created,
+                        blocked, tickler, and unregistered keys, kept verbatim
+  [T-0042]              refused: ids are allocated, and reusing one breaks I2
+
+The modifiers are DEFAULTS; a line that names the same field wins. A line's
+blocked: reason sends that line to Blocked, so one run may write two sections.
+--top puts the batch at the top, still in the order it was given.
+
+  --add-many does not take --detail, --detail-text or --detail-file: one body
+  cannot belong to several items.
+
+Porcelain columns: the same as --list, one row per created item.
 `,
 	OpList: `mm --list [--state S] [--section S] [--prio P] [--tag T]
                [--blocked-only] [--limit N]

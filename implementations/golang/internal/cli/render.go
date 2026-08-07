@@ -238,6 +238,43 @@ func renderAdd(env Env, in *Invocation, item mm.Item, res mm.TxResult) {
 	}
 }
 
+// renderAddMany reports a batch (§5.2.1).
+//
+// Every assigned ID is printed, in every output mode — the same rule --add
+// follows for one item, and twelve items mean twelve handles the caller needs.
+// Under --quiet that is all that is printed: quiet suppresses commentary, not
+// the values the caller came for.
+func renderAddMany(env Env, in *Invocation, items []mm.Item) {
+	if in.Quiet {
+		for _, it := range items {
+			out(env, "%s\n", it.ID)
+		}
+		return
+	}
+	// The count leads, because the one thing a bulk add has to answer is "how
+	// many did that add?" — and the sections, because a batch can land in more
+	// than one when a line carried its own blocked: reason.
+	out(env, "%s%d %s added to %s\n", prefix(in), len(items),
+		plural(len(items), "item", "items"), sectionsOf(items))
+	for _, it := range items {
+		out(env, "  %s\n", mm.RenderItemLine(&it))
+	}
+}
+
+// sectionsOf names the sections a batch landed in, in the order they were first
+// written to.
+func sectionsOf(items []mm.Item) string {
+	var names []string
+	seen := map[mm.Section]bool{}
+	for _, it := range items {
+		if !seen[it.Section] {
+			seen[it.Section] = true
+			names = append(names, string(it.Section))
+		}
+	}
+	return strings.Join(names, " and ")
+}
+
 func renderChange(env Env, in *Invocation, verb string, item mm.Item, res mm.TxResult) {
 	if in.Quiet {
 		return

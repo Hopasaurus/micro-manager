@@ -16,6 +16,7 @@ func TestPorcelainFieldOrderIsFrozen(t *testing.T) {
 		OpList:    "id state section prio tags title",
 		OpShow:    "id state section prio tags title",
 		OpAdd:     "id state section prio tags title",
+		OpAddMany: "id state section prio tags title",
 		OpEdit:    "id state section prio tags title",
 		OpMove:    "id state section prio tags title",
 		OpStart:   "id state section prio tags title",

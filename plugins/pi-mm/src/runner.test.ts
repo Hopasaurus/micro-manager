@@ -302,6 +302,34 @@ test("the default timeout is §9's 30 seconds", () => {
   assert.equal(DEFAULT_TIMEOUT_MS, 30_000);
 });
 
+test("stdin is a pipe only when there is something to send (§4.2, mm_add_many)", async () => {
+  // The batch of --add-many travels on stdin, because the plugin creates no
+  // files (§8.1) and a temp file would be one. The shim echoes what it read
+  // back into the envelope's project, which is the cheapest way to prove the
+  // bytes really arrived.
+  const dir = mkdtempSync(join(tmpdir(), "mm-stdin-"));
+  const path = join(dir, "mm");
+  writeFileSync(
+    path,
+    // The newlines are stripped on the way back: they are what separates the
+    // items, and one inside a JSON string would make the envelope unparseable.
+    `#!/bin/sh\nseen=$(cat | tr -d '\\n')\nprintf '{"ok":true,"operation":"add-many","directory":{"path":"/b","project":"%s"},"result":[],"changes":[],"warnings":[],"errors":[]}' "$seen"\n`,
+  );
+  chmodSync(path, 0o755);
+
+  const sent = await run({ args: ["--add-many"], command: path, stdin: "One\nTwo\n" });
+  assert.equal(sent.ok, true, JSON.stringify(sent));
+  if (!sent.ok) return;
+  assert.equal(sent.envelope.directory?.project, "OneTwo", "the batch reached mm's stdin");
+
+  // Without it the child must not be handed a pipe at all: an operation that
+  // waits on stdin it was never going to get is a hang.
+  const none = await run({ args: ["--status"], command: path });
+  assert.equal(none.ok, true, JSON.stringify(none));
+  if (!none.ok) return;
+  assert.equal(none.envelope.directory?.project, "", "no stdin means immediate EOF, not a wait");
+});
+
 test("MM_DIR reaches mm untouched (§3.2)", async () => {
   // Board resolution is mm's, not the plugin's: MM_DIR is step 2 of the order,
   // and a runner that scrubbed the environment would quietly change which

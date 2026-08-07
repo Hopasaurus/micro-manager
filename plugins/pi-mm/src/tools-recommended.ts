@@ -1,6 +1,6 @@
 /*
   The recommended tools (spec-pi-mm-plugin.md §4.2, second table):
-  mm_block, mm_unblock, mm_search, mm_report, mm_tick, mm_archive.
+  mm_add_many, mm_block, mm_unblock, mm_search, mm_report, mm_tick, mm_archive.
 
   "SHOULD provide when the CLI does" — so unlike the required set these are
   registered conditionally, against what the installed build actually has
@@ -8,7 +8,14 @@
   the same as the required set: one tool, one operation, one subprocess (§4.1),
   the same gates, the same exit-code mapping (§4.3).
 
-  Two of the six carry rules of their own, and both are about restraint:
+  Three of the seven carry rules of their own. The first is about a promise the
+  operation makes, the other two about restraint:
+
+    §4.2  mm_add_many adds a batch in ONE transaction: "a rejected batch adds
+          nothing, so the error is reported as-is and NOT retried line by line —
+          a partial batch is exactly what the operation exists to prevent". Its
+          items travel on `mm`'s stdin, because the plugin creates no files
+          (§8.1) and a temp file would be one.
 
     §4.2  mm_tick is "the tickler service … expose only when the installed mm
           has it, and NEVER auto-run it; a bare mm_tick//mm tick run is the only
@@ -33,6 +40,7 @@ import { Type } from "typebox";
 import {
   archiveReport,
   itemLine,
+  itemList,
   reportBody,
   searchHits,
   tickReport,
@@ -65,6 +73,7 @@ import {
  * file where that omission is visible.
  */
 export const RECOMMENDED_OPS: Readonly<Record<string, string>> = {
+  mm_add_many: "add-many",
   mm_block: "block",
   mm_unblock: "unblock",
   mm_search: "search",
@@ -94,6 +103,82 @@ function changedFiles(envelope: Envelope): string {
 
 export function recommendedTools(deps: ToolDeps): ToolDefinition[] {
   return [
+    {
+      name: "mm_add_many",
+      label: "Add items",
+      description:
+        "Add several items to the backlog in ONE transaction, one per line. Either the whole batch is added or none of it is — a bad line adds nothing, so there is never a half-added list to reconcile. Each line is a title, optionally followed by fields: 'Fix the deploy script | prio:high | tags:infra,ci'.",
+      promptSnippet: "Add several backlog items at once, in one transaction",
+      promptGuidelines: [
+        "Use mm_add_many when the user gives you a list — notes from a meeting, a pasted checklist — rather than calling mm_add once per line.",
+        "When mm_add_many reports a bad line, fix that line and re-run the whole batch: nothing was added, so re-running adds each item exactly once.",
+      ],
+      parameters: Type.Object({
+        items: Type.Array(
+          Type.String({
+            description:
+              "One item: a title, optionally followed by ' | key:value' fields (prio, tags, refs, created, blocked, tickler, or your own)",
+          }),
+          { minItems: 1, description: "The items to add, in the order they should appear" },
+        ),
+        section: Type.Optional(
+          Type.Union([Type.Literal("ready"), Type.Literal("blocked"), Type.Literal("someday")], {
+            description: "Which backlog section the batch goes to (default: ready)",
+          }),
+        ),
+        prio: Type.Optional(
+          Type.Union([Type.Literal("high"), Type.Literal("med"), Type.Literal("low")], {
+            description: "Default priority; a line naming its own wins",
+          }),
+        ),
+        tags: Type.Optional(
+          Type.Array(Type.String(), { description: "Default tags; a line naming its own wins" }),
+        ),
+        top: Type.Optional(
+          Type.Boolean({ description: "Insert the batch at the top of the section, in this order" }),
+        ),
+      }),
+      async execute(_id, params, signal) {
+        const gate = await ready(deps);
+        if (gate) return gate;
+
+        const items = asStrings(params["items"]).map((line) => line.trim()).filter(Boolean);
+        if (items.length === 0) return text("mm_add_many needs at least one item.", {}, true);
+        // A newline inside one item would silently become two items, which is
+        // the one way this tool can add something nobody asked for.
+        const split = items.find((line) => line.includes("\n"));
+        if (split !== undefined) {
+          return text(
+            `mm_add_many takes one item per array entry; ${JSON.stringify(split)} contains a newline.`,
+            {},
+            true,
+          );
+        }
+
+        const args = ["--add-many"];
+        if (typeof params["section"] === "string") args.push("--section", params["section"]);
+        if (typeof params["prio"] === "string") args.push("--prio", params["prio"]);
+        for (const tag of asStrings(params["tags"])) args.push("--tag", tag);
+        if (params["top"] === true) args.push("--top");
+
+        // The batch travels on stdin (§4.2): no file is created for it, here or
+        // anywhere — the plugin writes nothing but through mm (§8.1).
+        const step = await operate(deps, args, signal, `${items.join("\n")}\n`);
+        // A rejected batch added NOTHING, so the error is passed through rather
+        // than retried line by line — a partial batch is what --add-many exists
+        // to prevent, and a plugin that fell back to mm_add per line would
+        // reintroduce it.
+        if (!step.ok) return step.result;
+
+        const added = listOf<ItemView>(step.envelope);
+        const body = [
+          `added ${added.length} item${added.length === 1 ? "" : "s"}${changedFiles(step.envelope)}`,
+          itemList(added, "nothing was added."),
+        ].join("\n");
+        return text(withWarnings(body, step.envelope), stepDetails(step));
+      },
+    },
+
     {
       name: "mm_block",
       label: "Block item",

@@ -145,6 +145,12 @@ export async function operate(
   deps: ToolDeps,
   args: readonly string[],
   signal: AbortSignal | undefined,
+  /**
+   * Text for `mm`'s stdin, for the one operation that reads a list rather than
+   * an argument (mm_add_many, §4.2). Everything else omits it and the child
+   * gets no stdin at all.
+   */
+  stdin?: string,
 ): Promise<{ ok: true; envelope: Envelope; pin: Pin } | { ok: false; result: ToolResult }> {
   const state = await deps.health();
   if (!state.ok) return { ok: false, result: text(state.message, {}, true) };
@@ -170,6 +176,7 @@ export async function operate(
     ...(deps.command ? { command: deps.command } : {}),
     ...(deps.timeoutMs !== undefined ? { timeoutMs: deps.timeoutMs } : {}),
     ...(signal ? { signal } : {}),
+    ...(stdin !== undefined ? { stdin } : {}),
   });
   if (!outcome.ok) {
     // A failed mutation can still have written something before it failed —

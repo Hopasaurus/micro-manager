@@ -44,11 +44,17 @@ start and gates on what it lists:
 
 | Tool | What it does |
 |---|---|
+| `mm_add_many` | add a whole list in one transaction, one item per line |
 | `mm_block` / `mm_unblock` | move an item to blocked with a reason, or back to ready |
 | `mm_search` | substring or regex over titles, tags and detail bodies |
 | `mm_report` | what closed in a period, with the period it resolved |
 | `mm_tick` | fire the board's due someday schedules, once |
 | `mm_archive` | roll old closed months out into a per-year archive |
+
+`mm_add_many` is the one to reach for when the user hands over a list — notes
+from a meeting, a pasted checklist. It is a single transaction: a bad line adds
+nothing at all, so there is never a half-added batch to reconcile, and the items
+travel to `mm` on a pipe because the plugin creates no files.
 
 Neither `mm_tick` nor `mm_archive` ever runs on its own — no timer, no event
 handler, no "while I'm here". Calling the tool is the only trigger, both take
@@ -70,6 +76,8 @@ so what you see is byte-for-byte what the agent sees:
 /mm edit ID [--title T] [--set K=V]...   /mm move ID [--top | --position N]
 /mm start ID | /mm pause ID | /mm finish ID [--outcome O]
 /mm note ID TEXT                      /mm remove ID     (asks first)
+/mm add-many [--section S] [--prio P] [--tag T]... [--top]
+    …then one item per line, below the command
 /mm block ID "REASON"                 /mm unblock ID [--end]
 /mm search "QUERY" [--field F]... [--state S] [--regex] [--limit N]
 /mm report [PERIOD] [--since D] [--until D] [--group-by G] [--include-wip]
@@ -188,6 +196,6 @@ It skips with a reason when `mm` is not on PATH, so the suite still runs on a
 machine that has never built the Go implementation:
 
 ```bash
-npm test                       # 167 pass, 7 skipped without mm
-PATH=/path/to/mm/bin:$PATH npm test   # 174 pass
+npm test                       # 172 pass, 7 skipped without mm
+PATH=/path/to/mm/bin:$PATH npm test   # 179 pass
 ```

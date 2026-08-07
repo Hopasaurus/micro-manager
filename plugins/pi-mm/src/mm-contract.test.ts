@@ -403,6 +403,32 @@ test("the recommended tools work against a real board", { skip: present.ok ? fal
 
   const covered: string[] = [];
 
+  if (hasOperation(caps, "add-many")) {
+    // The batch goes over a pipe to the real mm, which is the half a fake
+    // runner cannot check: that the argv is argv mm accepts AND that the items
+    // arrive on its stdin.
+    const added = await must("mm_add_many", {
+      items: [
+        "Captured from a meeting | tags:capture",
+        "- Pasted out of a checklist",
+        "Waiting on legal | blocked:contract review",
+      ],
+      prio: "low",
+    });
+    assert.match(added, /added 3 items/);
+    assert.match(added, /Pasted out of a checklist/, "the bullet was stripped by mm, not by the plugin");
+    // The run-wide default reached the lines that did not name one.
+    assert.match(added, /\(low, capture\)/);
+    // A rejected batch adds NOTHING, and the plugin passes mm's line number
+    // through rather than retrying line by line.
+    const before = await must("mm_status");
+    const rejected = await call("mm_add_many", { items: ["Fine", "Bad | prio:urgent"] });
+    assert.equal(rejected.isError, true, rejected.text);
+    assert.match(rejected.text, /line 2/);
+    assert.equal(await must("mm_status"), before, "a rejected batch changed the board");
+    covered.push("mm_add_many");
+  }
+
   if (hasOperation(caps, "block")) {
     const blocked = await must("mm_block", { id: "2", reason: "waiting on the vendor" });
     assert.match(blocked, /blocked T-0002/);

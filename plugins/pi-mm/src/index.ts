@@ -24,8 +24,9 @@
   board resolution and the pin (T-0177), the required READ tools (T-0178), the
   WRITE tools (T-0179), the workflow tools (T-0180) and mm_remove with its
   double guard (T-0181) — the whole required surface of §4.2 — the /mm command
-  (T-0182), per-turn context injection with the §9 config (T-0183), and the
-  recommended tools, registered against the installed build (T-0184).
+  (T-0182), per-turn context injection with the §9 config (T-0183), the
+  recommended tools, registered against the installed build (T-0184), and
+  mm_add_many, which hands a whole list to one transaction (T-0187).
 */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -158,7 +159,7 @@ export default function micromanager(pi: ExtensionAPI): void {
     getArgumentCompletions: (prefix: string) => {
       const ops = [
         "status", "next", "check", "find", "board", "init", "describe", "list",
-        "show", "add", "edit", "move", "start", "pause", "finish", "note",
+        "show", "add", "add-many", "edit", "move", "start", "pause", "finish", "note",
         "remove", "block", "unblock", "search", "report", "tick", "archive",
         "context", "help",
       ];

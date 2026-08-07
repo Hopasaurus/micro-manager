@@ -26,9 +26,12 @@ import (
 // porcelainFields documents the columns of each operation, in order. It is
 // exported through the help text and pinned by a test.
 var porcelainFields = map[Op][]string{
-	OpList:    {"id", "state", "section", "prio", "tags", "title"},
-	OpShow:    {"id", "state", "section", "prio", "tags", "title"},
-	OpAdd:     {"id", "state", "section", "prio", "tags", "title"},
+	OpList: {"id", "state", "section", "prio", "tags", "title"},
+	OpShow: {"id", "state", "section", "prio", "tags", "title"},
+	OpAdd:  {"id", "state", "section", "prio", "tags", "title"},
+	// §5.2.1: one record per created item, the same columns --add emits for
+	// one. A bulk add is not a different KIND of record, just more of them.
+	OpAddMany: {"id", "state", "section", "prio", "tags", "title"},
 	OpEdit:    {"id", "state", "section", "prio", "tags", "title"},
 	OpMove:    {"id", "state", "section", "prio", "tags", "title"},
 	OpStart:   {"id", "state", "section", "prio", "tags", "title"},

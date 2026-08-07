@@ -35,6 +35,7 @@ func main() {
 		Args:         os.Args[1:],
 		Stdout:       os.Stdout,
 		Stderr:       os.Stderr,
+		Stdin:        os.Stdin,
 		Dir:          os.Getenv("MM_DIR"),
 		ReportPeriod: os.Getenv("MM_REPORT_PERIOD"),
 		Cwd:          cwd,

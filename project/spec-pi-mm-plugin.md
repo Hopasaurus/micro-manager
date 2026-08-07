@@ -256,6 +256,7 @@ Recommended (SHOULD provide when the CLI does):
 
 | Tool | `mm` op | Notes |
 |---|---|---|
+| `mm_add_many` | `--add-many` | Add many items in ONE transaction, one per line (`spec-tools.md` §5.2.1). The item lines are written to `mm`'s **stdin** — the plugin does not create a file for them, here or anywhere (§8.1). A rejected batch adds nothing, so the error is reported as-is and NOT retried line by line: a partial batch is exactly what the operation exists to prevent. |
 | `mm_block` / `mm_unblock` | `--block` / `--unblock` | Sugar over move+`blocked:`. |
 | `mm_search` | `--search` | Titles, tags, detail bodies; reports state per hit. |
 | `mm_report` | `--report` | Weekly summary. |
@@ -293,6 +294,7 @@ mirror of the tools, sharing the same argv builders and formatters:
 /mm list [--section S] [--state S] [--prio P] [--tag T] [--limit N]
 /mm show ID [--detail]
 /mm add TITLE [--section S] [--prio P] [--tag T]... [--top] [--detail-text TEXT]
+/mm add-many [--section S] [--prio P] [--tag T]... [--top]   # then one item per line
 /mm edit ID [--title T] [--prio P] [--tag T]... [--set K=V]...
 /mm move ID [--section S] [--position N | --top | --end]
 /mm start ID | /mm pause ID
@@ -504,6 +506,7 @@ agent: mm_remove T-0175 confirmed=true → confirm dialog → T-0175 removed
 | `mm_board` | path? | `--status --json [--dir P]` | pinned board: identity + description + summary | envelope |
 | `mm_describe` | text | `--describe TEXT --json [--dir P]` | updated first paragraph | envelope |
 | `mm_add` | title, section, prio, tags, top, detail_text | `--add … --json …` | new item + ID | envelope |
+| `mm_add_many` | items[], section, prio, tags, top | `--add-many … --json …`, items on stdin | every new item + ID | envelope |
 | `mm_edit` | id, title, prio, tags, untags, set | `--edit ID … --json …` | updated item | envelope |
 | `mm_move` | id, section, position, top, end | `--move ID … --json …` | item at new position | envelope |
 | `mm_start` | id | `--start ID --json …` | item in slot, or slots at limit | envelope |
@@ -521,6 +524,7 @@ contract, not on these lists staying frozen:
 - Ops: `--init` (§5.1.1), `--describe` (§5.3), `--status` (§5.2), `--next`
   (§5.2), `--list` (§5.1.3), `--show` (§5.1.4), `--add` (§5.1.2), `--edit`
   (§5.1.5), `--move` (§5.1.7), `--start` (§5.1.8), `--pause` (§5.1.9),
+  `--add-many` (§5.2.1),
   `--finish` (§5.1.10), `--remove` (§5.1.6), `--check` (§5.1.12),
   `--block`/`--unblock` (§5.2), `--note` (§5.2), `--search` (§5.2),
   `--report` (§5.1.11), `--tick`/`--archive` (§5.3), `--find` (§5.2),

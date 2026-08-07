@@ -43,6 +43,13 @@ type Env struct {
 	Stdout io.Writer
 	Stderr io.Writer
 
+	// Stdin is where --add-many reads a list from when it is given no file
+	// (§5.2.1). It is here for the same reason the streams above are: the
+	// library must not read a terminal or a pipe (§2.2 rule 4), so the wrapper
+	// reads it and hands over the lines. Nil means "no input available", which
+	// is what a caller that never pipes anything should pass.
+	Stdin io.Reader
+
 	// Dir is MM_DIR, already read by the caller, or empty.
 	Dir string
 

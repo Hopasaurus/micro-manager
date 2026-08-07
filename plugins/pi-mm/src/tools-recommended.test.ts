@@ -75,7 +75,7 @@ test("every recommended tool names the operation it needs (§4.2)", () => {
   const { byName } = tools({});
   assert.deepEqual(
     [...byName.keys()],
-    ["mm_block", "mm_unblock", "mm_search", "mm_report", "mm_tick", "mm_archive"],
+    ["mm_add_many", "mm_block", "mm_unblock", "mm_search", "mm_report", "mm_tick", "mm_archive"],
   );
   for (const tool of byName.values()) {
     // Without an entry, index.ts registers nothing — the gate of §4.2 is
@@ -95,11 +95,108 @@ test("without mm, every recommended tool returns the remedy and runs nothing (§
     run: runner.run,
   };
   for (const tool of recommendedTools(deps)) {
-    const result = await tool.execute("id", { id: "T-0001", reason: "x", query: "x" });
+    const result = await tool.execute("id", { id: "T-0001", reason: "x", query: "x", items: ["x"] });
     assert.equal(result.isError, true, `${tool.name} must fail loudly`);
     assert.match(textOf(result), /no `mm` on PATH/);
   }
   assert.equal(runner.calls.length, 0, "no subprocess is spawned when mm is absent");
+});
+
+/* -------------------------------------------------------------- add many */
+
+const ADDED = ok({
+  ok: true,
+  operation: "add-many",
+  directory: { path: BOARD, project: "Runner Board" },
+  result: [
+    { id: "T-0001", title: "Fix the deploy script", state: "backlog", section: "Ready", prio: "high", tags: ["infra"] },
+    { id: "T-0002", title: "Rotate the leaked token", state: "backlog", section: "Ready" },
+  ],
+  changes: [
+    { kind: "created", id: "T-0001", file: "backlog.md" },
+    { kind: "created", id: "T-0002", file: "backlog.md" },
+  ],
+  warnings: [],
+  errors: [],
+});
+
+test("mm_add_many sends the batch on stdin and reports every id (§4.2)", async (t) => {
+  t.after(clearPin);
+  pinned();
+  const { byName, calls } = tools({ "--add-many": ADDED });
+  const result = await byName.get("mm_add_many")!.execute("id", {
+    items: ["Fix the deploy script | prio:high | tags:infra", "Rotate the leaked token"],
+    section: "ready",
+    prio: "med",
+    tags: ["captured"],
+    top: true,
+  });
+
+  assert.equal(result.isError, undefined);
+  const call = calls[calls.length - 1]!;
+  assert.deepEqual(call.args, [
+    "--add-many",
+    "--section",
+    "ready",
+    "--prio",
+    "med",
+    "--tag",
+    "captured",
+    "--top",
+  ]);
+  // The items are a PIPE, not a file: the plugin creates no files (§8.1), and
+  // there is no argv entry naming one.
+  assert.equal(
+    call.stdin,
+    "Fix the deploy script | prio:high | tags:infra\nRotate the leaked token\n",
+  );
+  const body = textOf(result);
+  assert.match(body, /added 2 items/);
+  assert.match(body, /T-0001 {2}Fix the deploy script/);
+  assert.match(body, /T-0002 {2}Rotate the leaked token/);
+});
+
+test("a rejected batch is reported as it came, not retried line by line (§4.2)", async (t) => {
+  t.after(clearPin);
+  pinned();
+  const rejected: RunOutcome = {
+    ok: false,
+    failure: {
+      kind: "usage",
+      exit: 2,
+      message: "line 2: prio:urgent is not high, med or low",
+      errors: [],
+    },
+  } as never;
+  const { byName, calls } = tools({ "--add-many": rejected });
+  const result = await byName.get("mm_add_many")!.execute("id", {
+    items: ["Fine", "Bad | prio:urgent"],
+  });
+
+  assert.equal(result.isError, true);
+  assert.match(textOf(result), /line 2/);
+  // One --add-many and nothing else — the board was already pinned, so there
+  // is not even a resolution call. A fallback that added the good lines one at
+  // a time would produce exactly the partial batch the operation exists to
+  // prevent.
+  const ops = calls.map((c) => c.args[0]);
+  assert.deepEqual(ops, ["--add-many"]);
+});
+
+test("mm_add_many refuses an empty batch and an item that is two items", async (t) => {
+  t.after(clearPin);
+  pinned();
+
+  const empty = tools({});
+  const none = await empty.byName.get("mm_add_many")!.execute("id", { items: ["  ", ""] });
+  assert.equal(none.isError, true);
+  assert.equal(empty.calls.length, 0, "refused before spending a subprocess");
+
+  const split = tools({});
+  const two = await split.byName.get("mm_add_many")!.execute("id", { items: ["One\nTwo"] });
+  assert.equal(two.isError, true);
+  assert.match(textOf(two), /contains a newline/);
+  assert.equal(split.calls.length, 0);
 });
 
 /* ------------------------------------------------------- block / unblock */
