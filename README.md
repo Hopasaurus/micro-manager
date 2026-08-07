@@ -12,6 +12,14 @@ This repository holds the format's specification, that reference validator,
 and implementations of the tooling in progress — Go furthest along, others
 starting.
 
+![The mm-ui board view: Someday, Ready, Blocked, Working and Done columns over this repository's own micro-manager directory](docs/board.png)
+
+*`mm-ui` serving this repository's own board. Every card is one line in
+`backlog.md`, `working.NN.md` or `done.md` — nothing is stored anywhere else.
+The Working column is one file per slot, and the file count IS the WIP limit.
+Run it with `make install-ui && mm-ui` (see
+[Building and installing the CLI](#building-and-installing-the-cli)).*
+
 ## Quick start
 
 Build and install the Go CLI to a per-user path (no `sudo` needed; `~/.local/bin`

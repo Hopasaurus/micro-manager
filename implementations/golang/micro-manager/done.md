@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0211] README: a screenshot of the board view | prio:low | tags:docs | detail:details/T-0211.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
 - [x] [T-0197] GUI: the monthly Wake-up control cannot express last (spec-gui §5.6) | prio:med | tags:gui,spec | detail:details/T-0197.md | created:2026-08-06 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
 - [x] [T-0207] Tickler: add a system-settings control for tickler.interval and document the drivers | prio:med | tags:tickler,docs,ui | detail:details/T-0207.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
 - [x] [T-0206] Tickler: warn at mm-ui startup when the service is disabled | prio:med | tags:tickler,ui | detail:details/T-0206.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
