@@ -2,7 +2,7 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0204
+next_id: T-0211
 updated: 2026-08-07
 ---
 
@@ -22,6 +22,8 @@ thing that can be started.
 
 ## Ready
 
+- [ ] [T-0210] sample scheduled task | prio:med | tags:demo | created:2026-08-07 | tickled:2026-08-07
+
 ## Blocked
 
 - [ ] [T-0135] CSS transition polish on swap (fade .htmx-added content) | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0135.md | created:2026-08-02 | blocked:report Phase 3; only if Phase 1 still feels abrupt
@@ -37,10 +39,9 @@ thing that can be started.
 - [ ] [T-0190] Need a way to make drag scroll down | prio:med | detail:details/T-0190.md | created:2026-08-06
 - [ ] [T-0195] slim down the skill | prio:med | tags:needs-refinement | detail:details/T-0195.md | created:2026-08-06
 - [ ] [T-0196] think about removing the spec from the project files | prio:med | tags:needs-refinement | detail:details/T-0196.md | created:2026-08-06
-- [ ] [T-0193] This will wake up at 6:44 | prio:med | tags:test | detail:details/T-0193.md | created:2026-08-06 | tickler:2026-08-06@06:44
-- [ ] [T-0197] GUI: the monthly Wake-up control cannot express last (spec-gui §5.6) | prio:med | tags:gui,spec | detail:details/T-0197.md | created:2026-08-06
-- [ ] [T-0198] test3 | prio:med | created:2026-08-06 | tickler:2026-08-06@09:32
-- [ ] [T-0199] tie you shoes | prio:med | created:2026-08-06 | tickler:mon@07:00
+- [ ] [T-0199] tie your shoes | prio:med | created:2026-08-06 | tickler:mon@07:00
 - [ ] [T-0200] later | prio:med | created:2026-08-06 | tickler:2026-08-20
 - [ ] [T-0201] make sure ui is local and storage is time zoned | prio:med | created:2026-08-06
 - [ ] [T-0192] Investigate caching, was: Make sure the UI has a place to enter the time when setting a wakeup type. | prio:med | detail:details/T-0192.md | created:2026-08-06
+- [ ] [T-0208] time for code & coffee | prio:med | created:2026-08-07 | tickler:fri@08:30
+- [ ] [T-0209] a single button for board and global settings is confusing | prio:med | tags:needs-refinement,spike | created:2026-08-07

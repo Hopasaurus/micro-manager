@@ -362,6 +362,38 @@ func TestTicklersListing(t *testing.T) {
 	}
 }
 
+// Due is the run's own due test at the listing's now, so a log consumer sees
+// exactly what the next Tick will do — including the backdated one-shot,
+// which is due right now even though its Next is already zero.
+func TestTicklersDue(t *testing.T) {
+	s := mustOpen(t, newDir(t, nil))
+	future := addScheduled(t, s, "Future", "2026-09-01", Date{2026, 7, 20})
+	backdated := addScheduled(t, s, "Backdated", "2026-08-01", Date{2026, 8, 5})
+	weeklyDue := addScheduled(t, s, "Weekly due", "mon@08:00", Date{2026, 7, 27})
+	weeklyLater := addScheduled(t, s, "Weekly later", "tue@08:00", Date{2026, 8, 3})
+
+	tl, err := s.Ticklers(Date{2026, 8, 3}) // a Monday
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[ID]Tickler{}
+	for _, t := range tl {
+		byID[t.ID] = t
+	}
+	if got := byID[future.ID].Due; got {
+		t.Error("a one-shot ahead of now must not be due")
+	}
+	if got := byID[backdated.ID]; !got.Due || !got.Next.IsZero() {
+		t.Errorf("backdated one-shot = due %v next %s, want due with zero next", got.Due, got.Next)
+	}
+	if got := byID[weeklyDue.ID]; !got.Due {
+		t.Error("a weekly whose next fire is today must be due")
+	}
+	if got := byID[weeklyLater.ID]; got.Due {
+		t.Error("a weekly whose next fire is tomorrow must not be due")
+	}
+}
+
 // A missed run catches up: the recurring prototype's last fire is more than a
 // week old, so the next run fires again - and the spawn is the one missed.
 func TestTickMissedRunCatchesUp(t *testing.T) {

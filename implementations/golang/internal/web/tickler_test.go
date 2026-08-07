@@ -1,10 +1,15 @@
 package web
 
 import (
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -409,5 +414,377 @@ func TestTicklerIntervalConfig(t *testing.T) {
 	}
 	if !found {
 		t.Error("a project config setting tickler must be reported as a warning")
+	}
+}
+
+// recordsHandler keeps every record a logger emits, so a test can assert the
+// §2.4 audit trail instead of eyeballing t.Log output.
+type recordsHandler struct {
+	mu     sync.Mutex
+	events []logEvent
+}
+
+type logEvent struct {
+	Level slog.Level
+	Msg   string
+	Attrs map[string]string
+}
+
+func (h *recordsHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *recordsHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	ev := logEvent{Level: r.Level, Msg: r.Message, Attrs: map[string]string{}}
+	r.Attrs(func(a slog.Attr) bool {
+		ev.Attrs[a.Key] = a.Value.String()
+		return true
+	})
+	h.events = append(h.events, ev)
+	return nil
+}
+
+func (h *recordsHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *recordsHandler) WithGroup(string) slog.Handler      { return h }
+
+// eventsOf returns the recorded events whose message is msg, in order.
+func (h *recordsHandler) eventsOf(msg string) []logEvent {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var out []logEvent
+	for _, e := range h.events {
+		if e.Msg == msg {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// The scheduled half of the audit trail (T-0205): every held board logs what
+// is scheduled and when it will fire before the run, so the log answers "why
+// didn't it move". The backdated one-shot is the sharp case: next=none because
+// its date is behind its created, but due=true — the run's own test — and the
+// line is followed immediately by the fire.
+func TestTicklerLogsScheduled(t *testing.T) {
+	rec := &recordsHandler{}
+	ts, id := boardServer(t, "clean-full")
+	ts.registry.now = func() time.Time { return time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC) }
+	ts.Server.log = slog.New(rec)
+
+	ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
+		"title": {"Backdated"}, "section": {"someday"}, "tickler-kind": {"one-time"},
+		"tickler-date": {"2026-07-01"},
+	}).expectStatus(http.StatusOK)
+	backdated := string(itemIDByTitle(t, ts, id, "Backdated"))
+
+	ts.Server.tickHeld()
+
+	scheduled := rec.eventsOf("tickler scheduled")
+	if len(scheduled) != 2 {
+		t.Fatalf("scheduled lines = %+v, want 2 (T-0005 and the backdated add)", scheduled)
+	}
+	if got := scheduled[0].Attrs; got["item"] != "T-0005" ||
+		got["schedule"] != "2026-09-01" || got["tickled"] != "never" ||
+		got["next"] != "2026-09-01" || got["due"] != "false" {
+		t.Errorf("T-0005 line = %v, want the fixture's future one-shot", got)
+	}
+	if got := scheduled[1].Attrs; got["item"] != backdated ||
+		got["tickled"] != "never" || got["next"] != "none" || got["due"] != "true" {
+		t.Errorf("backdated line = %v, want next=none due=true (overdue, fires now)", got)
+	}
+
+	fired := rec.eventsOf("tickler fired")
+	if len(fired) != 1 || fired[0].Attrs["item"] != backdated {
+		t.Errorf("fired lines = %+v, want exactly the backdated item", fired)
+	}
+	for i, e := range rec.events {
+		if e.Msg == "tickler fired" && i != 2 {
+			t.Errorf("the fired line must come after both scheduled lines, got it at index %d of %+v", i, rec.events)
+		}
+	}
+}
+
+// A board with nothing scheduled logs the absence (count 0) instead of
+// silence, so a held-but-inert board is distinguishable from a dead service.
+func TestTicklerLogsNothingScheduled(t *testing.T) {
+	rec := &recordsHandler{}
+	ts, id := boardServer(t, "clean-minimal")
+	ts.registry.now = func() time.Time { return time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC) }
+	ts.Server.log = slog.New(rec)
+
+	// The board GET is what holds the store, the way opening a board does.
+	ts.get("/p/" + id + "/board").expectStatus(http.StatusOK)
+
+	ts.Server.tickHeld()
+
+	scheduled := rec.eventsOf("tickler scheduled")
+	if len(scheduled) != 1 {
+		t.Fatalf("scheduled lines = %+v, want exactly the count=0 line", scheduled)
+	}
+	if got := scheduled[0].Attrs["count"]; got != "0" {
+		t.Errorf("count = %q, want 0", got)
+	}
+	if fired := rec.eventsOf("tickler fired"); len(fired) != 0 {
+		t.Errorf("nothing is due on clean-minimal, but %d lines fired", len(fired))
+	}
+}
+
+// T-0206 — the disabled tickler is not silent: startup logs a Warn naming the
+// config key and both ways to enable the service, and the enabled path still
+// logs the Info. Both go through the real Start, because the warning is part
+// of the startup path, not a helper.
+func TestTicklerStartupOffWarns(t *testing.T) {
+	rec := &recordsHandler{}
+	srv, err := New(Options{Bind: "127.0.0.1", Port: 0, Logger: slog.New(rec)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- srv.Start(ctx) }()
+	waitForAddr(t, srv)
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("shutdown returned %v", err)
+	}
+
+	off := rec.eventsOf("tickler service off")
+	if len(off) != 1 {
+		t.Fatalf("tickler service off lines = %+v, want exactly one at startup", off)
+	}
+	if got := off[0].Attrs; got["key"] != "tickler.interval" ||
+		!strings.Contains(got["help"], "tickler.interval") ||
+		!strings.Contains(got["help"], "mm --tick") {
+		t.Errorf("the off warning must name the key and both enablement paths, got %v", got)
+	}
+	if on := rec.eventsOf("tickler service on"); len(on) != 0 {
+		t.Errorf("a default-config service must not log tickler service on, got %+v", on)
+	}
+}
+
+func TestTicklerStartupOnLogsInfo(t *testing.T) {
+	cfg := mm.DefaultConfig()
+	cfg.Tickler.Interval = "1m"
+	rec := &recordsHandler{}
+	srv, err := New(Options{Bind: "127.0.0.1", Port: 0, Config: cfg, Logger: slog.New(rec)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- srv.Start(ctx) }()
+	waitForAddr(t, srv)
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("shutdown returned %v", err)
+	}
+
+	on := rec.eventsOf("tickler service on")
+	if len(on) != 1 {
+		t.Fatalf("tickler service on lines = %+v, want exactly one", on)
+	}
+	if got := on[0].Attrs["interval"]; got != "1m0s" {
+		t.Errorf("interval = %q, want 1m0s", got)
+	}
+	if off := rec.eventsOf("tickler service off"); len(off) != 0 {
+		t.Errorf("an enabled service must not warn that it is off, got %+v", off)
+	}
+}
+
+// T-0207 — the controller: apply starts the loop when turned on, stops it when
+// turned off, restarts it with a new duration when changed, and reports
+// whether anything changed so the caller can log transitions instead of
+// chattering.
+func TestTicklerControllerApply(t *testing.T) {
+	var mu sync.Mutex
+	passes := 0
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tk := newTickler(ctx, func() {
+		mu.Lock()
+		passes++
+		mu.Unlock()
+	})
+	passCount := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return passes
+	}
+
+	// Nothing applied: off, and applying off reports no change.
+	if tk.apply(0) {
+		t.Error("applying off to a fresh controller must not report a change")
+	}
+
+	// On with a fast interval: the pass runs without anyone calling it.
+	if !tk.apply(5 * time.Millisecond) {
+		t.Fatal("turning on must report a change")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for passCount() < 2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("the loop did not run its pass: %d passes", passCount())
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	// Re-applying the same interval is a no-op: the same loop keeps running.
+	if tk.apply(5 * time.Millisecond) {
+		t.Error("re-applying the same interval must not report a change")
+	}
+
+	// Off stops the loop: the pass count freezes.
+	if !tk.apply(0) {
+		t.Fatal("turning off must report a change")
+	}
+	frozen := passCount()
+	time.Sleep(30 * time.Millisecond)
+	if got := passCount(); got != frozen {
+		t.Errorf("the loop kept running after off: %d -> %d", frozen, got)
+	}
+
+	// Back on with a new interval runs again.
+	if !tk.apply(10 * time.Millisecond) {
+		t.Fatal("turning back on must report a change")
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	for passCount() <= frozen {
+		if time.Now().After(deadline) {
+			t.Fatalf("the restarted loop did not run: %d passes", passCount())
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+}
+
+// T-0207 end to end, through the real startup path and the real config API:
+// enabling the tickler from the UI's own write paths moves a due someday item
+// without a restart, logs the transition, and disabling it stops the loop.
+func TestTicklerSettingsAppliesLive(t *testing.T) {
+	rec := &recordsHandler{}
+	ts, id := func() (*testServer, string) {
+		ts := newTestServerWith(t, func(o *Options) { o.Logger = slog.New(rec) }, "clean-full")
+		pid, err := mm.ProjectID(ts.Dirs[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ts, pid
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- ts.Server.Start(ctx) }()
+	addr := waitForAddr(t, ts.Server)
+	defer func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Error("the service did not shut down")
+		}
+	}()
+	base := "http://" + addr.String()
+
+	// Open the board so the registry holds the store — the tickler ticks only
+	// held boards (§2.4).
+	if resp, err := http.Get(base + "/p/" + id + "/board"); err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("open board: %v (status %v)", err, resp.StatusCode)
+	} else {
+		resp.Body.Close()
+	}
+
+	// A due someday item: a backdated one-shot, due the next tick.
+	resp, err := http.PostForm(base+"/p/"+id+"/items", url.Values{
+		"title": {"Due now"}, "section": {"someday"},
+		"tickler-kind": {"one-time"}, "tickler-date": {"2026-07-01"},
+	})
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("add due item: %v (status %v)", err, resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// Enable the tickler at a test-friendly interval via the config API, the
+	// same path the settings control writes.
+	put := func(body string) int {
+		req, err := http.NewRequest(http.MethodPut, base+"/api/v1/config", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("config PUT: %v", err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+	if got := put(`{"tickler":{"interval":"10ms"}}`); got != http.StatusOK {
+		t.Fatalf("enable tickler: status %d", got)
+	}
+
+	// The loop moves the due item to Ready without a restart.
+	deadline := time.Now().Add(5 * time.Second)
+	moved := false
+	for !moved {
+		if time.Now().After(deadline) {
+			var list struct {
+				Result struct {
+					Items []struct {
+						Title string `json:"title"`
+					} `json:"items"`
+				} `json:"result"`
+			}
+			if resp, err := http.Get(base + "/api/v1/projects/" + id + "/items?section=someday"); err == nil {
+				if resp.StatusCode != http.StatusOK {
+					b, _ := io.ReadAll(resp.Body)
+					t.Fatalf("someday listing status = %d body=%s", resp.StatusCode, b)
+				}
+				json.NewDecoder(resp.Body).Decode(&list)
+				resp.Body.Close()
+			}
+			t.Fatalf("the due item never moved into Ready; somdays=%+v events=%+v", list.Result.Items, rec.events)
+		}
+		resp, err := http.Get(base + "/api/v1/projects/" + id + "/items?section=ready")
+		if err != nil {
+			t.Fatalf("list ready: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("ready listing status = %d body=%s", resp.StatusCode, b)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		var list struct {
+			Result struct {
+				Items []struct {
+					ID    string `json:"id"`
+					Title string `json:"title"`
+				} `json:"items"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(b, &list); err != nil {
+			t.Fatalf("decode items: %v", err)
+		}
+		for _, it := range list.Result.Items {
+			if it.Title == "Due now" {
+				moved = true
+			}
+		}
+		if !moved {
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+
+	// The runtime transition logged on, the startup log said off.
+	if on := rec.eventsOf("tickler service on"); len(on) != 1 {
+		t.Errorf("tickler service on lines = %+v, want exactly the enable transition", on)
+	}
+
+	// Disable through the API: the loop stops and the transition logs off.
+	if got := put(`{"tickler":{"interval":null}}`); got != http.StatusOK {
+		t.Fatalf("disable tickler: status %d", got)
+	}
+	if off := rec.eventsOf("tickler service off"); len(off) != 2 {
+		t.Errorf("tickler service off lines = %+v, want the startup and the disable", off)
 	}
 }

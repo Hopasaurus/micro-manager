@@ -134,6 +134,13 @@ func (s *Server) putConfigAt(c *echo.Context, path string, scope mm.ConfigScope)
 	if err := f.Save(dry); err != nil {
 		return err
 	}
+	// A system config write takes effect in the running service: the merged
+	// view is reloaded and the tickler interval applies without a restart
+	// (T-0207). A dry run wrote nothing, so nothing is reloaded. A project
+	// config write never reaches here — its scope has no runtime effects.
+	if scope == mm.ScopeSystem && !dry {
+		s.svc.SystemConfigReload()
+	}
 	out, err := documentOf(f)
 	if err != nil {
 		return err
@@ -160,6 +167,7 @@ func configWarnings(f *mm.ConfigFile, scope mm.ConfigScope) []mm.ConfigWarning {
 func systemOnlyKeys() []string {
 	return []string{
 		"ui.recentCount", "ui.favoritesCount", "ui.recentMaxStored",
+		"tickler",
 		"server", "server.bind", "server.port", "server.allowRemote", "server.socket",
 	}
 }

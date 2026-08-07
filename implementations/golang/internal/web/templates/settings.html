@@ -99,6 +99,25 @@
         <span data-testid="settings-scan-status" data-scanned-at="{{$d.Scan.ScannedAt}}">Last scanned {{$d.Scan.ScannedAt}}</span>
       </div>
     </section>
+
+    {{/* Tickler section (system scope only). The testids are x- prefixed:
+         spec-gui.md §5.9 does not define a tickler section, and §5.1 requires
+         added testids to carry the prefix (T-0207). */}}
+    <section data-testid="x-settings-tickler" class="mm-settings__section">
+      <h2>Tickler</h2>
+      <p class="mm-hint">Move scheduled someday items on their own clock, without a CLI cron. The service ticks only the boards you have open. Off by default.</p>
+      <div class="mm-field mm-field--checkbox">
+        <label>
+          <input data-testid="x-settings-tickler-enabled" name="ticklerEnabled" type="checkbox" value="true" {{if $d.Tickler.Enabled}}checked{{end}}>
+          Enable the tickler service
+        </label>
+      </div>
+      <div class="mm-field">
+        <label for="tickler-interval">Interval</label>
+        <input data-testid="x-settings-tickler-interval" id="tickler-interval" name="ticklerInterval" type="text" value="{{$d.Tickler.Interval}}" placeholder="1m, 30s">
+        <span data-testid="x-settings-tickler-status" class="mm-badge">{{$d.Tickler.Status}}</span>
+      </div>
+    </section>
     {{end}}
 
     {{if not $isSystem}}

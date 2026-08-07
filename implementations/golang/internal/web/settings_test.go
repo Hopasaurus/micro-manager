@@ -24,7 +24,7 @@ func TestSystemSettingsView(t *testing.T) {
 		t.Errorf("data-scope = %q, want system", got)
 	}
 
-	for _, id := range []string{"settings-theme", "settings-lists", "settings-scan", "settings-save"} {
+	for _, id := range []string{"settings-theme", "settings-lists", "settings-scan", "x-settings-tickler", "settings-save"} {
 		if !hasTestid(body, id) {
 			t.Errorf("%s missing in system settings", id)
 		}
@@ -54,7 +54,7 @@ func TestProjectSettingsView(t *testing.T) {
 	}
 
 	// §5.9: settings-lists and settings-scan MUST be absent in project scope
-	for _, id := range []string{"settings-lists", "settings-scan"} {
+	for _, id := range []string{"settings-lists", "settings-scan", "x-settings-tickler"} {
 		if hasTestid(body, id) {
 			t.Errorf("%s present in project scope (MUST be absent)", id)
 		}
@@ -125,4 +125,89 @@ func snippetAround(haystack, marker string) string {
 		end = len(haystack)
 	}
 	return haystack[start:end]
+}
+
+// T-0207 — the Tickler section: system scope only, pre-filled from the merged
+// config, and the save round-trips the interval into the system config file
+// and the running view. A typo refuses the whole save and changes nothing.
+func TestTicklerSettingsSection(t *testing.T) {
+	ts, _ := boardServer(t, "clean-full")
+
+	// Default: off, nothing pre-filled, the status badge says so.
+	body := ts.get("/settings").expectStatus(http.StatusOK).Body
+	for _, id := range []string{"x-settings-tickler", "x-settings-tickler-enabled", "x-settings-tickler-interval", "x-settings-tickler-status"} {
+		if !hasTestid(body, id) {
+			t.Errorf("%s missing in the Tickler section", id)
+		}
+	}
+	if strings.Contains(testid(t, body, "x-settings-tickler-enabled"), "checked") {
+		t.Error("the default must render the tickler disabled")
+	}
+	if got := badgeText(body, "x-settings-tickler-status"); got != "off" {
+		t.Errorf("status = %q, want off", got)
+	}
+
+	// Enable at 1m: the save writes the interval and the reloaded view shows on.
+	ts.form(http.MethodPost, "/settings", url.Values{
+		"ticklerEnabled": {"true"}, "ticklerInterval": {"1m"},
+	}).expectStatus(http.StatusOK)
+	body = ts.get("/settings").expectStatus(http.StatusOK).Body
+	if !strings.Contains(testid(t, body, "x-settings-tickler-enabled"), "checked") {
+		t.Error("an enabled tickler must render the checkbox checked")
+	}
+	if got := badgeText(body, "x-settings-tickler-status"); got != "on · every 1m" {
+		t.Errorf("status = %q, want on · every 1m", got)
+	}
+	if got := ts.Server.opts.Config.Tickler.Interval; got != "1m" {
+		t.Errorf("merged interval = %q, want 1m", got)
+	}
+	sys, _ := mm.LoadConfigFile(mm.NewSystemPaths(ts.ConfigHome).Config, mm.ScopeSystem)
+	if got, _ := sys.Get("tickler.interval").(string); got != "1m" {
+		t.Errorf("config file tickler.interval = %v, want 1m", sys.Get("tickler.interval"))
+	}
+
+	// A typo refuses the whole save and changes nothing.
+	before, _ := os.ReadFile(mm.NewSystemPaths(ts.ConfigHome).Config)
+	bad := ts.form(http.MethodPost, "/settings", url.Values{
+		"ticklerEnabled": {"true"}, "ticklerInterval": {"soon"},
+	})
+	if bad.Status != http.StatusBadRequest {
+		t.Errorf("a non-duration interval must be refused, got %d", bad.Status)
+	}
+	after, _ := os.ReadFile(mm.NewSystemPaths(ts.ConfigHome).Config)
+	if string(after) != string(before) {
+		t.Error("a refused save must not change the config file")
+	}
+
+	// Enabled with no interval is refused too.
+	if r := ts.form(http.MethodPost, "/settings", url.Values{"ticklerEnabled": {"true"}}); r.Status != http.StatusBadRequest {
+		t.Errorf("enabled without an interval must be refused, got %d", r.Status)
+	}
+
+	// Disabling writes the documented null value; the merged view is off.
+	ts.form(http.MethodPost, "/settings", url.Values{}).expectStatus(http.StatusOK)
+	if got := ts.Server.opts.Config.Tickler.Interval; got != "" {
+		t.Errorf("merged interval after off = %q, want empty", got)
+	}
+	if got := badgeText(ts.get("/settings").Body, "x-settings-tickler-status"); got != "off" {
+		t.Errorf("status after off = %q, want off", got)
+	}
+}
+
+// A project config MUST NOT set the system-scoped tickler (spec-gui.md §9.3):
+// the config API refuses the whole write by name, so a board cannot turn the
+// service on for itself (T-0207).
+func TestProjectConfigRefusesTickler(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+
+	resp := ts.do(http.MethodPut, "/api/v1/projects/"+id+"/config", strings.NewReader(`{"tickler":{"interval":"1m"}}`))
+	if resp.Status != http.StatusBadRequest {
+		t.Fatalf("a project config setting tickler must be refused, got %d body=%s", resp.Status, resp.Body)
+	}
+
+	// The system config still accepts it.
+	sys := ts.do(http.MethodPut, "/api/v1/config", strings.NewReader(`{"tickler":{"interval":"1m"}}`))
+	if sys.Status != http.StatusOK {
+		t.Fatalf("the system config must accept tickler.interval, got %d body=%s", sys.Status, sys.Body)
+	}
 }

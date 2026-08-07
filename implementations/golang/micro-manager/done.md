@@ -1,7 +1,7 @@
 ---
 doc: done
 version: 1
-updated: 2026-08-03
+updated: 2026-08-07
 ---
 
 # Done
@@ -11,6 +11,13 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0197] GUI: the monthly Wake-up control cannot express last (spec-gui §5.6) | prio:med | tags:gui,spec | detail:details/T-0197.md | created:2026-08-06 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
+- [x] [T-0207] Tickler: add a system-settings control for tickler.interval and document the drivers | prio:med | tags:tickler,docs,ui | detail:details/T-0207.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
+- [x] [T-0206] Tickler: warn at mm-ui startup when the service is disabled | prio:med | tags:tickler,ui | detail:details/T-0206.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
+- [x] [T-0205] Tickler: log scheduled items and next fire on every pass | prio:high | tags:tickler,observability | detail:details/T-0205.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
+- [x] [T-0198] test3 | prio:med | created:2026-08-06 | tickled:2026-08-07 | done:2026-08-07 | outcome:obsolete
+- [x] [T-0193] This will wake up at 6:44 | prio:med | tags:test | detail:details/T-0193.md | created:2026-08-06 | tickled:2026-08-07 | done:2026-08-07 | outcome:obsolete
+- [x] [T-0204] Tickler not moving old items? | prio:med | tags:bug,spike | detail:details/T-0204.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
 - [x] [T-0202] mm --help --json: a machine-readable capability list | prio:med | tags:cli,spec | detail:details/T-0202.md | created:2026-08-06 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0194] detect multiple mm directories in the same directory | prio:med | detail:details/T-0194.md | created:2026-08-06 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
 - [x] [T-0191] update the spec so that if backlog.md and done.md are missing it skips the directory. | prio:med | detail:details/T-0191.md | created:2026-08-06 | started:2026-08-06 | done:2026-08-06 | outcome:shipped

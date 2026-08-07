@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v5"
 
@@ -21,6 +22,7 @@ type settingsData struct {
 	Theme     themeSettingsData
 	Lists     listsSettingsData
 	Scan      scanSettingsData
+	Tickler   ticklerSettingsData
 	Wip       wipSettingsData
 }
 
@@ -61,6 +63,16 @@ type rootSettingsData struct {
 
 type wipSettingsData struct {
 	Limit int
+}
+
+// ticklerSettingsData is the system-scope Tickler section (T-0207). It is an
+// extension of §5.9, so its testids carry the x- prefix. Enabled is whether
+// the merged config names an interval; Status is the honest "what the service
+// is doing right now" line.
+type ticklerSettingsData struct {
+	Enabled  bool
+	Interval string // the configured duration string, "" when off
+	Status   string // "off" or "on · every <interval>"
 }
 
 // settingsSystem serves /settings (data-scope="system").
@@ -147,6 +159,27 @@ func (s *Server) saveSettingsSystem(c *echo.Context) error {
 		_ = cfgFile.Set("theme.id", theme)
 	}
 
+	// Tickler (system scope, spec-gui.md §2.4): the on/off control plus the
+	// interval field of the Tickler section. An enabled tickler needs an
+	// interval that parses as a duration — a typo must not silently turn the
+	// service on or off, the same principle as applyConfig's warning. Off
+	// writes null, the documented off value (§9.2), which also keeps the
+	// section visible in the file.
+	ticklerEnabled := form("ticklerEnabled") == "true" || form("ticklerEnabled") == "on"
+	ticklerInterval := strings.TrimSpace(form("ticklerInterval"))
+	if ticklerEnabled {
+		if ticklerInterval == "" {
+			return fmt.Errorf("%w: an enabled tickler needs an interval, e.g. \"1m\"", mm.ErrInvalidArgument)
+		}
+		if _, err := time.ParseDuration(ticklerInterval); err != nil {
+			return fmt.Errorf("%w: tickler interval %q is not a duration: %v",
+				mm.ErrInvalidArgument, ticklerInterval, err)
+		}
+		_ = cfgFile.Set("tickler.interval", ticklerInterval)
+	} else {
+		_ = cfgFile.Set("tickler.interval", nil)
+	}
+
 	if addRoot := strings.TrimSpace(form("addRoot")); addRoot != "" {
 		rootsAny := cfgFile.Get("scan.roots")
 		var roots []string
@@ -188,9 +221,9 @@ func (s *Server) saveSettingsSystem(c *echo.Context) error {
 		return err
 	}
 
-	// Reload config in server opts
-	sysFile, _ := mm.LoadConfigFile(paths.Config, mm.ScopeSystem)
-	s.opts.Config, _ = mm.MergeConfig(sysFile, nil)
+	// Reload config in server opts and apply runtime effects — the tickler
+	// interval changes without a restart (T-0207).
+	s.SystemConfigReload()
 
 	return s.settingsSystem(c)
 }
@@ -264,6 +297,17 @@ func (s *Server) buildSystemSettings() settingsData {
 	data.Scan.RootCount = len(data.Scan.Roots)
 
 	data.Theme = s.buildThemeSettings(cfg.Theme.ID, "", "")
+
+	interval := cfg.Tickler.Interval
+	status := "off"
+	if interval != "" {
+		status = "on · every " + interval
+	}
+	data.Tickler = ticklerSettingsData{
+		Enabled:  interval != "",
+		Interval: interval,
+		Status:   status,
+	}
 	return data
 }
 

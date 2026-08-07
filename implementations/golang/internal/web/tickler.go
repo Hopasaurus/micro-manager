@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/labstack/echo/v5"
@@ -240,24 +241,87 @@ func applyTicklerUpdate(req *mm.UpdateRequest, schedule string, present bool) {
 // The service goroutine (§2.4)
 // ---------------------------------------------------------------------------
 
-// ticklerLoop runs Store.tick on every held board, once per interval, until
-// the context ends. The interval comes from the system config key
-// tickler.interval; a nil/absent key never reaches this function.
+// tickler owns the tickler service's goroutine so the interval can change at
+// runtime (T-0207): a settings save or a config PUT applies without a
+// restart. apply starts the loop when turned on, stops it when turned off,
+// restarts it with a new duration when changed, and never leaks a stopped
+// loop — a change waits for the previous loop to exit before starting the
+// next. The loop itself keeps the §2.4 semantics: one pass per interval over
+// held boards only, stopping with the service's context.
 //
-// The loop is deliberately dumb: no backoff, no retry, no catch-up pass. tick
-// is date-granular and idempotent across overlapping runners (§2.4), so a
-// missed run is caught up by the next one and a UI service and a CLI cron can
-// tick one board at once. Retrying here would just re-raise the same
-// per-item errors a minute later.
-func (s *Server) ticklerLoop(ctx context.Context, interval time.Duration) {
+// The controller is deliberately dumb about configuration — it is handed an
+// interval and reports whether the effective state changed; the caller
+// decides what to log. The interval comes from the system config key
+// tickler.interval; a nil/absent key never reaches apply.
+type tickler struct {
+	ctx  context.Context
+	pass func() // one tick pass over every held board
+
+	applyMu  sync.Mutex // serializes interval changes
+	mu       sync.Mutex
+	stop     chan struct{} // nil while off
+	interval time.Duration
+	wg       sync.WaitGroup
+}
+
+func newTickler(ctx context.Context, pass func()) *tickler {
+	return &tickler{ctx: ctx, pass: pass}
+}
+
+// apply switches the running loop to interval; 0 is off. It reports whether
+// the effective state changed, so the caller logs a transition instead of
+// chattering on every config reload that did not touch the tickler.
+func (t *tickler) apply(interval time.Duration) bool {
+	t.applyMu.Lock()
+	defer t.applyMu.Unlock()
+
+	t.mu.Lock()
+	changed := t.interval != interval
+	stop := t.stop
+	t.mu.Unlock()
+	if !changed {
+		return false
+	}
+	if stop != nil {
+		close(stop)
+		t.mu.Lock()
+		t.stop = nil
+		t.mu.Unlock()
+		t.wg.Wait()
+	}
+	t.mu.Lock()
+	t.interval = interval
+	t.mu.Unlock()
+	if interval <= 0 {
+		return true
+	}
+	stop = make(chan struct{})
+	t.mu.Lock()
+	t.stop = stop
+	t.mu.Unlock()
+	t.wg.Add(1)
+	go t.run(interval, stop)
+	return true
+}
+
+// run is one loop lifetime: a pass per interval until the service stops or
+// the loop is replaced. It is deliberately dumb — no backoff, no retry, no
+// catch-up pass. tick is date-granular and idempotent across overlapping
+// runners (§2.4), so a missed run is caught up by the next one and a UI
+// service and a CLI cron can tick one board at once. Retrying here would just
+// re-raise the same per-item errors a minute later.
+func (t *tickler) run(interval time.Duration, stop <-chan struct{}) {
+	defer t.wg.Done()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-t.ctx.Done():
+			return
+		case <-stop:
 			return
 		case <-ticker.C:
-			s.tickHeld()
+			t.pass()
 		}
 	}
 }
@@ -268,7 +332,9 @@ func (s *Server) ticklerLoop(ctx context.Context, interval time.Duration) {
 // kind, spawned ID". Each fire is one Info line with the fields a log
 // consumer can act on; per-item failures are Warn lines. A board-level failure
 // (an unreadable directory) is logged and the pass continues to the next
-// board — one broken board must not starve the others.
+// board — one broken board must not starve the others. Before the run, the
+// board's scheduled set is listed (logScheduled) so the log answers "why
+// didn't it move" — the fires alone only show the half that did.
 func (s *Server) tickHeld() {
 	today, err := mm.ParseDate(mm.NewTimestamp(s.registry.now()).String()[:10])
 	if err != nil {
@@ -276,6 +342,7 @@ func (s *Server) tickHeld() {
 		return
 	}
 	for _, store := range s.registry.heldStores() {
+		s.logScheduled(store, today)
 		res, err := store.Tick(today, false)
 		if err != nil {
 			s.log.Warn("tickler", "directory", store.Path(), "error", err)
@@ -289,6 +356,44 @@ func (s *Server) tickHeld() {
 		for _, e := range res.Errors {
 			s.log.Warn("tickler", "item", string(e.ID), "error", e.Error.Error())
 		}
+	}
+}
+
+// logScheduled emits the scheduled half of the §2.4 audit trail: one Info
+// line per scheduled someday item — its schedule, when it last fired, when it
+// will next fire, and whether the run's own due test says it is due now — and
+// one line saying nothing is scheduled, so a board the service holds but
+// never acts on is visible in the log instead of looking like a silent skip.
+//
+// The listing comes from store.Ticklers, the library's read-only view of the
+// same due test the run uses, so the log and the run agree by construction:
+// an item logged with next=none but due=true is the backdated one-shot that
+// the very next Tick fires (spec-tools.md §5.3.3's "overdue, fire now").
+func (s *Server) logScheduled(store *mm.Store, today mm.Date) {
+	scheduled, err := store.Ticklers(today)
+	if err != nil {
+		s.log.Warn("tickler", "directory", store.Path(), "error", err)
+		return
+	}
+	if len(scheduled) == 0 {
+		s.log.Info("tickler scheduled", "directory", store.Path(), "count", 0)
+		return
+	}
+	for _, t := range scheduled {
+		last, next := t.Last.String(), t.Next.String()
+		if t.Last.IsZero() {
+			last = "never"
+		}
+		if t.Next.IsZero() {
+			next = "none"
+		}
+		s.log.Info("tickler scheduled",
+			"directory", store.Path(),
+			"item", string(t.ID),
+			"schedule", t.Schedule,
+			"tickled", last,
+			"next", next,
+			"due", t.Due)
 	}
 }
 

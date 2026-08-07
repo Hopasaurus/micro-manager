@@ -27,6 +27,7 @@ type Tickler struct {
 	Schedule string // the expression, verbatim
 	Last     Date   // tickled:, zero when never fired
 	Next     Date   // Schedule.next(last ?? created), zero when the schedule is spent
+	Due      bool   // the run's own due test at the listing's now: due on or before it
 }
 
 // FiredTickler reports one item a tick run fired.
@@ -63,12 +64,13 @@ type TickResult struct {
 
 // Ticklers lists every scheduled someday item (spec-tools.md §6.1).
 //
-// now is where the caller judges "due" — an item whose Next is on or before
-// now is due (§5.3.3). Next itself is Schedule.next(tickled ?? created), the
-// same anchor the due test uses, so the listing and the run agree about what
-// has already happened. Items whose schedule does not parse are I7 violations
-// that --check reports; a read-only listing skips them rather than inventing
-// an error channel.
+// now is where the caller judges "due". Next is Schedule.next(tickled ??
+// created), the same anchor the due test uses, and Due is Schedule.Due itself
+// — the run's test, not an approximation — so the listing and the run agree
+// about what has already happened, including the backdated one-shot whose
+// Next is zero but which is due right now (§5.3.3: "overdue, fire now").
+// Items whose schedule does not parse are I7 violations that --check reports;
+// a read-only listing skips them rather than inventing an error channel.
 func (s *Store) Ticklers(now Date) ([]Tickler, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -102,6 +104,7 @@ func (s *Store) Ticklers(now Date) ([]Tickler, error) {
 			Schedule: it.Tickler,
 			Last:     it.Tickled,
 			Next:     sch.Next(after),
+			Due:      sch.Due(now, it.Tickled, it.Created),
 		})
 	}
 	return out, nil

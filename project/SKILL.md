@@ -270,6 +270,15 @@ mm --tick --dry-run                            # what the schedules would fire t
 mm --tick                                      # fire them
 ```
 
+**The tickler** runs three ways, all opt-in; the default is **off**. A cron
+can run `mm --tick` on demand. The `mm-ui` service can tick on its own clock
+when the system config sets `tickler.interval` (a duration like `1m`);
+System Settings > Tickler writes that key without editing files, and the
+change applies without a restart. The UI service ticks only the boards you
+have open. Scheduled items are logged on every pass — item, schedule, last
+fire, next fire, due — and startup says plainly whether the service is on
+or off.
+
 `--archive` is the one operation that takes data OUT of the validated set:
 archived items leave the ID pool, so I1 and I2 stop seeing them. Their detail
 files travel with them into `details-YYYY/` and the archived `detail:` fields

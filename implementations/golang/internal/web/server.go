@@ -127,6 +127,13 @@ type Server struct {
 	// it is never racing a write.
 	shutdown     chan struct{}
 	shutdownOnce sync.Once
+
+	// tickler owns the tickler service goroutine (spec-gui.md §2.4), created
+	// at Start with the service context. apply switches its interval at
+	// runtime, so a settings save or a config PUT needs no restart (T-0207).
+	// Nil before Start and never after; the reload path nil-checks it because
+	// the test harness serves requests without ever calling Start.
+	tickler *tickler
 }
 
 // New builds the service. It does not listen; Start does.
@@ -260,12 +267,14 @@ func (s *Server) Start(ctx context.Context) error {
 	// every held board, on the system config's tickler.interval. Absent or null
 	// means off — a process that mutates boards on its own initiative must not
 	// start quietly — and a value that failed to parse was already reported as
-	// a config warning at load, leaving Interval empty. The loop stops with the
-	// context, like every other goroutine here.
-	if interval := s.ticklerInterval(); interval > 0 {
-		s.log.Info("tickler service on", "interval", interval.String())
-		go s.ticklerLoop(ctx, interval)
-	}
+	// a config warning at load, leaving Interval empty. Off is a Warn naming
+	// the key and the ways to turn it on (T-0206). The controller (T-0207)
+	// lets the interval change at runtime through the settings screen or the
+	// config API, without a restart; the loop stops with the context, like
+	// every other goroutine here.
+	s.tickler = newTickler(ctx, s.tickHeld)
+	s.logTicklerState()
+	s.tickler.apply(s.ticklerInterval())
 
 	if s.opts.Socket != "" {
 		ln, err := s.listenUnix()
@@ -298,6 +307,53 @@ func (s *Server) ticklerInterval() time.Duration {
 		return 0
 	}
 	return d
+}
+
+// logTicklerState logs the tickler's current state as a startup or transition
+// line: on is an Info naming the interval; off is a Warn naming the config
+// key and every way to enable the service — a process that is supposed to
+// move items but is not is never silent (T-0206, from T-0204).
+func (s *Server) logTicklerState() {
+	if interval := s.ticklerInterval(); interval > 0 {
+		s.log.Info("tickler service on", "interval", interval.String())
+	} else {
+		s.log.Warn("tickler service off",
+			"key", "tickler.interval",
+			"help", "set tickler.interval in System Settings > Tickler, in the system config file, or run mm --tick from a cron")
+	}
+}
+
+// SystemConfigReload re-reads the system config file into the merged view and
+// applies runtime effects — today, the tickler service interval, which
+// changes without a restart (T-0207). Both write paths call it: the settings
+// form (POST /settings) and the config API (PUT /api/v1/config), which
+// replaces the whole file.
+func (s *Server) SystemConfigReload() {
+	if s.opts.ConfigHome == "" {
+		return
+	}
+	paths := mm.NewSystemPaths(s.opts.ConfigHome)
+	sysFile, err := mm.LoadConfigFile(paths.Config, mm.ScopeSystem)
+	if err != nil {
+		s.log.Warn("config reload", "file", paths.Config, "error", err)
+		return
+	}
+	s.opts.Config, _ = mm.MergeConfig(sysFile, nil)
+	s.applyTickler()
+}
+
+// applyTickler switches the tickler service to the merged config's interval,
+// logging a transition only when the effective state changed — saving
+// unrelated settings must not chatter about a tickler that did not move.
+// Start logs the state itself and applies directly, so startup is never
+// double-logged.
+func (s *Server) applyTickler() {
+	if s.tickler == nil {
+		return // the service has not started; nothing to re-apply
+	}
+	if s.tickler.apply(s.ticklerInterval()) {
+		s.logTicklerState()
+	}
 }
 
 // listenUnix binds a Unix domain socket, the most restrictive option

@@ -118,6 +118,28 @@ type Item struct {
 Every operation that rewrites an item must carry it through, and a test must
 prove it.
 
+## The tickler
+
+The tickler (someday schedules firing, `spec-gui.md` §2.4) has three
+states, all opt-in; the default is **off**, and a process that moves items on
+its own initiative must not start quietly.
+
+- `mm --tick` on a cron fires due schedules on demand.
+- The UI service ticks on its own clock when the system config sets
+  `tickler.interval`; System Settings > Tickler writes that key, and the
+  interval applies **without a restart** (a `tickler` controller owns the
+  loop goroutine: `apply` starts it, stops it, or re-intervals it; every
+  config reload — the settings form and `PUT /api/v1/config` — calls
+  `SystemConfigReload`).
+- The service ticks only **held** boards (boards opened in the browser).
+
+Observability is part of the contract: startup logs `tickler service on/off`
+(the off Warn names `tickler.interval` and every way to enable it), and every
+pass logs the scheduled set (item, schedule, last fire, next fire, due) plus
+the fires. Tests live in `internal/web/tickler_test.go`; the settings
+section is `x-`-prefixed (`x-settings-tickler-*`), an extension of `§5.9`,
+not spec contract.
+
 Do not use `time.Time` for the date fields. The format is date-granular with no
 timezone (`spec-file-format.md` §3.3); a `time.Time` invites a timezone bug that
 shifts a `done:` date across a month boundary and moves an item into the wrong

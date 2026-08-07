@@ -38,6 +38,12 @@ type Service interface {
 	SystemConfig() *mm.ConfigFile
 	Now() time.Time
 
+	// SystemConfigReload re-reads the system config file into the merged view
+	// and applies runtime effects (the tickler service interval, which changes
+	// without a restart). The config PUT replaces the file; the running
+	// service must follow it.
+	SystemConfigReload()
+
 	// Subscribe opens a per-project event stream. The returned function MUST be
 	// called when the stream closes, or the project's poller runs forever.
 	Subscribe(projectID string) (<-chan Event, func())
