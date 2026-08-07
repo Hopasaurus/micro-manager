@@ -21,10 +21,16 @@ is what makes editing it fast and impossible to corrupt.
 
 ## Find the project
 
-A micro-manager directory is recognized by name alone, in six equivalent
+A micro-manager directory is recognized by its name, in six equivalent
 spellings: `micro-manager`, `.micro-manager`, `µmanager`, `.µmanager`,
 `μmanager` (Greek mu), `.μmanager` (Greek mu, hidden). They render almost
 identically; don't assume which one is present.
+
+A directory with one of those names but holding neither `backlog.md` nor
+`done.md` is not a project: discovery skips it, so a source tree that happens
+to share the name will not turn up in `mm --find` or capture a command run
+inside it. Name such a directory with `--dir` and you get an error, not
+silence.
 
 You rarely need to locate it yourself — `mm` does, in this order: `--dir PATH`,
 then `$MM_DIR`, then the nearest directory above the current one that contains

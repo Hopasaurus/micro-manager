@@ -16,10 +16,11 @@ you're doing, use that one instead.
 **A note on the folder name.** This package's `SKILL.md` declares
 `name: micro-manager`, but its *source* directory in this repository is
 `skills/micro-manager-cli/`, not `skills/micro-manager/`. That's deliberate:
-`find.sh`/`check.sh` recognize a *todo* directory by name alone (`micro-manager`
-and five spelling variants — see `project/SKILL.md`), so a folder literally
-named `micro-manager` anywhere in this repository gets treated as one and
-rejected as broken. When you install it into your own agent's skill directory
+`find.sh`/`check.sh` recognize a *todo* directory by one of six names
+(`micro-manager` and five spelling variants — see `project/SKILL.md`), and
+discovery prunes at a match without descending into it — so a folder literally
+named `micro-manager` anywhere in this repository would hide whatever is under
+it from every scan. When you install it into your own agent's skill directory
 below, name the **destination** `micro-manager` (matching the skill's
 identity) — that collision only exists inside this source repository.
 

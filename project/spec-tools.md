@@ -246,8 +246,10 @@ variable, never ignored.
 An operation acts on exactly one micro-manager directory unless documented
 otherwise. The tool MUST resolve it in this order, stopping at the first hit:
 
-1. `--dir PATH`, used verbatim. If it is not a micro-manager directory, that is
-   an error — no searching from there.
+1. `--dir PATH`, used verbatim. If it is not a micro-manager directory — it
+   fails the emptiness test of `spec-file-format.md` Appendix B — that is an
+   error, not the start of a search: the user named a place, and silently
+   searching elsewhere would act on a directory they did not name.
 2. The `MM_DIR` environment variable, treated the same way. Read by the
    wrapper and passed to the library as a parameter, never read by the library
    itself (§3.5).
@@ -257,13 +259,21 @@ otherwise. The tool MUST resolve it in this order, stopping at the first hit:
 4. Search downward from the current directory, using the discovery rules in
    `spec-file-format.md` Appendix B, and use the result if exactly one is found.
 
+Steps 3 and 4 are DISCOVERY, so both apply Appendix B's emptiness test: a
+name-matching directory holding neither `backlog.md` nor `done.md` is not a
+candidate at all. It cannot be resolved to, and it cannot make a resolution
+ambiguous — which is the practical half of the rule, since a source tree that
+happens to contain a directory of that name would otherwise force every command
+in it to be answered with `--dir`.
+
 If more than one candidate is found at the resolving step, the tool MUST fail
 with a not-found error listing the candidates and their `project` names, rather
 than guessing. Ambiguity is never resolved silently.
 
 `--all`, where an operation documents support for it, applies the operation
-across every directory discovered by step 4. It is only valid for read-only
-operations.
+across every directory discovered by step 4 — and therefore never across one
+the emptiness test excluded. A checker run over a whole machine reports the
+boards that are broken, not every directory that shares the name.
 
 Where a front end has configured scan roots (`spec-gui.md` §9.5), `--all` MUST
 use them instead of step 4, so that every front end reports the same set of
@@ -683,6 +693,11 @@ mm --check [--all]
 Runs every invariant I1–I10 and reports violations as `file:line: message`,
 sorted by path then numeric line. Exits 1 if any directory has a violation.
 
+`--all` checks what discovery found, which excludes a name-matching directory
+holding neither `backlog.md` nor `done.md` (`spec-file-format.md` Appendix B).
+A directory named explicitly is checked whatever it holds: failing the same
+test there is an error, since the user asked about that directory.
+
 This MUST be the same validation code the mutating operations run before
 committing (§8). Two implementations of the invariants will diverge.
 
@@ -702,7 +717,7 @@ that its absence pushes users back to editing by hand.
 | `--status` | One screen: what is in each slot, WIP `n/N`, counts by section, oldest untouched Ready item, and — when set — the board description (§5.3.2). The JSON envelope carries it in `directory.description` (§9.2); human output MAY show it. |
 | `--next` | Print the top of `## Ready` — the thing to start next. Exits non-zero if empty. |
 | `--search QUERY` | Substring or regex match over titles, tags, and detail bodies; reports state and location per hit. |
-| `--find` | List discovered micro-manager directories with their `project` names. The discovery step, exposed. |
+| `--find` | List discovered micro-manager directories with their `project` names. The discovery step, exposed — so a name-matching directory that fails Appendix B's emptiness test does not appear. |
 | `--detail ID` | Open, create, or print the detail file for an item. |
 | `--subtask ID TEXT` / `--subtask-done ID N` | Append to and tick off `## Plan` entries in a working slot. |
 | `--add-many [FILE]` | Add many items in ONE transaction, one per input line (§5.2.1). Sugar over repeated `--add`, except for the part that is not sugar: the whole batch commits or none of it does. |

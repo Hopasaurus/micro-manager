@@ -42,7 +42,8 @@ func resolveDir(dirFlag, mmDir, cwd string) (Resolution, error) {
 		}
 		if !looksLikeDirectory(abs) {
 			return Resolution{}, notFoundf(
-				"%s is not a micro-manager directory (no backlog.md)", dirFlag)
+				"%s is not a micro-manager directory (neither backlog.md nor done.md)",
+				dirFlag)
 		}
 		return Resolution{Path: abs, Source: "--dir"}, nil
 	}
@@ -109,6 +110,13 @@ func searchUpward(cwd string) (string, error) {
 					continue
 				}
 				path := filepath.Join(dir, e.Name())
+				// The upward search is DISCOVERY (§4 step 3), so the emptiness
+				// test applies: a source tree that happens to hold a directory
+				// of the name must not capture every command run beneath it,
+				// nor make a real board beside it look ambiguous.
+				if !mm.IsBoardDirectory(path) {
+					continue
+				}
 				d := mm.Directory{Path: path}
 				if s, err := mm.Open(path); err == nil {
 					if got, err := s.Directory(); err == nil {
@@ -149,15 +157,20 @@ func ambiguous(dirs []mm.Directory) string {
 	return b.String()
 }
 
-// looksLikeDirectory checks for backlog.md rather than for the directory's name.
+// looksLikeDirectory applies the emptiness test to a path the user NAMED.
 //
 // §4 step 1 says --dir is used verbatim, so a directory called anything at all
-// is acceptable when it is named explicitly; what makes it usable is holding
-// the files. Discovery is the opposite - it matches on name alone - and the two
-// rules are deliberately different.
+// is acceptable when it is named explicitly; what makes it a board is holding
+// backlog.md or done.md (spec-file-format.md Appendix B). Discovery applies the
+// same test on top of the name match — and, unlike here, silently.
+//
+// Either file, not backlog.md alone: a board that has lost one is still a board
+// and still has to be checkable. `mm --check --dir X` on a directory whose
+// backlog.md was deleted must report the missing file rather than refuse to
+// look, and a mutation there fails on its own with a message naming what is
+// missing.
 func looksLikeDirectory(path string) bool {
-	fi, err := os.Stat(filepath.Join(path, "backlog.md"))
-	return err == nil && !fi.IsDir()
+	return mm.IsBoardDirectory(path)
 }
 
 // absolute resolves a path against an explicit working directory.

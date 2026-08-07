@@ -93,9 +93,11 @@ func TestDiscoverOrdersByProjectThenPath(t *testing.T) {
 	}
 }
 
-// A directory that merely shares the name is still reported - matching is on
-// name alone, and it is the checker's job to say it is not a todo directory.
-func TestDiscoverMatchesOnNameAlone(t *testing.T) {
+// The emptiness test (spec-file-format.md Appendix B). A directory that merely
+// shares the name — a source repository, a skill package — holds neither
+// backlog.md nor done.md, and discovery skips it silently rather than making
+// every checker run report it forever.
+func TestDiscoverSkipsANameWithNoBoardFiles(t *testing.T) {
 	root := t.TempDir()
 	impostor := filepath.Join(root, "src", "micro-manager")
 	if err := os.MkdirAll(impostor, 0o755); err != nil {
@@ -106,11 +108,68 @@ func TestDiscoverMatchesOnNameAlone(t *testing.T) {
 	}
 
 	res := Discover(DefaultDiscoveryOptions(root))
-	if len(res.Directories) != 1 {
-		t.Fatalf("want the impostor reported, got %v", discoveredPaths(res))
+	if len(res.Directories) != 0 {
+		t.Fatalf("want the impostor skipped, got %v", discoveredPaths(res))
 	}
-	if res.Directories[0].Project != "" {
-		t.Errorf("project = %q, want empty", res.Directories[0].Project)
+	// …and the walk still does not descend into it: a match is pruned whatever
+	// the emptiness test then says, or a source tree of that name becomes a
+	// tree to walk rather than one to skip.
+	if err := os.MkdirAll(filepath.Join(impostor, "nested", "micro-manager"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Init(filepath.Join(impostor, "nested", "micro-manager"),
+		InitRequest{Project: "Nested"}, today); err != nil {
+		t.Fatal(err)
+	}
+	res = Discover(DefaultDiscoveryOptions(root))
+	if len(res.Directories) != 0 {
+		t.Fatalf("a pruned match must not be walked into, got %v", discoveredPaths(res))
+	}
+}
+
+// EITHER file, not both: a board that has lost one is still a board, and
+// hiding it would make a half-deleted project vanish from the checker at the
+// moment it most needs attention.
+func TestDiscoverFindsABoardMissingOneFile(t *testing.T) {
+	for _, keep := range []string{"backlog.md", "done.md"} {
+		t.Run(keep, func(t *testing.T) {
+			root := t.TempDir()
+			dir := mkProject(t, root, "p/micro-manager", "Half")
+			drop := "done.md"
+			if keep == "done.md" {
+				drop = "backlog.md"
+			}
+			if err := os.Remove(filepath.Join(dir, drop)); err != nil {
+				t.Fatal(err)
+			}
+
+			res := Discover(DefaultDiscoveryOptions(root))
+			if len(res.Directories) != 1 {
+				t.Fatalf("a board with only %s must still be found, got %v",
+					keep, discoveredPaths(res))
+			}
+		})
+	}
+}
+
+// A root that IS a match faces the same test: naming a source tree's
+// micro-manager directory must report nothing, not invent a board.
+func TestDiscoverAppliesTheTestToARootThatMatches(t *testing.T) {
+	root := t.TempDir()
+	impostor := filepath.Join(root, "micro-manager")
+	if err := os.MkdirAll(impostor, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if len(Discover(DefaultDiscoveryOptions(impostor)).Directories) != 0 {
+		t.Fatal("an empty name-match given as the root must not be reported")
+	}
+
+	if _, _, err := Init(impostor, InitRequest{Project: "Real"}, today); err != nil {
+		t.Fatal(err)
+	}
+	res := Discover(DefaultDiscoveryOptions(impostor))
+	if len(res.Directories) != 1 || res.Directories[0].Project != "Real" {
+		t.Fatalf("a real board given as the root must be reported, got %v", discoveredPaths(res))
 	}
 }
 

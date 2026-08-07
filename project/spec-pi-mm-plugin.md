@@ -90,9 +90,12 @@ be limited to `typebox` and the pi packages; the plugin has no other runtime
 dependencies.
 
 **Source-tree naming caution.** This repository's own `find.sh`/`check.sh`
-recognize a *todo directory* by name alone, including the name `micro-manager`
-(see `project/SKILL.md`). The plugin's source in this repository MUST
-therefore live under a different directory name — it is `plugins/pi-mm/`, and
+recognize a *todo directory* by one of six names, including `micro-manager`
+(see `project/SKILL.md`). Such a directory holding no board files is skipped
+rather than reported (`spec-file-format.md` Appendix B), but discovery still
+PRUNES at the name match and never descends into one — so a source directory
+with that name hides every board beneath it. The plugin's source in this
+repository MUST therefore live under a different directory name — it is `plugins/pi-mm/`, and
 only the *installed* copy in pi's extension directory is named
 `micro-manager`. The destination name is the plugin's identity for `/reload`
 and for humans; the source name is an implementation detail.

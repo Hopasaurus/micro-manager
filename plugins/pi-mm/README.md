@@ -165,11 +165,15 @@ pi -e ./plugins/pi-mm/src/index.ts
 
 ## Why the source directory is not called `micro-manager`
 
-This repository recognizes a *todo directory* by name alone — `micro-manager`,
-`.micro-manager`, `µmanager` and three more (see `project/SKILL.md`). A source
-directory with that name would be picked up by `find.sh` and then reported by
-`check.sh` as a malformed board. So the source lives at `plugins/pi-mm/` and
-only the installed copy carries the name (spec §3.1).
+This repository recognizes a *todo directory* by one of six names —
+`micro-manager`, `.micro-manager`, `µmanager` and three more (see
+`project/SKILL.md`). A source directory with one of those names is no longer
+reported as a broken board: discovery applies an emptiness test and skips a
+name match that holds neither `backlog.md` nor `done.md`. What remains is the
+reason that matters — **discovery prunes at a name match and never descends
+into one**, so a source directory called `micro-manager` makes everything
+beneath it invisible to `find.sh` and `mm --find`. So the source lives at
+`plugins/pi-mm/` and only the installed copy carries the name (spec §3.1).
 
 ## Development
 

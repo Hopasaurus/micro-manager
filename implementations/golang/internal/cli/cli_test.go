@@ -567,3 +567,88 @@ func readFileAt(t *testing.T, dir, name string) string {
 	}
 	return string(data)
 }
+
+// T-0191 — the emptiness test at the CLI boundary (spec-file-format.md
+// Appendix B, spec-tools.md §4).
+//
+// The library's tests own the walk. What is checked here is the asymmetry the
+// spec draws, which only a front end can express: DISCOVERY skips a
+// name-matching directory that holds neither board file, and a directory the
+// user NAMED is an error instead.
+func TestEmptinessTestSkipsDiscoveryButNotAnExplicitPath(t *testing.T) {
+	root := t.TempDir()
+	// A source tree that happens to hold a directory of the name — the case
+	// this repository is itself an example of.
+	impostor := filepath.Join(root, "src", "micro-manager")
+	if err := os.MkdirAll(impostor, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(impostor, "README.md"), []byte("a repo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Discovery: --find says there is nothing rather than listing it. Exit 0 —
+	// an empty result is a result for this operation, unlike --next, which
+	// documents a non-zero exit for an empty Ready.
+	found := (runner{cwd: root}).run("--find")
+	if found.Code != ExitOK {
+		t.Errorf("--find over an empty tree is not an error, got: %s", found)
+	}
+	if !strings.Contains(found.Stdout, "no micro-manager directories found") {
+		t.Errorf("--find should say it found nothing:\n%s", found.Stdout)
+	}
+	if strings.Contains(found.Stdout, "src") {
+		t.Errorf("--find listed a directory that is not a board:\n%s", found.Stdout)
+	}
+
+	// Resolution: the downward search must not select it either, or every
+	// command run in a source tree would act on a directory nobody created.
+	list := (runner{cwd: root}).run("--list")
+	if list.Code != ExitNotFound {
+		t.Errorf("the downward search should find no board, got: %s", list)
+	}
+
+	// Named explicitly: an error, because silence would report success for a
+	// command that did nothing.
+	named := (runner{cwd: root}).run("--list", "--dir", impostor)
+	if named.Code != ExitNotFound {
+		t.Errorf("an explicit path must fail, got: %s", named)
+	}
+	if !strings.Contains(named.Stderr, "not a micro-manager directory") {
+		t.Errorf("the error should say what is wrong:\n%s", named.Stderr)
+	}
+
+	// A real board beside it resolves cleanly — the impostor does not make the
+	// resolution ambiguous, which is the practical half of the rule.
+	if got := (runner{cwd: root}).run("--init", "--project", "Real"); got.Code != ExitOK {
+		t.Fatal(got)
+	}
+	if got := (runner{cwd: filepath.Join(root, "src")}).run("--status"); got.Code != ExitOK {
+		t.Errorf("a real board should resolve past the impostor, got: %s", got)
+	}
+}
+
+// EITHER file, not both: a board that lost one is still discovered, and --check
+// reports the loss rather than skipping the directory.
+func TestABoardMissingOneFileIsStillCheckedAndFound(t *testing.T) {
+	root := t.TempDir()
+	if got := (runner{cwd: root}).run("--init", "--project", "Half"); got.Code != ExitOK {
+		t.Fatal(got)
+	}
+	dir := filepath.Join(root, "micro-manager")
+	if err := os.Remove(filepath.Join(dir, "done.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := (runner{cwd: root}).run("--find"); got.Code != ExitOK ||
+		!strings.Contains(got.Stdout, "micro-manager") {
+		t.Errorf("a half-deleted board must still be found: %s", got)
+	}
+	got := (runner{cwd: root}).run("--check", "--all")
+	if got.Code != ExitInvariantViolation {
+		t.Errorf("want the missing file reported, got: %s", got)
+	}
+	if !strings.Contains(got.Stdout+got.Stderr, "done.md") {
+		t.Errorf("the report should name the missing file:\n%s\n%s", got.Stdout, got.Stderr)
+	}
+}

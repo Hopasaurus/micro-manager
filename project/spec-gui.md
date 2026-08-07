@@ -1196,6 +1196,11 @@ directories named per `spec-file-format.md` Appendix B. Rules:
 4. Results are deduplicated by canonical path, so the same directory reachable
    from two roots appears once.
 5. Discovery MUST NOT descend into a matched directory (`spec-tools.md` §4).
+   A match that holds neither `backlog.md` nor `done.md` is not a project and
+   MUST NOT be listed — the emptiness test of `spec-file-format.md`
+   Appendix B — and it is still not descended into. A project list that
+   offered a source repository sharing the name would be one the user has to
+   learn to ignore.
 6. `includeHidden` defaults to **true**, because `.micro-manager` and
    `.µmanager` are conventional names. An implementation that skips dotted
    directories by default is non-conforming.

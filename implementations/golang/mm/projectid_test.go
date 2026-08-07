@@ -214,8 +214,16 @@ func TestDiscoveryCarriesProjectIDs(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// An empty directory with a matching name: found, unreadable as a project.
-	if err := os.MkdirAll(filepath.Join(root, "empty", "micro-manager"), 0o755); err != nil {
+	// A board that has LOST its backlog.md: it passes the emptiness test of
+	// spec-file-format.md Appendix B, so discovery finds it, and it is exactly
+	// the case this test is about — a matched directory that cannot be read as
+	// a project still carries an id, because a UI addresses directories by id
+	// and the broken one is the one a user most needs to open.
+	half := filepath.Join(root, "half", "micro-manager")
+	if err := os.MkdirAll(half, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(half, "done.md"), []byte(sampleDone), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

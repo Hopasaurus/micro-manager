@@ -92,7 +92,20 @@ check_dir() {
 
   if [ ! -d "$dir" ]; then
     problem "$dir: not a directory"
+  elif [ ! -f "$dir/backlog.md" ] && [ ! -f "$dir/done.md" ]; then
+    # The emptiness test (spec-file-format.md Appendix B). Neither file means
+    # this was never a board — a source tree that shares the name, an empty
+    # directory someone made by hand — so DISCOVERY skips it and find.sh never
+    # offers it here. Reaching this line means the user named it explicitly,
+    # and that has to be an error: silence would report success for a command
+    # that checked nothing.
+    #
+    # One problem, not three. Listing a missing backlog.md, a missing done.md
+    # and a missing working file describes a wrecked board; this is not one.
+    problem "$dir: not a micro-manager directory (neither backlog.md nor done.md)"
   else
+    # Exactly one of the two is a board that has LOST a file, which is a real
+    # failure and the most alarming kind. It is reported, never skipped.
     for f in backlog.md done.md; do
       [ -f "$dir/$f" ] || problem "$dir: missing $f"
     done

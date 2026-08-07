@@ -49,8 +49,9 @@ implementations/
   erlang/                     empty placeholder
 plugins/
   pi-mm/                      the pi extension of spec-pi-mm-plugin.md. NOT named
-                              micro-manager: find.sh matches on name alone, and
-                              only the INSTALLED copy carries that name
+                              micro-manager: discovery prunes at a name match,
+                              so a source dir of that name hides what is under
+                              it. Only the INSTALLED copy carries the name
 sample-data/                  example micro-manager directories, used as fixtures
   sample1/ sample2/           conventional names
   hidden/ symbol/ symbol-hidden/

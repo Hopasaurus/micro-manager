@@ -79,10 +79,10 @@ and `go build -o <existing-directory>` does not fail — it writes the binary
 
 ## Find the directories
 
-A micro-manager directory is recognized by **name alone**. Six recognized names:
-two spellings, each with a dotted variant, and both Unicode micro signs — they
-render identically in nearly every font and are trivially confused, so readers
-must accept either:
+A micro-manager directory is recognized by its **name**, and then by one probe
+of its contents. Six recognized names: two spellings, each with a dotted
+variant, and both Unicode micro signs — they render identically in nearly every
+font and are trivially confused, so readers must accept either:
 
 ```
 micro-manager    .micro-manager
@@ -98,9 +98,15 @@ micro-manager    .micro-manager
 
 Dotted variants are real and common — never skip hidden directories when
 searching. `find.sh` prunes `.git`, `.claude`, `node_modules` and similar, and
-does not descend into a directory it has already matched. Matching is on name
-alone, so anything else named `micro-manager` will be listed and then rejected
-by `check.sh` as not a todo directory.
+does not descend into a directory it has already matched.
+
+**The emptiness test.** A name match holding neither `backlog.md` nor `done.md`
+was never a board — a source repository that shares the name, an empty
+directory someone made by hand — and discovery skips it silently. A directory
+holding exactly ONE of the two is a board that has lost a file: it is found,
+and `check.sh` reports it, because that is a real failure and the alarming
+kind. Naming such a directory explicitly is always an error rather than a
+silent skip, since then you asked about it.
 
 ## Directory layout
 

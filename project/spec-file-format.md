@@ -858,8 +858,8 @@ applies to `MONTH`, whose month component must be `01`–`12`.
 
 ## Appendix B: directory naming
 
-A micro-manager directory is recognized by name alone; contents are not
-inspected during discovery. Recognized names:
+A micro-manager directory is recognized by its name, and then by one probe of
+its contents — the emptiness test below. Recognized names:
 
 | Name | Bytes of the leading sign |
 |---|---|
@@ -882,11 +882,40 @@ Discovery MUST NOT descend into a directory it has matched: a micro-manager
 directory nested inside another is undefined, and pruning at the match keeps a
 deep tree cheap to walk.
 
-Matching is on **name only**, so a directory that merely shares the name — a
-source repository called `micro-manager`, a skill or plugin directory — will be
-reported by discovery and then rejected by a checker as not a todo directory.
-Discovery implementations therefore SHOULD prune well-known directories that
+### The emptiness test
+
+A name match alone is not enough to make a directory a board. A directory whose
+name matches but that contains **neither `backlog.md` nor `done.md`** is NOT a
+micro-manager directory, and discovery MUST skip it silently: it is not listed,
+not counted, and not checked.
+
+One probe, two files, and the rule is stated as *neither* rather than *either*
+on purpose:
+
+- **Neither present** — nothing here was ever a board. A source repository
+  called `micro-manager`, a skill package, an empty directory someone made by
+  hand: reporting these as broken todo directories is noise in exactly the
+  place a person is scanning for real problems, and the noise is permanent
+  because nobody will ever "fix" a source tree into a board.
+- **One present** — a board that has lost a file. This is a REAL failure, and
+  the most alarming kind: something deleted half a project. It MUST still be
+  discovered and MUST still be reported. A rule that skipped it would make a
+  half-deleted board disappear from the checker at the exact moment it needs
+  attention.
+
+**The skip applies to DISCOVERY, never to a directory the user named.** A path
+given explicitly — `--dir`, `MM_DIR`, an argument to a checker — that fails the
+test MUST be an error saying it is not a micro-manager directory. Silence there
+would report success for a command that did nothing, which is worse than the
+noise this rule removes.
+
+The two files are the right probe because they are the two a board cannot lack
+by design: `backlog.md` carries `project` and `next_id` (§5.1), and `done.md` is
+where every closed item lives (§5.3). Working files are deliberately NOT part of
+the test — a directory with `working.01.md` and neither of the other two is a
+wreck worth reporting, not an absence worth skipping.
+
+Discovery implementations SHOULD additionally prune well-known directories that
 never contain projects (`.git`, `.claude`, `node_modules`, `vendor`, `target`,
-`dist`, `build`, `.venv`) and SHOULD let the user add to that list. This is a
-convenience, not a correctness rule: the authority on whether a directory is a
-micro-manager directory remains its contents.
+`dist`, `build`, `.venv`) and SHOULD let the user add to that list. That pruning
+is a convenience and an optimisation; the emptiness test above is the rule.

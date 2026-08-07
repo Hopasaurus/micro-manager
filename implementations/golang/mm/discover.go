@@ -11,10 +11,26 @@ import (
 
 // Directory discovery (spec-file-format.md Appendix B, spec-gui.md §9.5).
 //
-// A micro-manager directory is recognised BY NAME ALONE; contents are not
-// inspected. That is deliberate: a checker, not a walker, decides whether a
-// directory is well formed, so a broken directory is still found and still
-// reported rather than vanishing from the list exactly when it needs attention.
+// A micro-manager directory is recognised by its NAME, and then by one probe of
+// its contents: the emptiness test. Everything else about whether it is well
+// formed is a checker's business, not a walker's — a broken directory is still
+// found and still reported rather than vanishing from the list exactly when it
+// needs attention.
+//
+// The one probe is the difference between "never was a board" and "is a broken
+// board", and the whole rule turns on it:
+//
+//	neither backlog.md nor done.md   not a board. Skipped silently: a source
+//	                                 tree that shares the name would otherwise
+//	                                 be permanent noise in front of the real
+//	                                 problems, and nobody will ever "fix" it.
+//	exactly one of the two           a board that LOST a file. Found, and left
+//	                                 for the checker to report — skipping this
+//	                                 would hide a half-deleted project.
+//
+// The skip is DISCOVERY's alone. A path the user named explicitly is never
+// silently ignored; the front end reports that it is not a micro-manager
+// directory (spec-tools.md §4 step 1).
 
 // directoryNames are the six recognised names.
 //
@@ -32,6 +48,26 @@ var directoryNames = []string{
 // micro-manager name.
 func IsDirectoryName(name string) bool {
 	return slices.Contains(directoryNames, name)
+}
+
+// IsBoardDirectory applies the emptiness test of spec-file-format.md Appendix B:
+// a directory is a board when it holds backlog.md or done.md.
+//
+// EITHER, not both. One of the two missing is a board that lost a file, which a
+// checker must be able to see; only the absence of BOTH means there was never a
+// board here.
+//
+// The name is not re-checked. Callers reach this either from the walker, which
+// has already matched the name, or from a front end resolving a path the user
+// named — and in that second case the name is the user's business, not a rule
+// to enforce twice.
+func IsBoardDirectory(path string) bool {
+	for _, name := range []string{"backlog.md", "done.md"} {
+		if fi, err := os.Stat(filepath.Join(path, name)); err == nil && !fi.IsDir() {
+			return true
+		}
+	}
+	return false
 }
 
 // Discover walks the configured roots and returns every micro-manager directory
@@ -72,7 +108,10 @@ func Discover(opts DiscoveryOptions) DiscoveryResult {
 		// find that directory, not nothing; the reference find.sh tests each
 		// root the same way.
 		if IsDirectoryName(filepath.Base(strings.TrimRight(root, string(filepath.Separator)))) {
-			if fi, err := os.Stat(root); err == nil && fi.IsDir() {
+			// A root that is itself a match still faces the emptiness test:
+			// `mm --find ./some-source-tree/micro-manager` should report
+			// nothing rather than inventing a board out of a name.
+			if fi, err := os.Stat(root); err == nil && fi.IsDir() && IsBoardDirectory(root) {
 				canon := canonical(root)
 				if !w.seen[canon] {
 					w.seen[canon] = true
@@ -188,9 +227,13 @@ func (w *walker) walk(dir string, depth int, ancestors []os.FileInfo) []string {
 
 		full := filepath.Join(dir, name)
 		if IsDirectoryName(name) {
-			// Matched: record it and DO NOT DESCEND. A micro-manager directory
-			// inside another is undefined, and pruning here keeps a deep tree
-			// cheap to walk.
+			// Matched: DO NOT DESCEND, whatever the emptiness test says next. A
+			// micro-manager directory inside another is undefined, and a
+			// directory that merely shares the name is not an invitation to
+			// walk a source tree that pruning would otherwise have skipped.
+			if !IsBoardDirectory(full) {
+				continue
+			}
 			canon := canonical(full)
 			if !w.seen[canon] {
 				w.seen[canon] = true

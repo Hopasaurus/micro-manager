@@ -22,7 +22,6 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0191] update the spec so that if backlog.md and done.md are missing it skips the directory. | prio:med | detail:details/T-0191.md | created:2026-08-06
 - [ ] [T-0194] detect multiple mm directories in the same directory | prio:med | tags:needs-refinement | detail:details/T-0194.md | created:2026-08-06
 - [ ] [T-0202] mm --help --json: a machine-readable capability list | prio:med | tags:cli,spec | detail:details/T-0202.md | created:2026-08-06
 

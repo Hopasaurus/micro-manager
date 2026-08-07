@@ -1,6 +1,7 @@
 package mm
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -495,4 +496,82 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 		}
 		compareValidators(t, "remove --with-detail", dir)
 	})
+}
+
+// find.sh is the oracle for DISCOVERY, exactly as check.sh is for the ten
+// invariants (T-0191).
+//
+// The emptiness test of spec-file-format.md Appendix B is now implemented
+// twice — once in bash, once here — and this repository's own experience is
+// that two implementations of one rule drift. So the two are run over the same
+// real tree and their answers compared: the repository holds eight boards, one
+// deliberate name-collision fixture that both must skip
+// (sample-data/not-a-board), and a plugin source directory that is named
+// pi-mm precisely to stay out of the way.
+func TestDiscoveryAgreesWithFindSh(t *testing.T) {
+	requireBash(t)
+	root, err := filepath.Abs("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, err := filepath.Abs("../../../find.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(script); err != nil {
+		t.Skipf("find.sh is not available: %v", err)
+	}
+
+	// find.sh exits 1 when it finds nothing, which is a result rather than a
+	// failure; anything above that is the test's own problem.
+	out, err := exec.Command("bash", script, root).CombinedOutput()
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() > 1 {
+			t.Fatalf("find.sh: %v\n%s", err, out)
+		}
+	}
+
+	shell := map[string]bool{}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line == "" {
+			continue
+		}
+		shell[canonical(line)] = true
+	}
+
+	golang := map[string]bool{}
+	// MaxDepth 0: the deepest board here is further down than the default of
+	// six, and a depth limit the shell script does not share would look like a
+	// disagreement about the rule.
+	opts := DefaultDiscoveryOptions(root)
+	opts.MaxDepth = 0
+	res := Discover(opts)
+	for _, d := range res.Directories {
+		golang[canonical(d.Path)] = true
+	}
+
+	for path := range shell {
+		if !golang[path] {
+			t.Errorf("find.sh found %s; Discover did not", path)
+		}
+	}
+	for path := range golang {
+		if !shell[path] {
+			t.Errorf("Discover found %s; find.sh did not", path)
+		}
+	}
+	if len(golang) == 0 {
+		t.Fatal("neither found anything; the cross-check proved nothing")
+	}
+
+	// The fixture is the case the rule exists for, and it must be absent from
+	// BOTH sides rather than merely from the same side twice.
+	fixture := canonical(filepath.Join(root, "sample-data", "not-a-board", "micro-manager"))
+	if _, err := os.Stat(fixture); err != nil {
+		t.Fatalf("the name-collision fixture is missing: %v", err)
+	}
+	if shell[fixture] || golang[fixture] {
+		t.Errorf("a directory with no board files was discovered: %s", fixture)
+	}
+	t.Logf("cross-checked %d discovered directories against find.sh", len(golang))
 }

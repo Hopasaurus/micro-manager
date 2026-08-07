@@ -5,8 +5,16 @@
 #
 # Searches ROOT (default: the current directory) recursively and prints one
 # matching directory path per line, sorted. A directory qualifies on its name
-# alone -- micro-manager, .micro-manager, umanager or .umanager, where "u" is
-# the micro sign. Contents are not inspected; check.sh does that.
+# -- micro-manager, .micro-manager, umanager or .umanager, where "u" is the
+# micro sign -- and on holding backlog.md or done.md.
+#
+# That last test is the ONE probe of contents this makes (spec-file-format.md
+# Appendix B): a directory with neither file was never a board -- a source
+# repository that shares the name, an empty directory someone made by hand --
+# and listing it would put permanent noise in front of every real problem. A
+# directory with ONE of the two is a board that has lost a file: it is listed,
+# and check.sh reports it. Everything else about whether a board is well formed
+# is check.sh's business, not this script's.
 #
 # Both spellings of the micro sign are matched: U+00B5 MICRO SIGN and U+03BC
 # GREEK SMALL LETTER MU render identically in most fonts and are trivially
@@ -68,12 +76,24 @@ for e in ${EXCLUDES[@]+"${EXCLUDES[@]}"}; do
 done
 
 if [ "${#prune[@]}" -gt 0 ]; then
-  found=$(find "$@" -type d \( "${prune[@]}" \) -prune \
-                 -o -type d \( "${match[@]}" \) -print -prune \
-          2>/dev/null | sort)
+  matched=$(find "$@" -type d \( "${prune[@]}" \) -prune \
+                  -o -type d \( "${match[@]}" \) -print -prune \
+            2>/dev/null | sort)
 else
-  found=$(find "$@" -type d \( "${match[@]}" \) -print -prune 2>/dev/null | sort)
+  matched=$(find "$@" -type d \( "${match[@]}" \) -print -prune 2>/dev/null | sort)
 fi
+
+# The emptiness test, applied after the walk rather than inside it: -print
+# -prune is what stops the descent, and a find(1) expression that also tested
+# for the two files would have to repeat the prune in both branches.
+found=""
+while IFS= read -r d; do
+  [ -n "$d" ] || continue
+  if [ -f "$d/backlog.md" ] || [ -f "$d/done.md" ]; then
+    found="${found}${d}"$'\n'
+  fi
+done <<< "$matched"
+found=${found%$'\n'}
 
 [ -n "$found" ] || exit 1
 printf '%s\n' "$found"
