@@ -133,7 +133,7 @@ function panelHTML(kind = 'never', section = 'ready') {
           <select data-testid="tickler-ordinal" name="tickler-ordinal"></select>
         </div>
         <div class="mm-tickler__control" data-kind="monthly" ${hide('monthly')}>
-          <input data-testid="tickler-monthday" type="number" name="tickler-monthday">
+          <input data-testid="tickler-monthday" type="text" pattern="(0?[1-9]|[12][0-9]|3[01]|last)" name="tickler-monthday">
         </div>
         <div class="mm-tickler__control" data-kind="time" ${kind === 'never' ? 'hidden' : ''}>
           <input data-testid="tickler-time" type="time" name="tickler-time">

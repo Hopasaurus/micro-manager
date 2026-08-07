@@ -267,6 +267,22 @@ func TestWakeUpComposition(t *testing.T) {
 		t.Errorf("edit did not compose tickler:05, got %q", it.Tickler)
 	}
 
+	// The sentinel last — the value a number input cannot hold (T-0197) —
+	// composes through unchanged, and the control itself is a text input
+	// whose pattern admits it.
+	ts.form(http.MethodPatch, "/p/"+id+"/items/"+string(weekly.ID), url.Values{
+		"tickler-kind": {"monthly"}, "tickler-monthday": {"last"},
+	}).expectStatus(http.StatusOK)
+	it, _ = store.Get(weekly.ID)
+	if it.Tickler != "last" {
+		t.Errorf("monthday last did not compose, got %q", it.Tickler)
+	}
+	panel := ts.get("/p/" + id + "/item/" + string(weekly.ID)).Body
+	md := testid(t, panel, "tickler-monthday")
+	if !strings.Contains(md, `type="text"`) || !strings.Contains(md, `pattern="(0?[1-9]|[12][0-9]|3[01]|last)"`) {
+		t.Errorf("tickler-monthday must be a text input whose pattern admits last, got %s", md)
+	}
+
 	// kind never removes the field.
 	ts.form(http.MethodPatch, "/p/"+id+"/items/"+string(weekly.ID), url.Values{
 		"tickler-kind": {"never"},

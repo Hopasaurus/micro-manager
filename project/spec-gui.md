@@ -541,7 +541,8 @@ the DOM.
       <input  data-testid="tickler-date" type="date" name="tickler-date">
       <select data-testid="tickler-weekday" name="tickler-weekday">…</select>
       <select data-testid="tickler-ordinal" name="tickler-ordinal">…</select>
-      <input  data-testid="tickler-monthday" type="number" min="1" max="31"
+      <input  data-testid="tickler-monthday" type="text"
+              pattern="(0?[1-9]|[12][0-9]|3[01]|last)"
               name="tickler-monthday">
       <input  data-testid="tickler-time" type="time" name="tickler-time">
     </fieldset>
@@ -594,6 +595,11 @@ hidden. The server composes the `tickler:` value from the controls:
 - The monthday is zero-padded to two digits in the composed value —
   `05@08:00`, never `5@08:00` (format spec §3.3 `SCHEDULE`). An absent
   `tickler-time` composes to no `@HH:MM` (the schedule's 00:00).
+- `tickler-monthday` is a text input, not a number input. Its `pattern` is
+  exactly the allowed token set — a day `1`–`31` (composed zero-padded) or
+  the sentinel `last` — because a `type="number"` input cannot hold `last`,
+  which the format (§3.3 `SCHEDULE`), the CLI and the server composer all
+  accept.
 - The grammar lives in one place: the server composes, the library validates
   on write (§4.2).
 - Pre-fill parses the item's `tickler` back into the controls: a bare `DATE`
