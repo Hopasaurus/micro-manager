@@ -339,6 +339,8 @@ func (s *Server) SystemConfigReload() {
 		return
 	}
 	s.opts.Config, _ = mm.MergeConfig(sysFile, nil)
+	s.opts.Config.Scan.Roots = ExpandRoots(s.opts.Config.Scan.Roots, os.Getenv("HOME"))
+	s.registry.replaceScan(s.opts.Config.Scan)
 	s.applyTickler()
 }
 

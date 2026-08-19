@@ -39,6 +39,7 @@ type registry struct {
 	result    mm.DiscoveryResult
 	scannedAt mm.Timestamp
 	scanned   bool
+	scanGen   uint64
 
 	// now is the clock, injectable so a test can assert on scannedAt.
 	now func() time.Time
@@ -56,12 +57,31 @@ func newRegistry(opts Options) *registry {
 	}
 }
 
+// replaceScan installs a newly loaded system scan configuration and invalidates
+// the discovery cache. The next reader performs a fresh walk with the new
+// roots; known/open projects remain resolvable while that happens.
+func (r *registry) replaceScan(scan mm.ScanConfig) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.scan = scan
+	r.scanGen++
+	r.scanned = false
+	r.result = mm.DiscoveryResult{}
+	r.scannedAt = mm.Timestamp{}
+}
+
 // roots is the list to scan.
 //
 // When scan.roots is empty the front end falls back to the directory it was
 // started in, as a single root, and surfaces a prompt to configure roots. It
 // MUST NOT default to scanning $HOME or / (spec-gui.md §9.5).
 func (r *registry) roots() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.rootsLocked()
+}
+
+func (r *registry) rootsLocked() []string {
 	if len(r.scan.Roots) > 0 {
 		return append([]string(nil), r.scan.Roots...)
 	}
@@ -72,7 +92,13 @@ func (r *registry) roots() []string {
 }
 
 // needsRoots reports whether the UI should prompt for scan roots.
-func (r *registry) needsRoots() bool { return len(r.scan.Roots) == 0 }
+func (r *registry) needsRootsLocked() bool { return len(r.scan.Roots) == 0 }
+
+func (r *registry) needsRoots() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.needsRootsLocked()
+}
 
 // rootStatus is one configured scan root and whether it is there.
 //
@@ -135,26 +161,37 @@ func (r *registry) rescan() discoveryView {
 // API calls; rescan builds on it so the two front ends cannot disagree about
 // what a scan found.
 func (r *registry) rescanRaw() (mm.DiscoveryResult, mm.Timestamp) {
-	roots := r.roots()
-	opts := r.scan.DiscoveryOptions()
-	opts.Roots = roots
+	for {
+		r.mu.RLock()
+		roots := r.rootsLocked()
+		scan := r.scan
+		gen := r.scanGen
+		r.mu.RUnlock()
+		opts := scan.DiscoveryOptions()
+		opts.Roots = roots
 
-	result := mm.Discover(opts)
+		result := mm.Discover(opts)
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.result = result
-	r.scannedAt = mm.NewTimestamp(r.now())
-	r.scanned = true
-	for _, d := range result.Directories {
-		r.remember(d)
+		r.mu.Lock()
+		if gen != r.scanGen {
+			r.mu.Unlock()
+			continue
+		}
+		r.result = result
+		r.scannedAt = mm.NewTimestamp(r.now())
+		r.scanned = true
+		for _, d := range result.Directories {
+			r.remember(d)
+		}
+		// Directories named on the command line or held in the lists are known
+		// whether or not a scan root reaches them.
+		for _, path := range r.explicit {
+			r.rememberPath(path)
+		}
+		result, at := r.result, r.scannedAt
+		r.mu.Unlock()
+		return result, at
 	}
-	// Directories named on the command line or held in the lists are known
-	// whether or not a scan root reaches them.
-	for _, path := range r.explicit {
-		r.rememberPath(path)
-	}
-	return r.result, r.scannedAt
 }
 
 // rawResult returns the cached walk's raw result and its timestamp, running the
@@ -177,10 +214,10 @@ func (r *registry) view() discoveryView {
 		Partial:     r.result.Partial,
 		Skipped:     r.result.Skipped,
 		ScannedAt:   r.scannedAt,
-		NeedsRoots:  r.needsRoots(),
+		NeedsRoots:  r.needsRootsLocked(),
 	}
 
-	roots := r.roots()
+	roots := r.rootsLocked()
 	for _, root := range roots {
 		v.Roots = append(v.Roots, rootStatus{Path: root, Missing: !isDir(root)})
 	}

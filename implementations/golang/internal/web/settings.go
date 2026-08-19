@@ -198,18 +198,22 @@ func (s *Server) saveSettingsSystem(c *echo.Context) error {
 
 	if removeRoot := form("removeRoot"); removeRoot != "" {
 		rootsAny := cfgFile.Get("scan.roots")
-		var roots []string
+		roots := make([]string, 0)
+		keep := func(root string) bool {
+			expanded := ExpandRoots([]string{root}, os.Getenv("HOME"))
+			return root != removeRoot && (len(expanded) == 0 || expanded[0] != removeRoot)
+		}
 		if slice, ok := rootsAny.([]any); ok {
 			for _, item := range slice {
 				if str, ok := item.(string); ok {
-					if str != removeRoot {
+					if keep(str) {
 						roots = append(roots, str)
 					}
 				}
 			}
 		} else if slice, ok := rootsAny.([]string); ok {
 			for _, str := range slice {
-				if str != removeRoot {
+				if keep(str) {
 					roots = append(roots, str)
 				}
 			}

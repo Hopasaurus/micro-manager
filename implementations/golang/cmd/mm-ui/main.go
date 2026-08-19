@@ -193,9 +193,9 @@ func options(bind string, port int, socket string, allowRemote bool,
 		opts.AllowRemote = true
 	}
 
-	// ~ and environment variables in a scan root are expanded HERE. The library
-	// receives absolute paths (spec-gui.md §9.5 rule 2).
-	opts.Config.Scan.Roots = expandRoots(opts.Config.Scan.Roots, os.Getenv("HOME"))
+	// Expand startup roots by the same front-end rule used for live config
+	// reloads. The library receives absolute paths (spec-gui.md §9.5 rule 2).
+	opts.Config.Scan.Roots = web.ExpandRoots(opts.Config.Scan.Roots, os.Getenv("HOME"))
 	for _, d := range dirs {
 		abs, err := filepath.Abs(expandRoot(d, os.Getenv("HOME")))
 		if err != nil {
@@ -204,16 +204,6 @@ func options(bind string, port int, socket string, allowRemote bool,
 		opts.Dirs = append(opts.Dirs, abs)
 	}
 	return opts, nil
-}
-
-func expandRoots(roots []string, home string) []string {
-	out := make([]string, 0, len(roots))
-	for _, r := range roots {
-		if abs, err := filepath.Abs(expandRoot(r, home)); err == nil {
-			out = append(out, abs)
-		}
-	}
-	return out
 }
 
 // expandRoot handles ~ and $VAR. os.ExpandEnv leaves an unset variable as an

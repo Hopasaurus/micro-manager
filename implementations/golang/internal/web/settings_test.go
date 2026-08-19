@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -33,6 +34,80 @@ func TestSystemSettingsView(t *testing.T) {
 	// §5.9: settings-wip MUST NOT be present in system scope
 	if hasTestid(body, "settings-wip") {
 		t.Error("settings-wip present in system scope")
+	}
+}
+
+func TestSavingScanRootReloadsRegistryAndRescans(t *testing.T) {
+	ts, _ := boardServer(t, "clean-full")
+	newRoot := t.TempDir()
+	newBoard := copyFixtureTo(t, "clean-full", filepath.Join(newRoot, "second"))
+
+	body := ts.form(http.MethodPost, "/settings", url.Values{
+		"addRoot":       {newRoot},
+		"includeHidden": {"true"},
+	}).expectStatus(http.StatusOK).Body
+
+	if !strings.Contains(body, `data-path="`+newRoot+`"`) {
+		t.Fatalf("saved root is absent from settings response: %s", snippetAround(body, "settings-scan-roots"))
+	}
+	found := false
+	for _, d := range ts.registry.discovery().Directories {
+		if samePath(d.Path, newBoard) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("new root was saved but its board was not discovered without a restart")
+	}
+}
+
+func TestConfigAPIReloadsScanRoots(t *testing.T) {
+	ts, _ := boardServer(t, "clean-full")
+	newRoot := t.TempDir()
+	newBoard := copyFixtureTo(t, "clean-full", filepath.Join(newRoot, "api"))
+	body := `{"scan":{"roots":[` + strconv.Quote(newRoot) + `]}}`
+
+	ts.do(http.MethodPut, "/api/v1/config", strings.NewReader(body)).expectStatus(http.StatusOK)
+
+	view := ts.registry.discovery()
+	if len(view.Roots) != 1 || !samePath(view.Roots[0].Path, newRoot) {
+		t.Fatalf("registry roots after config PUT = %#v, want %s", view.Roots, newRoot)
+	}
+	found := false
+	for _, d := range view.Directories {
+		if samePath(d.Path, newBoard) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("discovery after config PUT = %#v, want board under %s", view.Directories, newRoot)
+	}
+}
+
+func TestRemoveExpandedScanRootRemovesStoredTildeForm(t *testing.T) {
+	ts, _ := boardServer(t, "clean-full")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	stored := "~/projects"
+	expanded := filepath.Join(home, "projects")
+	body := `{"scan":{"roots":[` + strconv.Quote(stored) + `]}}`
+	ts.do(http.MethodPut, "/api/v1/config", strings.NewReader(body)).expectStatus(http.StatusOK)
+
+	ts.form(http.MethodPost, "/settings", url.Values{
+		"removeRoot":    {expanded},
+		"includeHidden": {"true"},
+	}).expectStatus(http.StatusOK)
+
+	path := mm.NewSystemPaths(ts.ConfigHome).Config
+	file, err := mm.LoadConfigFile(path, mm.ScopeSystem)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roots, ok := file.Get("scan.roots").([]any)
+	if !ok || len(roots) != 0 {
+		t.Fatalf("stored scan.roots after removing expanded path = %#v, want empty list", file.Get("scan.roots"))
 	}
 }
 
