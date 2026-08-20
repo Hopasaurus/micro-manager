@@ -2,7 +2,7 @@
 doc: board
 version: 2
 project: micro-manager — Go implementation
-next_id: T-0236
+next_id: T-0237
 updated: 2026-08-20
 wip.working: 4
 ---
@@ -27,3 +27,4 @@ wip.working: 4
 - [ ] [T-0133] Broker: publish per-column events from a per-file diff; detail-body edits fire nothing | stage:blocked | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0133.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
 - [ ] [T-0134] Per-column fragment routes and hx-triggers (gated on T-0131) | stage:blocked | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0134.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
 - [ ] [T-0230] Columns M4: finish CLI/GUI/TUI surface, retire v1 mutation support | stage:ready | prio:med | tags:columns,migration,golang | detail:details/T-0230.md | created:2026-08-20 | started:2026-08-20
+- [ ] [T-0236] VersionMismatch: scope how v1-mutation tests validate correctness once --add/--start/--pause/--finish/--move/--edit/--remove refuse against v1 | stage:ready | prio:med | tags:columns,migration,golang,design | detail:details/T-0236.md | created:2026-08-20
