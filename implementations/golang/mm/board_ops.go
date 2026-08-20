@@ -158,6 +158,67 @@ func buildNewItemV2(req AddRequest, cfg StageConfig, today Date) (*Item, error) 
 	}, nil
 }
 
+// addManyV2 is AddMany's version-2 body: one transaction, one write, board.md
+// in place of backlog.md and a stage's run in place of a section's.
+func (s *Store) addManyV2(t *tx, reqs []AddRequest, today Date) ([]Item, TxResult, error) {
+	b, e, err := t.board()
+	if err != nil {
+		return nil, TxResult{}, err
+	}
+	cfg := b.stageCfg
+	g := t.model.grammar()
+
+	// Where the next item of the batch goes when Top is set. One counter per
+	// stage, because a line's reason: can send it to a different stage and
+	// each stage's run has to stay in the input's order.
+	topAt := map[Stage]int{}
+
+	dryRun := false
+	made := make([]*Item, 0, len(reqs))
+	for i, req := range reqs {
+		if req.DryRun {
+			dryRun = true
+		}
+		if req.DetailBody != "" {
+			return nil, TxResult{}, fmt.Errorf(
+				"%w: item %d: --add-many does not write detail files; add the items, then write them",
+				ErrInvalidArgument, i+1)
+		}
+
+		it, err := buildNewItemV2(req, cfg, today)
+		if err != nil {
+			return nil, TxResult{}, fmt.Errorf("item %d: %w", i+1, err)
+		}
+		next, err := allocNextV2(e, b, g)
+		if err != nil {
+			return nil, TxResult{}, fmt.Errorf("item %d: %w", i+1, err)
+		}
+		it.ID = next
+
+		index := len(b.StageItems(it.Stage)) // bottom by default
+		if req.Top {
+			index = topAt[it.Stage]
+			topAt[it.Stage]++
+		}
+		b.InsertItem(e, it.Stage, index, it)
+		t.record(Change{Kind: ChangeCreated, ID: it.ID, File: "board.md",
+			After: RenderItemLine(it)})
+		made = append(made, it)
+	}
+
+	touchUpdated(e, today)
+	t.stage("board.md")
+	res, err := t.commit(dryRun)
+	if err != nil {
+		return nil, res, err
+	}
+	out := make([]Item, 0, len(made))
+	for _, it := range made {
+		out = append(out, *it)
+	}
+	return out, res, nil
+}
+
 // allocNextV2 is allocNext for board.md: same counter discipline (§7 I2),
 // different frontmatter home.
 func allocNextV2(e *fileEdit, b *boardFile, g IDGrammar) (ID, error) {

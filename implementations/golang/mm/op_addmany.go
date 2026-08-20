@@ -122,11 +122,24 @@ func applyAddField(req *AddRequest, lineNo int, key, val string) error {
 		req.Created = d
 	case "blocked":
 		// Exactly as --add reads it: a reason implies the Blocked section, so
-		// one run may write into two sections.
+		// one run may write into two sections. Version 1 only; a version-2
+		// directory is not known here (the grammar is directory-agnostic),
+		// so reason: below carries the same input for version 2 and the
+		// stage implication happens downstream, in buildNewItemV2, which
+		// does know the directory's needs_reason.
 		req.Blocked = val
 		if req.Section == "" {
 			req.Section = SectionBlocked
 		}
+	case "stage":
+		// Membership in the directory's declared stages is checked
+		// downstream (buildNewItemV2), which has the StageConfig this
+		// directory-agnostic grammar does not.
+		req.Stage = Stage(val)
+	case "reason":
+		req.Reason = val
+	case "tickler_dest":
+		req.TicklerDest = Stage(val)
 	case "tickler":
 		if _, err := ParseSchedule(val); err != nil {
 			return addLineErrf(lineNo, "tickler:%s is not a schedule (%v)", val, err)
@@ -239,6 +252,9 @@ func (s *Store) AddMany(reqs []AddRequest, today Date) ([]Item, TxResult, error)
 	t, err := s.begin()
 	if err != nil {
 		return nil, TxResult{}, err
+	}
+	if t.model.isV2() {
+		return s.addManyV2(t, reqs, today)
 	}
 	b, e, err := t.backlog()
 	if err != nil {

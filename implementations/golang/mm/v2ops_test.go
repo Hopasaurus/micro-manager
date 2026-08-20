@@ -186,6 +186,36 @@ func TestUpdateV2SetReasonGeneric(t *testing.T) {
 	}
 }
 
+func TestUpdateV2SetTicklerRespectsStagePlacement(t *testing.T) {
+	_, s := v2Dir(t)
+
+	// T-0002 sits on ready, which is not a tickler_stages source in the
+	// fixture (only someday is) - refused, not "only belongs in Someday"
+	// (that was the pre-fix, version-1-shaped message; a v2 item's Section
+	// is always empty, so the old check refused every v2 item regardless of
+	// its stage).
+	_, _, err := s.Update("T-0002", UpdateRequest{
+		Set: []Field{{Key: "tickler", Value: "2026-09-01"}},
+	}, today)
+	if err == nil {
+		t.Fatal("--set tickler: on a non-source stage should be refused")
+	}
+	if strings.Contains(err.Error(), "Someday") {
+		t.Errorf("error = %v, should name tickler_stages, not the retired Someday wording", err)
+	}
+
+	// T-0005 sits on someday, the fixture's declared source: allowed.
+	it, _, err := s.Update("T-0005", UpdateRequest{
+		Set: []Field{{Key: "tickler", Value: "2026-09-01"}},
+	}, today)
+	if err != nil {
+		t.Fatalf("--set tickler: on a declared source should succeed: %v", err)
+	}
+	if it.Tickler != "2026-09-01" {
+		t.Errorf("Tickler = %q, want 2026-09-01", it.Tickler)
+	}
+}
+
 func TestAttachDetailV2(t *testing.T) {
 	_, s := v2Dir(t)
 	d, _, err := s.AttachDetail("T-0002", AttachDetailRequest{Body: "some long-form notes"}, today)

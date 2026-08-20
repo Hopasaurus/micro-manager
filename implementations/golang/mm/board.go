@@ -312,7 +312,23 @@ func (b *boardFile) InsertItem(e *fileEdit, stage Stage, index int, it *Item) {
 	it.Source = Location{File: b.Name, Line: at}
 	e.track(&it.Source.Line)
 
-	b.Items = append(b.Items, it)
+	// b.Items must stay in FILE order, not insertion order: StageItems (and
+	// so every stage's own positioning) is a filtered view over it, computed
+	// fresh on every call. A transaction that inserts more than once - a
+	// bulk add, say - would otherwise see stage 2's insert positioned
+	// against stage 1's items in the wrong order, because a plain append
+	// puts every newly inserted item after every item this transaction has
+	// not yet touched, regardless of where its line actually landed.
+	idx := len(b.Items)
+	for i, x := range b.Items {
+		if x.Source.Line > it.Source.Line {
+			idx = i
+			break
+		}
+	}
+	b.Items = append(b.Items, nil)
+	copy(b.Items[idx+1:], b.Items[idx:])
+	b.Items[idx] = it
 	renumber(b.StageItems(stage))
 }
 

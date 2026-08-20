@@ -55,7 +55,7 @@ func (s *Store) Update(id ID, req UpdateRequest, today Date) (Item, TxResult, er
 	before := RenderItemLine(it)
 	oldTitle := it.Title
 
-	if err := applyUpdate(it, req); err != nil {
+	if err := applyUpdate(it, req, t.model); err != nil {
 		return zero, TxResult{}, err
 	}
 
@@ -83,8 +83,11 @@ func (s *Store) Update(id ID, req UpdateRequest, today Date) (Item, TxResult, er
 	return *it, res, nil
 }
 
-// applyUpdate mutates an item per the request, validating as it goes.
-func applyUpdate(it *Item, req UpdateRequest) error {
+// applyUpdate mutates an item per the request, validating as it goes. m is
+// the transaction's model, needed only for setAnyField's tickler placement
+// check (§5.1.4 requires knowing the directory's declared tickler_stages,
+// not just the item).
+func applyUpdate(it *Item, req UpdateRequest, m *dirModel) error {
 	if req.SetTags && (len(req.AddTags) > 0 || len(req.RemoveTags) > 0) {
 		return fmt.Errorf("%w: replacing the tag list and adjusting it are exclusive",
 			ErrInvalidArgument)
@@ -163,7 +166,7 @@ func applyUpdate(it *Item, req UpdateRequest) error {
 	}
 
 	for _, f := range req.Set {
-		if err := setAnyField(it, f.Key, f.Value); err != nil {
+		if err := setAnyField(it, f.Key, f.Value, m); err != nil {
 			return err
 		}
 	}
@@ -175,9 +178,11 @@ func applyUpdate(it *Item, req UpdateRequest) error {
 	return nil
 }
 
-// setAnyField writes a field by name, whether or not this implementation knows
-// it. A registered key is validated; an unknown one is stored verbatim.
-func setAnyField(it *Item, key, value string) error {
+// setAnyField writes a field by name, whether or not this implementation
+// knows it. A registered key is validated; an unknown one is stored
+// verbatim. m is the transaction's model - only "tickler" reads it, for the
+// directory's declared tickler_stages.
+func setAnyField(it *Item, key, value string, m *dirModel) error {
 	if key == "" {
 		return fmt.Errorf("%w: a field needs a key", ErrInvalidArgument)
 	}
@@ -236,7 +241,16 @@ func setAnyField(it *Item, key, value string) error {
 		if _, err := ParseSchedule(value); err != nil {
 			return err
 		}
-		if it.Section != SectionSomeday {
+		if it.State == StateBoard {
+			// §5.1.4: valid only where the item's current stage is a
+			// tickler_stages source - version 1's fixed "Someday only"
+			// (below), generalized to whatever the directory declares.
+			if _, ok := m.board.stageCfg.TicklerDestOf(it.Stage); !ok {
+				return fmt.Errorf(
+					"%w: a tickler: schedule only belongs on a tickler_stages source; stage %q is not one",
+					ErrConflict, it.Stage)
+			}
+		} else if it.Section != SectionSomeday {
 			return fmt.Errorf("%w: a tickler: schedule only belongs in Someday", ErrConflict)
 		}
 		it.Tickler = value

@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0235] Columns M1f: op_addmany.go v2, remaining --edit gaps, more v2 fixtures, --init v2 question | prio:high | tags:spec,columns,migration,golang | detail:details/T-0235.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
 - [x] [T-0234] Columns M1e: op_tick.go v2 (ticklers), op_addmany.go v2, remaining --edit gaps, more v2 fixtures | prio:high | tags:spec,columns,migration,golang | detail:details/T-0234.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
 - [x] [T-0233] Columns M1d: CLI --migrate wiring, op_tick.go v2, op_addmany.go v2, remaining --edit gaps | prio:high | tags:spec,columns,migration,golang,cli | detail:details/T-0233.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
 - [x] [T-0232] Columns M1c: CLI --migrate wiring, op_tick.go, op_update.go, remaining v2 op coverage | prio:high | tags:spec,columns,migration,golang,cli | detail:details/T-0232.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
