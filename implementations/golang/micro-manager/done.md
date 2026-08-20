@@ -1,7 +1,7 @@
 ---
 doc: done
 version: 1
-updated: 2026-08-07
+updated: 2026-08-20
 ---
 
 # Done
@@ -11,6 +11,15 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0225] Columns: design the Go State/Stage type shape for the merged model | prio:med | tags:spec,columns,golang | detail:details/T-0225.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0224] Columns: decide how a custom stage gets a theme color | prio:med | tags:spec,columns | detail:details/T-0224.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0223] Columns: decide how --report --include-wip / --stats reference stages | prio:low | tags:spec,columns | detail:details/T-0223.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0222] Columns: decide tie-break ordering within stage:working without slot numbers | prio:med | tags:spec,columns | detail:details/T-0222.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0221] Columns: decide backlog.md's name and self-description under the merged design | prio:low | tags:spec,columns | detail:details/T-0221.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0220] Columns: lock the zero-config default stages: value | prio:low | tags:spec,columns | detail:details/T-0220.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0219] Columns: decide WIP-cap key shape (bare wip_limit vs per-stage map) | prio:med | tags:spec,columns | detail:details/T-0219.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0218] Columns: decide where ## Plan subtasks live once working files fold into backlog.md | prio:med | tags:spec,columns | detail:details/T-0218.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0217] Columns: decide whether ## section headings survive in backlog.md under the stage-field redesign | prio:med | tags:spec,columns | detail:details/T-0217.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
 - [x] [T-0211] README: a screenshot of the board view | prio:low | tags:docs | detail:details/T-0211.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
 - [x] [T-0197] GUI: the monthly Wake-up control cannot express last (spec-gui §5.6) | prio:med | tags:gui,spec | detail:details/T-0197.md | created:2026-08-06 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
 - [x] [T-0207] Tickler: add a system-settings control for tickler.interval and document the drivers | prio:med | tags:tickler,docs,ui | detail:details/T-0207.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
