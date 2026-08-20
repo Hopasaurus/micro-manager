@@ -231,11 +231,13 @@ func patternInstances(projectID string) map[string][]string {
 		"toast-<n>":                     {"toast-1"},
 		"dialog-<name>":                 {"dialog-confirm-remove", "dialog-block", "dialog-finish", "dialog-wip-limit", "dialog-import-theme"},
 		"project-card-<projectId>":      {"project-card-" + projectID, "project-card-name", "project-card-path", "project-card-wip", "project-card-favorite-toggle"},
-		"board-column-<key>-header":     column("-header", false),
-		"board-column-<key>-title":      column("-title", false),
-		"board-column-<key>-count":      column("-count", false),
-		"board-column-<key>-add":        column("-add", true),
-		"board-column-<key>-body":       column("-body", false),
+		"board-column-<slug>":           column("", false),
+		"board-column-<slug>-toggle":    {"board-column-someday-toggle"}, // only someday carries one
+		"board-column-<slug>-header":    column("-header", false),
+		"board-column-<slug>-title":     column("-title", false),
+		"board-column-<slug>-count":     column("-count", false),
+		"board-column-<slug>-add":       column("-add", true),
+		"board-column-<slug>-body":      column("-body", false),
 		"item-<ID>":                     item(""),
 		"item-<ID>-title":               item("-title"),
 		"item-<ID>-id":                  item("-id"),
@@ -246,7 +248,7 @@ func patternInstances(projectID string) map[string][]string {
 		"item-<ID>-tickler":             {"item-T-0005-tickler"},
 		"item-<ID>-menu":                item("-menu"),
 		"item-<ID>-action-<operation>":  itemOps(),
-		"item-field-<field>":            {"item-field-title", "item-field-prio", "item-field-tags", "item-field-blocked", "item-field-detail"},
+		"item-field-<field>":            {"item-field-title", "item-field-prio", "item-field-tags", "item-field-detail"},
 		"item-action-<operation>":       {"item-action-start"},
 		"settings-scan-root-<n>":        {"settings-scan-root-0"},
 		"settings-scan-root-<n>-remove": {"settings-scan-root-0-remove"},
@@ -268,6 +270,13 @@ func TestAuditTestids(t *testing.T) {
 	ts.registry.now = func() time.Time { return time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC) }
 	id := projectIDOf(t, ts, ts.Dirs[0])
 	all := auditViews(t, ts, id)
+
+	// tickler-dest is version 2 only (§5.1.4) — no v1 fixture ever renders
+	// it, so the audit needs one v2 render alongside the v1 battery above.
+	// T-0005 sits on clean-v2-full's someday stage, a declared tickler_stages
+	// source, so its item panel carries the Wake-up group and the select.
+	v2ts, v2id := boardServer(t, "clean-v2-full")
+	all += "\n" + v2ts.get("/p/"+v2id+"/item/T-0005").expectStatus(200).Body
 
 	instances := patternInstances(id)
 

@@ -2,14 +2,16 @@
   The Wake-up group (spec-gui.md §5.6): the tickler controls, one partial served
   by both panels, rendered inside item-form.
 
-  New-item panel: rendered always, hidden when the section selector
-  (item-field-section) is not Someday — "the group is hidden", not absent, so
-  switching the selector client-side reveals it without a round trip.
+  New-item panel: rendered always, hidden when the stage selector
+  (item-field-stage) does not name a tickler_stages source — "the group is
+  hidden", not absent, so switching the selector client-side reveals it
+  without a round trip. data-tickler-sources carries every source slug so
+  mm.js can re-evaluate that as the selector changes.
 
-  Item panel: rendered for a someday item only, with data-present="true" and the
-  controls pre-filled when it carries tickler:, data-present="false" with kind
-  never otherwise — an unscheduled someday item can gain a tickler here, and
-  choosing kind never removes one.
+  Item panel: rendered for an item on a tickler-eligible stage only, with
+  data-present="true" and the controls pre-filled when it carries tickler:,
+  data-present="false" with kind never otherwise — an unscheduled eligible
+  item can gain a tickler here, and choosing kind never removes one.
 
   The kind select chooses the shape: the matching control is shown and the
   others hidden, server-side on first render and by mm.js on change. The server
@@ -17,9 +19,10 @@
   lives in the library, which validates on write.
 */}}
 {{define "tickler-group" -}}
-{{$g := .Group}}{{$new := .New}}{{$section := .Section}}
+{{$g := .Group}}{{$new := .New}}
 <fieldset data-testid="item-tickler" class="mm-tickler" data-present="{{yesno $g.Present}}"
-          {{if and $new (ne $section "someday")}}hidden{{end}}>
+          {{if $new}}data-tickler-sources="{{.Sources}}"{{end}}
+          {{if and $new (not .Eligible)}}hidden{{end}}>
   <legend>Wake up</legend>
 
   <label class="mm-tickler__kind">
@@ -74,5 +77,21 @@
       <input data-testid="tickler-time" type="time" name="tickler-time" value="{{$g.Time}}">
     </label>
   </div>
+
+  {{/* tickler-dest, new in version 2 (§5.1.4, §5.6): a select of declared
+       stages, defaulting to the current/chosen stage's own tickler_stages
+       destination. Composing it sets tickler_dest only when it differs from
+       that default, so leaving it here writes no extra data. Version 1 has
+       no such field. */}}
+  {{if .Version2}}
+  <label class="mm-field">
+    <span>Wake to</span>
+    <select data-testid="tickler-dest" name="tickler-dest">
+      {{range $g.DestOptions}}
+      <option value="{{.Slug}}" {{if eq $g.Dest .Slug}}selected{{end}}>{{.Label}}</option>
+      {{end}}
+    </select>
+  </label>
+  {{end}}
 </fieldset>
 {{- end}}

@@ -109,18 +109,18 @@ func somedayToggle(t *testing.T, body string) string {
 // T-0162: the column add links open the new-item panel through the same htmx
 // swap the card title uses, so the + button stops being the board's last
 // full-page load. The href stays for no-JS, and the hx-get carries the same
-// ?section= the href does, which seeds the new-item form.
+// ?stage= the href does, which seeds the new-item form's stage selector.
 func TestColumnAddLinksSwapThePanel(t *testing.T) {
 	ts, id := boardServer(t, "clean-full")
 	body := ts.get("/p/" + id + "/board").expectStatus(http.StatusOK).Body
 
 	ready := testid(t, body, "board-column-ready-add")
 	href := attrOf(t, ready, "href")
-	if href != "/p/"+id+"/new?section=ready" {
-		t.Errorf("ready add href = %q, want the section-seeded panel URL", href)
+	if href != "/p/"+id+"/new?stage=ready" {
+		t.Errorf("ready add href = %q, want the stage-seeded panel URL", href)
 	}
 	for _, want := range []string{
-		`hx-get="/p/` + id + `/new?section=ready"`, // matches the href
+		`hx-get="/p/` + id + `/new?stage=ready"`, // matches the href
 		`hx-target="#item-panel-root"`,
 		`hx-swap="innerHTML"`,
 		`hx-push-url="true"`,
@@ -130,10 +130,10 @@ func TestColumnAddLinksSwapThePanel(t *testing.T) {
 		}
 	}
 
-	// Every column's add link seeds its own section; the someday one proves
+	// Every column's add link seeds its own stage; the someday one proves
 	// the hx-get follows the href rather than being hardcoded to ready.
 	someday := testid(t, body, "board-column-someday-add")
-	if got := attrOf(t, someday, "hx-get"); got != "/p/"+id+"/new?section=someday" {
+	if got := attrOf(t, someday, "hx-get"); got != "/p/"+id+"/new?stage=someday" {
 		t.Errorf("someday add hx-get = %q", got)
 	}
 

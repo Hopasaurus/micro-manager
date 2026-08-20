@@ -10,9 +10,9 @@ const (
 	Version = "0.1.0-dev"
 
 	// SpecUIVersion is spec-gui.md's declared version.
-	SpecUIVersion = "1"
+	SpecUIVersion = "2"
 	// SpecToolsVersion is spec-tools.md's declared version.
-	SpecToolsVersion = "1"
+	SpecToolsVersion = "2"
 	// SpecFormatVersion is spec-file-format.md's declared version.
-	SpecFormatVersion = "1"
+	SpecFormatVersion = "2"
 )

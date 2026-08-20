@@ -38,8 +38,25 @@ type panelData struct {
 
 	// New marks the add-item panel, which is the same position and the same
 	// form with nothing filled in (§4.1, /p/:id/new).
-	New     bool
-	Section string
+	New bool
+	// Stage is the stage selector's (item-field-stage) current value —
+	// version 1's section or version 2's stage slug — new panel only
+	// (§5.6): a save from the edit panel never moves an item, same as
+	// version 1's --edit never has.
+	Stage        string
+	StageOptions []stageOption
+
+	Version2 bool
+
+	// TicklerEligible gates the Wake-up group's rendering (§5.6): for the new
+	// panel it says whether Stage is a tickler_stages source, so the group
+	// renders (hidden or not); for the item panel it says whether the
+	// item's own stage is one, so the group renders at all.
+	TicklerEligible bool
+	// TicklerSources lists every source slug space-separated, so mm.js can
+	// re-evaluate the new panel's group visibility as Stage changes
+	// client-side, without a round trip.
+	TicklerSources string
 
 	// Tickler pre-fills the Wake-up group (§5.6): the controls parsed back out
 	// of the item's schedule, or kind never with everything empty for an
@@ -124,17 +141,25 @@ func (s *Server) newItemPanel(c *echo.Context) error {
 	if store == nil {
 		return err
 	}
+	dir, err := store.Directory()
+	if err != nil {
+		return err
+	}
 
 	v := s.newView(c, "New item", store)
 	v.App.Nav = "board"
-	section := c.Request().URL.Query().Get("section")
-	if _, ok := parseSection(section); !ok {
-		section = sectionKey(mm.SectionReady)
+	stage, ok := validNewStage(dir, c.Request().URL.Query().Get("stage"))
+	if !ok {
+		stage = defaultNewStage(dir)
 	}
 	v, err = s.withBoard(c, store, v, panelData{
-		New: true, Section: section,
-		Item:    itemData{Prio: "med"},
-		Tickler: ticklerGroupData{Kind: "never"},
+		New: true, Stage: stage,
+		StageOptions:    stageOptionsFor(dir),
+		Version2:        dir.Version == 2,
+		TicklerEligible: isTicklerSource(dir, stage),
+		TicklerSources:  strings.Join(ticklerSourceSlugs(dir), " "),
+		Item:            itemData{Prio: "med"},
+		Tickler:         emptyTicklerFor(dir, stage),
 	})
 	if err != nil {
 		return err
@@ -156,17 +181,31 @@ func (s *Server) panelView(c *echo.Context, store *mm.Store, it mm.Item) (view, 
 	v.App.Nav = "board"
 
 	data := panelData{
-		Item:    s.itemView(it, dir, 1, s.registry.newRefResolver()),
-		Created: it.Created.String(),
-		Started: it.Started.String(),
-		Done:    it.Done.String(),
+		Item:     s.itemView(it, dir, 1, s.registry.newRefResolver()),
+		Created:  it.Created.String(),
+		Started:  it.Started.String(),
+		Done:     it.Done.String(),
+		Version2: dir.Version == 2,
 	}
-	// The Wake-up group's pre-fill: a someday item's schedule, when it has one
-	// (§5.6). Everything else renders kind never with empty controls — an
-	// unscheduled someday item can gain a tickler here, and no other state has
-	// a schedule to edit.
-	if it.State == mm.StateBacklog && it.Section == mm.SectionSomeday {
+	// The Wake-up group's pre-fill: the item's schedule, when it has one and
+	// sits on a tickler-eligible stage (§5.6) — version 1's fixed Someday, or
+	// version 2's declared tickler_stages sources, generalized. Everything
+	// else renders kind never with empty controls — an unscheduled eligible
+	// item can gain a tickler here, and an ineligible one has no group at all.
+	switch {
+	case it.State == mm.StateBacklog && it.Section == mm.SectionSomeday:
+		data.TicklerEligible = true
 		data.Tickler = prefillTickler(it)
+	case it.State == mm.StateBoard:
+		if dest, ok := dir.StageCfg.TicklerDestOf(it.Stage); ok {
+			data.TicklerEligible = true
+			data.Tickler = prefillTickler(it)
+			data.Tickler.DestOptions = stageOptionsFor(dir)
+			data.Tickler.Dest = string(it.TicklerDest)
+			if data.Tickler.Dest == "" {
+				data.Tickler.Dest = string(dest)
+			}
+		}
 	}
 
 	// The long-form description, when the item has one.
@@ -476,6 +515,16 @@ func (s *Server) editItem(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
+	dir, err := store.Directory()
+	if err != nil {
+		return err
+	}
+	// The item's OWN current stage, before this edit - a save from this form
+	// never moves it (§5.6), so it is also the tickler-dest default below.
+	it0, err := store.Get(id)
+	if err != nil {
+		return err
+	}
 
 	req := mm.UpdateRequest{DryRun: c.Request().FormValue("dryRun") == "true"}
 	// The pointers distinguish "absent" from "present and empty", which is what
@@ -498,18 +547,32 @@ func (s *Server) editItem(c *echo.Context) error {
 		req.Tags = tags
 		req.SetTags = true
 	}
-	if v, ok := formValue(c, "blocked"); ok {
+	if v, ok := formValue(c, "reason"); ok {
 		req.Blocked = &v
 	}
 
 	// §4.2: the Wake-up group's controls compose the tickler: value; present
 	// but empty (kind never) removes an existing one, absent leaves it alone —
-	// a non-someday item's form has no group on it.
+	// a non-eligible item's form has no group on it.
 	schedule, present, err := composeTickler(c)
 	if err != nil {
 		return err
 	}
 	applyTicklerUpdate(&req, schedule, present)
+
+	// tickler-dest (§5.1.4, §5.6): version 2 only, composed against the
+	// item's own stage default so leaving the select there writes nothing
+	// extra; present only when the group was on the form at all.
+	if dir.Version == 2 {
+		def, _ := dir.StageCfg.TicklerDestOf(it0.Stage)
+		if dest, override, present := composeTicklerDest(c, def); present {
+			if override {
+				req.Set = append(req.Set, mm.Field{Key: "tickler_dest", Value: string(dest)})
+			} else {
+				req.Unset = append(req.Unset, "tickler_dest")
+			}
+		}
+	}
 
 	today, err := mm.ParseDate(mm.NewTimestamp(s.registry.now()).String()[:10])
 	if err != nil {
@@ -540,6 +603,10 @@ func (s *Server) addItem(c *echo.Context) error {
 	if store == nil {
 		return err
 	}
+	dir, err := store.Directory()
+	if err != nil {
+		return err
+	}
 
 	title := strings.TrimSpace(c.Request().FormValue("title"))
 	if title == "" {
@@ -561,24 +628,57 @@ func (s *Server) addItem(c *echo.Context) error {
 		}
 		req.Tags = tags
 	}
-	if v := c.Request().FormValue("section"); v != "" {
-		section, ok := parseSection(v)
-		if !ok {
-			return fmt.Errorf("%w: %q is not a section", mm.ErrInvalidArgument, v)
+
+	// The stage selector (§5.6, item-field-stage): version 1's Section and
+	// version 2's Stage both read it, whichever the directory understands -
+	// Store.Add dispatches on the directory's actual version and uses only
+	// the field that applies, same pattern as the board's own mutations
+	// (operate()'s block/unblock/move cases).
+	stage := c.Request().FormValue("stage")
+	if stage != "" {
+		if dir.Version == 2 {
+			req.Stage = mm.Stage(stage)
+		} else {
+			section, ok := parseSection(stage)
+			if !ok {
+				return fmt.Errorf("%w: %q is not a stage", mm.ErrInvalidArgument, stage)
+			}
+			req.Section = section
 		}
-		req.Section = section
 	}
-	req.Blocked = c.Request().FormValue("blocked")
+	reason := c.Request().FormValue("reason")
+	req.Blocked = reason
+	req.Reason = reason
 	req.DetailBody = c.Request().FormValue("detail")
 	req.DryRun = c.Request().FormValue("dryRun") == "true"
 
 	// §4.2: the Wake-up group's controls compose the tickler: value server-side;
-	// the library validates it (and I7's Someday-only placement) on write.
+	// the library validates it (and version 1's Someday-only placement, or
+	// version 2's tickler_stages) on write.
 	schedule, present, err := composeTickler(c)
 	if err != nil {
 		return err
 	}
 	applyTicklerAdd(&req, schedule, present)
+
+	// tickler-dest (§5.1.4, §5.6): version 2 only, and only meaningful
+	// alongside a tickler - the new panel's stage selector toggles the
+	// Wake-up group's `hidden` attribute client-side rather than removing it,
+	// so a submission with kind never still carries whatever tickler-dest
+	// value is left over from an earlier, tickler-eligible selection; schedule
+	// == "" is this function's own signal that there is nothing to route.
+	// Composed against the chosen stage's own default so a submission that
+	// left the select there writes nothing extra.
+	if dir.Version == 2 && schedule != "" {
+		chosen := req.Stage
+		if chosen == "" {
+			chosen = "ready"
+		}
+		def, _ := dir.StageCfg.TicklerDestOf(chosen)
+		if dest, override, present := composeTicklerDest(c, def); present && override {
+			req.TicklerDest = dest
+		}
+	}
 
 	today, err := mm.ParseDate(mm.NewTimestamp(s.registry.now()).String()[:10])
 	if err != nil {
@@ -589,7 +689,7 @@ func (s *Server) addItem(c *echo.Context) error {
 		return err
 	}
 	if c.Request().FormValue("addAnother") == "1" {
-		return s.afterMutationAddAnother(c, store, it, req.Section, req.DryRun)
+		return s.afterMutationAddAnother(c, store, it, req.DryRun)
 	}
 	return s.afterMutation(c, store, mutationResult{Item: &it, Message: string(it.ID) + " added"}, req.DryRun)
 }
@@ -698,10 +798,19 @@ func (s *Server) afterMutation(c *echo.Context, store *mm.Store, result mutation
 // #item-panel-root so the next title can be typed immediately. The response is
 // board-swap-again, whose panel OOB renders the same item-panel template the
 // /new route serves, so the re-opened form cannot drift from a direct load.
-func (s *Server) afterMutationAddAnother(c *echo.Context, store *mm.Store, it mm.Item, section mm.Section, dryRun bool) error {
-	if section == "" {
-		section = mm.SectionReady
+func (s *Server) afterMutationAddAnother(c *echo.Context, store *mm.Store, it mm.Item, dryRun bool) error {
+	dir, err := store.Directory()
+	if err != nil {
+		return err
 	}
+	// The just-saved item's own section/stage — not the request's, which may
+	// have been left blank and defaulted by the library — is what the fresh
+	// form re-opens on, the same column the previous save landed in.
+	stage := sectionKey(it.Section)
+	if it.State == mm.StateBoard {
+		stage = string(it.Stage)
+	}
+
 	v := s.newView(c, "New item", store)
 	v.App.Nav = "board"
 	v.App.Toast = &toastData{
@@ -714,9 +823,13 @@ func (s *Server) afterMutationAddAnother(c *echo.Context, store *mm.Store, it mm
 		return err
 	}
 	v.Data = itemPageData{Board: board, Panel: panelData{
-		New: true, Section: sectionKey(section),
-		Item:    itemData{Prio: "med"},
-		Tickler: ticklerGroupData{Kind: "never"},
+		New: true, Stage: stage,
+		StageOptions:    stageOptionsFor(dir),
+		Version2:        dir.Version == 2,
+		TicklerEligible: isTicklerSource(dir, stage),
+		TicklerSources:  strings.Join(ticklerSourceSlugs(dir), " "),
+		Item:            itemData{Prio: "med"},
+		Tickler:         emptyTicklerFor(dir, stage),
 	}}
 	return s.render(c, http.StatusOK, "board", "board-swap-again", v)
 }

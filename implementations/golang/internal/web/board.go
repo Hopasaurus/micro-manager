@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/labstack/echo/v5"
@@ -376,6 +377,89 @@ func parseSection(key string) (mm.Section, bool) {
 		}
 	}
 	return "", false
+}
+
+// stageOption is one entry in the item-field-stage selector (§5.6):
+// version 1's three fixed sections, or version 2's declared stages.
+type stageOption struct {
+	Slug  string
+	Label string
+}
+
+// stageOptionsFor lists the new-item panel's stage choices, generalized from
+// version 1's fixed Ready/Blocked/Someday to version 2's stages: in stages:
+// order (§5.1.1), with each stage's declared or derived label (§5.1.2).
+func stageOptionsFor(dir mm.Directory) []stageOption {
+	if dir.Version == 2 {
+		out := make([]stageOption, 0, len(dir.StageCfg.Stages))
+		for _, s := range dir.StageCfg.Stages {
+			out = append(out, stageOption{Slug: string(s), Label: dir.StageCfg.Label(s)})
+		}
+		return out
+	}
+	return []stageOption{
+		{Slug: "ready", Label: "Ready"},
+		{Slug: "blocked", Label: "Blocked"},
+		{Slug: "someday", Label: "Someday"},
+	}
+}
+
+// validNewStage checks a stage query parameter or form value against the
+// directory's own choices (version 2's declared stages, or version 1's three
+// sections), so an invalid or missing value can fall back to a sane default
+// rather than reach the library at all.
+func validNewStage(dir mm.Directory, value string) (string, bool) {
+	if dir.Version == 2 {
+		if dir.StageCfg.IsStage(mm.Stage(value)) {
+			return value, true
+		}
+		return "", false
+	}
+	if _, ok := parseSection(value); ok {
+		return strings.ToLower(value), true
+	}
+	return "", false
+}
+
+// defaultNewStage is what the new-item panel's selector defaults to absent a
+// valid ?stage= (§5.6): version 1's Ready, or version 2's first declared
+// stage — the only default that needs no meaning invented for a directory
+// that may not even have a stage named "ready".
+func defaultNewStage(dir mm.Directory) string {
+	if dir.Version == 2 {
+		if len(dir.StageCfg.Stages) > 0 {
+			return string(dir.StageCfg.Stages[0])
+		}
+		return ""
+	}
+	return sectionKey(mm.SectionReady)
+}
+
+// ticklerSourceSlugs lists every stage the Wake-up group may be composed on:
+// version 2's declared tickler_stages sources (§5.1.4), or version 1's fixed
+// Someday. mm.js reads the same list off data-tickler-sources to decide the
+// new panel's group visibility as the stage selector changes, without a
+// round trip.
+func ticklerSourceSlugs(dir mm.Directory) []string {
+	if dir.Version == 2 {
+		out := make([]string, 0, len(dir.StageCfg.TicklerStages))
+		for src := range dir.StageCfg.TicklerStages {
+			out = append(out, string(src))
+		}
+		sort.Strings(out)
+		return out
+	}
+	return []string{"someday"}
+}
+
+// isTicklerSource reports whether stage is one of ticklerSourceSlugs, for the
+// new panel's initial (server-rendered) visibility.
+func isTicklerSource(dir mm.Directory, stage string) bool {
+	if dir.Version == 2 {
+		_, ok := dir.StageCfg.TicklerDestOf(mm.Stage(stage))
+		return ok
+	}
+	return stage == sectionKey(mm.SectionSomeday)
 }
 
 func slotWidth(s mm.Slot) int {

@@ -100,25 +100,27 @@ const COLLAPSED_HTML = BOARD_HTML.replace(
 
 // The board with an item panel over it, carrying the Wake-up group of §5.6 as
 // the server renders it (T-0173). The `hidden` attributes are the server's
-// first render — the group hidden until the section selector says someday, and
-// every control but the selected kind's hidden — and what these tests drive is
-// mm.js keeping them right afterwards.
+// first render — the group hidden until the stage selector names a
+// tickler_stages source, and every control but the selected kind's hidden —
+// and what these tests drive is mm.js keeping them right afterwards.
 //
-// panelHTML(kind, section) builds the panel for a starting state, because both
+// panelHTML(kind, stage) builds the panel for a starting state, because both
 // visibility rules are about a state CHANGING and the starting point decides
-// what a change proves.
-function panelHTML(kind = 'never', section = 'ready') {
+// what a change proves. data-tickler-sources carries "someday", version 1's
+// fixed source, same as the real server renders it.
+function panelHTML(kind = 'never', stage = 'ready') {
   const hide = (k) => (k === kind ? '' : 'hidden');
   const panel = `
   <aside data-testid="item-panel" class="mm-panel">
     <form data-testid="item-form">
-      <select data-testid="item-field-section" name="section">
-        <option value="ready" ${section === 'ready' ? 'selected' : ''}>Ready</option>
-        <option value="someday" ${section === 'someday' ? 'selected' : ''}>Someday</option>
+      <select data-testid="item-field-stage" name="stage">
+        <option value="ready" ${stage === 'ready' ? 'selected' : ''}>Ready</option>
+        <option value="someday" ${stage === 'someday' ? 'selected' : ''}>Someday</option>
       </select>
       <fieldset data-testid="item-tickler" class="mm-tickler"
                 data-present="${kind === 'never' ? 'false' : 'true'}"
-                ${section === 'someday' ? '' : 'hidden'}>
+                data-tickler-sources="someday"
+                ${stage === 'someday' ? '' : 'hidden'}>
         <select data-testid="tickler-kind" name="tickler-kind">
           <option value="never" ${kind === 'never' ? 'selected' : ''}>Never</option>
           <option value="one-time" ${kind === 'one-time' ? 'selected' : ''}>One-time</option>
@@ -450,18 +452,18 @@ test('the kind select shows the matching control and hides the others', (t) => {
   }
 });
 
-test('the new panel reveals the group when the section becomes Someday', (t) => {
+test('the new panel reveals the group when the stage becomes Someday', (t) => {
   const { win } = load(t, panelHTML('never', 'ready'));
-  const section = byTestid(win, 'item-field-section');
+  const stage = byTestid(win, 'item-field-stage');
 
   assert.equal(groupOf(win).hidden, true, 'the selector defaults to Ready, where the group is hidden');
 
-  section.value = 'someday';
-  change(win, section);
+  stage.value = 'someday';
+  change(win, stage);
   assert.equal(groupOf(win).hidden, false, 'Someday reveals it without a round trip');
 
-  section.value = 'ready';
-  change(win, section);
+  stage.value = 'ready';
+  change(win, stage);
   assert.equal(groupOf(win).hidden, true, 'and switching back hides it again');
 });
 

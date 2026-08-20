@@ -55,11 +55,14 @@
     {{/* T-0162: the add link opens the panel through the same htmx swap as the
          card title (item-card.html) — href for no-JS, hx-get into
          #item-panel-root with hx-push-url — so it stops being the last
-         full-page load on the board. The hx-get carries the same ?section=
-         the href does, which seeds the new-item form (§5.6). */}}
+         full-page load on the board. The hx-get carries the same ?stage=
+         the href does, which seeds the new-item form's stage selector
+         (§5.6) — version 1's section or version 2's stage, whichever this
+         column carries. */}}
+    {{$stage := ""}}{{if $c.Section}}{{$stage = $c.Section}}{{else if $c.Stage}}{{$stage = $c.Stage}}{{end}}
     <a data-testid="{{$c.Testid}}-add" class="mm-column__add"
-       href="{{with $p}}/p/{{.ID}}/new{{if $c.Section}}?section={{$c.Section}}{{end}}{{end}}"
-       {{with $p}}hx-get="/p/{{.ID}}/new{{if $c.Section}}?section={{$c.Section}}{{end}}" hx-target="#item-panel-root"
+       href="{{with $p}}/p/{{.ID}}/new{{if $stage}}?stage={{$stage}}{{end}}{{end}}"
+       {{with $p}}hx-get="/p/{{.ID}}/new{{if $stage}}?stage={{$stage}}{{end}}" hx-target="#item-panel-root"
        hx-swap="innerHTML" hx-push-url="true"{{end}}
        aria-label="Add an item to {{$c.Title}}">+</a>
     {{end}}

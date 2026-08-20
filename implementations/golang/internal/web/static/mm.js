@@ -366,8 +366,11 @@
 
       - the kind select shows the matching control and hides the others; the
         time control shows for every kind but never;
-      - in the NEW panel the group is hidden until the section selector is
-        Someday — the server renders it hidden, this reveals it.
+      - in the NEW panel the group is hidden until the stage selector names a
+        tickler_stages source — the server renders it hidden, this reveals
+        it. data-tickler-sources carries the eligible slugs (version 1's
+        fixed "someday", or version 2's declared sources), so this reads the
+        directory's own declaration rather than assuming "someday".
 
     The server's answers stay authoritative: what these toggles reveal is
     still composed and validated server-side on save (§4.2).
@@ -382,12 +385,13 @@
     });
   }
 
-  function applyTicklerSection(form) {
+  function applyTicklerStage(form) {
     if (!form) return;
     const group = form.querySelector('[data-testid="item-tickler"]');
-    const section = form.querySelector('[data-testid="item-field-section"]');
-    if (!group || !section) return;
-    group.hidden = section.value !== 'someday';
+    const stage = form.querySelector('[data-testid="item-field-stage"]');
+    if (!group || !stage) return;
+    const sources = (group.getAttribute('data-tickler-sources') || '').split(/\s+/).filter(Boolean);
+    group.hidden = !sources.includes(stage.value);
   }
 
   document.addEventListener('change', (event) => {
@@ -396,8 +400,8 @@
     if (target.getAttribute('data-testid') === 'tickler-kind') {
       applyTicklerGroup(target.closest('[data-testid="item-tickler"]'));
     }
-    if (target.getAttribute('data-testid') === 'item-field-section') {
-      applyTicklerSection(target.closest('form'));
+    if (target.getAttribute('data-testid') === 'item-field-stage') {
+      applyTicklerStage(target.closest('form'));
     }
   });
 

@@ -104,6 +104,14 @@ type ticklerGroupData struct {
 	Ordinal string // weekly, first..fourth,last, "" = every
 	Month   string // monthly, 1..31 or "last"
 	Time    string // @HH:MM without the @, "" = no time
+
+	// Dest and DestOptions are version 2's tickler-dest (§5.1.4, §5.6): the
+	// select's current value (the item's own tickler_dest, or the source
+	// stage's default when it carries none) and the full list of declared
+	// stages to route to. Both stay empty for a version-1 directory, which
+	// has no such field.
+	Dest        string
+	DestOptions []stageOption
 }
 
 // prefillTickler parses an item's tickler back into the controls (§5.6
@@ -202,6 +210,39 @@ func composeTickler(c *echo.Context) (schedule string, present bool, err error) 
 		return "", true, fmt.Errorf("%w: tickler-kind must be one of never, one-time, weekly, monthly, got %q",
 			mm.ErrInvalidArgument, kind)
 	}
+}
+
+// emptyTicklerFor is the new-item panel's Wake-up group before anything has
+// been typed: kind never, with version 2's destination options and stage's
+// own tickler_stages default pre-selected when it has one (§5.1.4) — nothing
+// to compose until the user picks a kind, but the select still needs
+// something to show.
+func emptyTicklerFor(dir mm.Directory, stage string) ticklerGroupData {
+	g := ticklerGroupData{Kind: "never"}
+	if dir.Version == 2 {
+		g.DestOptions = stageOptionsFor(dir)
+		if dest, ok := dir.StageCfg.TicklerDestOf(mm.Stage(stage)); ok {
+			g.Dest = string(dest)
+		}
+	}
+	return g
+}
+
+// composeTicklerDest reads the Wake-up group's tickler-dest override (version
+// 2 only, §5.1.4, §5.6). present reports whether the form carried the control
+// at all — a version-1 form and a non-eligible item's form never render it,
+// same as composeTickler's own present. override reports whether the
+// submitted value differs from def, the caller's default destination for the
+// item's current (or, on the new panel, chosen) stage: composing only the
+// difference is what keeps a board that never overrides a destination from
+// writing any tickler_dest: at all.
+func composeTicklerDest(c *echo.Context, def mm.Stage) (dest mm.Stage, override, present bool) {
+	v, ok := formValue(c, "tickler-dest")
+	if !ok {
+		return "", false, false
+	}
+	dest = mm.Stage(v)
+	return dest, dest != "" && dest != def, true
 }
 
 // parseMonthday reads a monthly tickler-monthday control value.

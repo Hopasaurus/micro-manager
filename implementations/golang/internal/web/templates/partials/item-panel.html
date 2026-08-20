@@ -53,34 +53,40 @@
     </label>
 
     <label class="mm-field">
-      <span>Blocked</span>
-      <input data-testid="item-field-blocked" name="blocked" type="text"
+      <span>Reason</span>
+      {{/* §5.6: item-field-reason, renamed from version 1's item-field-blocked.
+           Always rendered, not only for a blocked/needs_reason item - reason:
+           is valid on any stage now, required only where the directory's
+           needs_reason lists the item's current stage. */}}
+      <input data-testid="item-field-reason" name="reason" type="text"
              value="{{$i.Reason}}" placeholder="why it cannot start yet">
     </label>
 
-    {{/* §5.6: the section selector, new panel only. It seeds the form's
-         section and decides whether the Wake-up group below is visible; the
-         selector defaults to Ready, where the group is hidden. */}}
+    {{/* §5.6: the stage selector, new panel only. It seeds the form's
+         section (version 1) or stage (version 2) and decides whether the
+         Wake-up group below is visible; the selector defaults to Ready (or
+         version 2's first declared stage), where the group is hidden unless
+         that default is itself tickler-eligible. */}}
     {{if $d.New}}
     <label class="mm-field">
-      <span>Section</span>
-      <select data-testid="item-field-section" name="section">
-        <option value="ready" {{if eq $d.Section "ready"}}selected{{end}}>Ready</option>
-        <option value="blocked" {{if eq $d.Section "blocked"}}selected{{end}}>Blocked</option>
-        <option value="someday" {{if eq $d.Section "someday"}}selected{{end}}>Someday</option>
+      <span>Stage</span>
+      <select data-testid="item-field-stage" name="stage">
+        {{range $d.StageOptions}}
+        <option value="{{.Slug}}" {{if eq $d.Stage .Slug}}selected{{end}}>{{.Label}}</option>
+        {{end}}
       </select>
     </label>
     {{end}}
 
     {{/* §5.6: the Wake-up group, one partial served by both panels. The new
-         panel renders it always — hidden until its section selector is Someday,
-         so switching the selector client-side reveals it. The item panel
-         renders it for a someday item only: a ready or blocked item has no
-         schedule to set. */}}
+         panel renders it always — hidden until its stage selector names a
+         tickler_stages source, so switching the selector client-side reveals
+         it. The item panel renders it for an item on an eligible stage only:
+         one that isn't has no schedule to set. */}}
     {{if $d.New}}
-      {{template "tickler-group" dict "Group" $d.Tickler "New" true "Section" $d.Section}}
-    {{else if and (eq $i.State "backlog") (eq $i.Section "someday")}}
-      {{template "tickler-group" dict "Group" $d.Tickler "New" false "Section" ""}}
+      {{template "tickler-group" dict "Group" $d.Tickler "New" true "Eligible" $d.TicklerEligible "Sources" $d.TicklerSources "Version2" $d.Version2}}
+    {{else if $d.TicklerEligible}}
+      {{template "tickler-group" dict "Group" $d.Tickler "New" false "Eligible" true "Sources" "" "Version2" $d.Version2}}
     {{end}}
 
     <label class="mm-field">

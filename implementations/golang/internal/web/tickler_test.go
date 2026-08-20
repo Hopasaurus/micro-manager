@@ -102,7 +102,7 @@ func TestSomedayCardBadge(t *testing.T) {
 func TestTicklerBadgeDue(t *testing.T) {
 	ts, id := pinnedServer(t, "clean-full")
 	ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
-		"title": {"Overdue"}, "section": {"someday"}, "tickler-kind": {"one-time"},
+		"title": {"Overdue"}, "stage": {"someday"}, "tickler-kind": {"one-time"},
 		"tickler-date": {"2026-07-01"},
 	}).expectStatus(http.StatusOK)
 	overdue := itemIDByTitle(t, ts, id, "Overdue")
@@ -132,8 +132,8 @@ func TestWakeUpGroupNewPanel(t *testing.T) {
 		t.Errorf("a new form has nothing scheduled: data-present = %q", got)
 	}
 
-	// ?section=someday: visible, kind never, controls empty.
-	someday := ts.get("/p/" + id + "/new?section=someday").expectStatus(http.StatusOK).Body
+	// ?stage=someday: visible, kind never, controls empty.
+	someday := ts.get("/p/" + id + "/new?stage=someday").expectStatus(http.StatusOK).Body
 	group = testid(t, someday, "item-tickler")
 	if strings.Contains(group, "hidden") {
 		t.Error("the group must be visible in a Someday new-item form")
@@ -148,13 +148,13 @@ func TestWakeUpGroupNewPanel(t *testing.T) {
 		t.Error("kind must default to never in a new form")
 	}
 
-	// The section selector itself is new-panel only.
-	if !hasTestid(someday, "item-field-section") {
-		t.Error("the new panel is missing its section selector")
+	// The stage selector itself is new-panel only.
+	if !hasTestid(someday, "item-field-stage") {
+		t.Error("the new panel is missing its stage selector")
 	}
 	item := ts.get("/p/" + id + "/item/T-0002").Body
-	if hasTestid(item, "item-field-section") {
-		t.Error("the item panel must not carry the new-panel section selector")
+	if hasTestid(item, "item-field-stage") {
+		t.Error("the item panel must not carry the new-panel stage selector")
 	}
 }
 
@@ -189,7 +189,7 @@ func TestWakeUpGroupPrefillShapes(t *testing.T) {
 
 	add := func(title, tickler string) {
 		ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
-			"title": {title}, "section": {"someday"}, "tickler-kind": {"one-time"},
+			"title": {title}, "stage": {"someday"}, "tickler-kind": {"one-time"},
 			"tickler-date": {"2026-09-01"},
 		})
 		// Rewrite the field server-side: the library's line splice is what a
@@ -240,7 +240,7 @@ func TestWakeUpComposition(t *testing.T) {
 
 	// weekly + time, on add.
 	res := ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
-		"title": {"Weekly thing"}, "section": {"someday"},
+		"title": {"Weekly thing"}, "stage": {"someday"},
 		"tickler-kind": {"weekly"}, "tickler-weekday": {"mon"}, "tickler-time": {"08:00"},
 	}).expectStatus(http.StatusOK)
 	if !strings.Contains(res.Body, "Weekly thing") {
@@ -303,7 +303,7 @@ func TestWakeUpComposition(t *testing.T) {
 
 	// A missing required control is refused by the server.
 	bad := ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
-		"title": {"Broken"}, "section": {"someday"}, "tickler-kind": {"one-time"},
+		"title": {"Broken"}, "stage": {"someday"}, "tickler-kind": {"one-time"},
 	})
 	if bad.Status != http.StatusBadRequest {
 		t.Errorf("a one-time without a date must be 400, got %d", bad.Status)
@@ -311,7 +311,7 @@ func TestWakeUpComposition(t *testing.T) {
 
 	// The library refuses a tickler outside Someday (I7), as 400.
 	conflict := ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
-		"title": {"Wrong place"}, "section": {"ready"}, "tickler-kind": {"one-time"},
+		"title": {"Wrong place"}, "stage": {"ready"}, "tickler-kind": {"one-time"},
 		"tickler-date": {"2026-09-01"},
 	})
 	if conflict.Status != http.StatusBadRequest {
@@ -330,11 +330,11 @@ func TestTicklerServiceFiresHeldBoards(t *testing.T) {
 	// A backdated one-shot (fires: overdue) and a recurring prototype whose
 	// first fire is anchored in the past (fires: spawns).
 	ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
-		"title": {"Backdated"}, "section": {"someday"}, "tickler-kind": {"one-time"},
+		"title": {"Backdated"}, "stage": {"someday"}, "tickler-kind": {"one-time"},
 		"tickler-date": {"2026-07-01"},
 	}).expectStatus(http.StatusOK)
 	ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
-		"title": {"Old recurring"}, "section": {"someday"}, "tickler-kind": {"monthly"},
+		"title": {"Old recurring"}, "stage": {"someday"}, "tickler-kind": {"monthly"},
 		"tickler-monthday": {"15"},
 	}).expectStatus(http.StatusOK)
 	recurring := itemIDByTitle(t, ts, id, "Old recurring")
@@ -488,7 +488,7 @@ func TestTicklerLogsScheduled(t *testing.T) {
 	ts.Server.log = slog.New(rec)
 
 	ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
-		"title": {"Backdated"}, "section": {"someday"}, "tickler-kind": {"one-time"},
+		"title": {"Backdated"}, "stage": {"someday"}, "tickler-kind": {"one-time"},
 		"tickler-date": {"2026-07-01"},
 	}).expectStatus(http.StatusOK)
 	backdated := string(itemIDByTitle(t, ts, id, "Backdated"))
@@ -712,7 +712,7 @@ func TestTicklerSettingsAppliesLive(t *testing.T) {
 
 	// A due someday item: a backdated one-shot, due the next tick.
 	resp, err := http.PostForm(base+"/p/"+id+"/items", url.Values{
-		"title": {"Due now"}, "section": {"someday"},
+		"title": {"Due now"}, "stage": {"someday"},
 		"tickler-kind": {"one-time"}, "tickler-date": {"2026-07-01"},
 	})
 	if err != nil || resp.StatusCode != http.StatusOK {
