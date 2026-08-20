@@ -1561,9 +1561,6 @@ projects-root-<n>
 --mm-color-accent-base  --mm-color-accent-fg  --mm-color-accent-muted
 --mm-color-state-ready  --mm-color-state-blocked  --mm-color-state-someday
 --mm-color-state-working  --mm-color-state-done
---mm-color-state-<slug>  (OPTIONAL, one per custom stage a theme declares a
-                          token for; falls back to --mm-color-accent-base
-                          when absent, §8.3)
 --mm-color-prio-high  --mm-color-prio-med  --mm-color-prio-low
 --mm-color-feedback-success  --mm-color-feedback-warning
 --mm-color-feedback-danger   --mm-color-feedback-info
@@ -1579,6 +1576,13 @@ projects-root-<n>
 --mm-motion-easing-{standard,enter,exit}
 --mm-density-{compact,normal,comfortable}
 ```
+
+`--mm-color-state-<slug>` is not in the index above because it is not a
+fixed property: it is OPTIONAL and minted per custom stage a theme chooses
+to give its own color (§8.3), one property per declared `state.<slug>`
+token, falling back to `--mm-color-accent-base` when a stage has none. The
+five `--mm-color-state-*` properties above stay the fixed, always-required
+set regardless of how many custom stages a board declares.
 
 ## Appendix C: route index
 

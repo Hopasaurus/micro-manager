@@ -503,7 +503,7 @@ Holds every closed item, newest first.
 | Key | Value | Required |
 |---|---|---|
 | `doc` | `done` | yes |
-| `version` | `1` | yes |
+| `version` | spec version, currently `2` | yes |
 | `updated` | `DATE` | no |
 
 **Body**

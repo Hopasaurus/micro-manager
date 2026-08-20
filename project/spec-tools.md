@@ -577,11 +577,16 @@ required.
 - Moving into `working` or out of `working` is legal here too, and any
   declared `wip.<slug>` cap on the destination is still pre-commit-validated
   regardless of which operation is used (§8) — that check is not `--start`'s
-  alone. What `--start` and `--pause` (§5.1.8, §5.1.9) add on top is the
-  `started` stamp and notes preservation, which `--move` does not; an
-  implementation MAY still route `--move --stage working` through the same
-  underlying library call as `--start` minus those extras, rather than
-  maintaining two independent code paths.
+  alone. `started:` is likewise not `--start`'s alone to set: it is a
+  structural requirement of stage `working` (format spec I7), so `--move
+  --stage working` MUST stamp it too when the item does not already carry
+  one, the same way moving onto a `needs_reason` stage MUST supply `reason:`
+  (above) — a destination's requirements do not depend on which operation
+  got an item there. What `--start` and `--pause` (§5.1.8, §5.1.9) add that
+  `--move` does not is notes preservation on the way out and the convenience
+  of not having to name the destination; an implementation MAY still route
+  `--move --stage working` through the same underlying library call as
+  `--start`, rather than maintaining two independent code paths.
 
 Only board items can be moved: ordering is meaningless in `done.md` beyond
 its month grouping.
