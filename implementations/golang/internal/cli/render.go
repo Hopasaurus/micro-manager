@@ -341,8 +341,14 @@ func renderStart(env Env, in *Invocation, item mm.Item, res mm.TxResult) {
 	if in.Quiet {
 		return
 	}
-	out(env, "%s%s started in slot %d\n  %s\n",
-		prefix(in), item.ID, item.Slot, mm.RenderItemLine(&item))
+	if item.State == mm.StateBoard {
+		// No slot: version 2 has no working.NN.md files at all, and the
+		// rendered line already shows stage:working.
+		out(env, "%s%s started\n  %s\n", prefix(in), item.ID, mm.RenderItemLine(&item))
+	} else {
+		out(env, "%s%s started in slot %d\n  %s\n",
+			prefix(in), item.ID, item.Slot, mm.RenderItemLine(&item))
+	}
 	_ = res
 }
 
@@ -389,6 +395,29 @@ func renderWip(env Env, in *Invocation, dir mm.Directory, res mm.TxResult) {
 	out(env, "%swip limit is now %d\n", prefix(in), dir.WipLimit)
 	for _, c := range res.Changes {
 		out(env, "  %s %s\n", c.Kind, c.File)
+	}
+}
+
+// renderStageWip is renderWip's version-2 form: one stage's own cap
+// (spec-file-format.md §5.1.3), not the directory's single working-file
+// count.
+func renderStageWip(env Env, in *Invocation, stage mm.Stage, dir mm.Directory, res mm.TxResult) {
+	if in.Quiet {
+		return
+	}
+	limit, capped := dir.StageCfg.WipLimits[stage]
+	if len(res.Files) == 0 {
+		if capped {
+			out(env, "wip limit for %s is already %d\n", stage, limit)
+		} else {
+			out(env, "%s is already uncapped\n", stage)
+		}
+		return
+	}
+	if capped {
+		out(env, "%swip limit for %s is now %d\n", prefix(in), stage, limit)
+	} else {
+		out(env, "%s%s is now uncapped\n", prefix(in), stage)
 	}
 }
 
@@ -541,21 +570,36 @@ func renderStatus(env Env, in *Invocation, st mm.Status) {
 		return
 	}
 	dir := st.Directory
-	out(env, "# %s  (wip %d/%d)\n\n", directoryName(dir), st.WipUsed(), st.WipLimit())
 
-	for _, slot := range dir.Slots {
-		if slot.Occupied() {
-			out(env, "%s: %s\n", slot.File, mm.RenderItemLine(slot.Item))
+	if dir.Version == 2 {
+		if wip := stageWipSummary(dir); wip != "" {
+			out(env, "# %s  (wip %s)\n\n", directoryName(dir), wip)
 		} else {
-			out(env, "%s: idle\n", slot.File)
+			out(env, "# %s\n\n", directoryName(dir))
 		}
-	}
-	out(env, "\n")
+		// No slot listing: version 2 has no working.NN.md files at all, and
+		// StageCounts already shows where every item sits.
+		for _, stage := range dir.StageCfg.Stages {
+			out(env, "%-10s %d\n", dir.StageCfg.Label(stage)+":", st.StageCounts[stage])
+		}
+		out(env, "%-10s %d\n\n", "done:", st.Done)
+	} else {
+		out(env, "# %s  (wip %d/%d)\n\n", directoryName(dir), st.WipUsed(), st.WipLimit())
 
-	out(env, "%-10s %d\n", "ready:", st.Ready)
-	out(env, "%-10s %d\n", "blocked:", st.Blocked)
-	out(env, "%-10s %d\n", "someday:", st.Someday)
-	out(env, "%-10s %d\n\n", "done:", st.Done)
+		for _, slot := range dir.Slots {
+			if slot.Occupied() {
+				out(env, "%s: %s\n", slot.File, mm.RenderItemLine(slot.Item))
+			} else {
+				out(env, "%s: idle\n", slot.File)
+			}
+		}
+		out(env, "\n")
+
+		out(env, "%-10s %d\n", "ready:", st.Ready)
+		out(env, "%-10s %d\n", "blocked:", st.Blocked)
+		out(env, "%-10s %d\n", "someday:", st.Someday)
+		out(env, "%-10s %d\n\n", "done:", st.Done)
+	}
 
 	if st.Next != nil {
 		out(env, "next:   %s\n", shortItem(st.Next))
@@ -563,6 +607,22 @@ func renderStatus(env Env, in *Invocation, st mm.Status) {
 	if st.OldestReady != nil {
 		out(env, "oldest: %s\n", shortItem(st.OldestReady))
 	}
+}
+
+// stageWipSummary lists every WIP-capped stage as "slug U/L", in stages:
+// order, or "" when nothing is capped. Version 2 has no single directory-wide
+// limit to headline the way version 1's slot count is; several stages may
+// each carry their own.
+func stageWipSummary(dir mm.Directory) string {
+	var parts []string
+	for _, stage := range dir.StageCfg.Stages {
+		limit, capped := dir.StageCfg.WipLimits[stage]
+		if !capped {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s %d/%d", stage, dir.StageUsed[stage], limit))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // shortItem is the one-line form --status uses for its two featured items.

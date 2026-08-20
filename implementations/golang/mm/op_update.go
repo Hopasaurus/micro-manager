@@ -190,6 +190,21 @@ func setAnyField(it *Item, key, value string, m *dirModel) error {
 		return fmt.Errorf("%w: field %s may not contain %q", ErrInvalidArgument, key, "|")
 	}
 	switch key {
+	case "stage":
+		// A version-2 item's stage: is not a plain field: leaving it (I7),
+		// entering a WIP-capped one, leaving a tickler_stages source, and
+		// entering working (started: must be stamped) are all --move's
+		// job. Duplicating that logic here so --set could do it too would
+		// be two implementations of one operation to keep in sync; refusing
+		// and naming the right one is the honest alternative to a silent,
+		// partial move. A version-1 item has no stage: concept at all, so
+		// nothing here applies to it - stored as an unregistered field,
+		// same as any other key version 1 does not recognise.
+		if it.State == StateBoard {
+			return fmt.Errorf(
+				"%w: stage: is not settable with --set; use --move --stage %s", ErrInvalidArgument, value)
+		}
+		setExtra(it, key, value)
 	case "prio":
 		p, err := ParsePrio(value)
 		if err != nil {
@@ -276,6 +291,14 @@ func setAnyField(it *Item, key, value string, m *dirModel) error {
 // unsetAnyField clears a field, refusing where the format requires one.
 func unsetAnyField(it *Item, key string) error {
 	switch key {
+	case "stage":
+		// Every version-2 item requires one (I7); clearing it is not a
+		// smaller version of a move, it is an invalid item. Same reasoning
+		// as setAnyField's refusal, the other direction.
+		if it.State == StateBoard {
+			return fmt.Errorf("%w: stage: cannot be removed; every item needs one", ErrInvalidArgument)
+		}
+		removeExtra(it, key)
 	case "prio":
 		it.Prio = PrioNone
 	case "tags":

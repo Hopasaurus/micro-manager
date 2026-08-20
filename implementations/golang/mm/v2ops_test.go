@@ -1,6 +1,7 @@
 package mm
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -186,6 +187,33 @@ func TestUpdateV2SetReasonGeneric(t *testing.T) {
 	}
 }
 
+func TestUpdateV2SetStageIsRefused(t *testing.T) {
+	_, s := v2Dir(t)
+
+	_, _, err := s.Update("T-0002", UpdateRequest{
+		Set: []Field{{Key: "stage", Value: "review"}},
+	}, today)
+	if err == nil {
+		t.Fatal("--set stage: should be refused")
+	}
+	if !strings.Contains(err.Error(), "--move") {
+		t.Errorf("error = %v, want it to point at --move", err)
+	}
+	// Untouched: the refusal must not have partially applied.
+	it, getErr := s.Get("T-0002")
+	if getErr != nil {
+		t.Fatal(getErr)
+	}
+	if it.Stage != "ready" {
+		t.Errorf("Stage = %q, want unchanged (ready)", it.Stage)
+	}
+
+	_, _, err = s.Update("T-0002", UpdateRequest{Unset: []string{"stage"}}, today)
+	if err == nil {
+		t.Fatal("--unset stage should be refused")
+	}
+}
+
 func TestUpdateV2SetTicklerRespectsStagePlacement(t *testing.T) {
 	_, s := v2Dir(t)
 
@@ -213,6 +241,77 @@ func TestUpdateV2SetTicklerRespectsStagePlacement(t *testing.T) {
 	}
 	if it.Tickler != "2026-09-01" {
 		t.Errorf("Tickler = %q, want 2026-09-01", it.Tickler)
+	}
+}
+
+func TestSetStageWipLimitV2(t *testing.T) {
+	dir, s := v2Dir(t)
+
+	d, res, err := s.SetStageWipLimit("review", 3, false)
+	if err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if d.StageCfg.WipLimits["review"] != 3 {
+		t.Errorf("WipLimits[review] = %d, want 3", d.StageCfg.WipLimits["review"])
+	}
+	if len(res.Files) == 0 {
+		t.Error("setting a new cap should write board.md")
+	}
+
+	board := readMigFile(t, dir, "board.md")
+	if !strings.Contains(board, "wip.review: 3") {
+		t.Errorf("board.md should carry wip.review: 3:\n%s", board)
+	}
+
+	// Clearing: 0 removes the key entirely.
+	d, _, err = s.SetStageWipLimit("review", 0, false)
+	if err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if _, capped := d.StageCfg.WipLimits["review"]; capped {
+		t.Error("review should be uncapped after clearing")
+	}
+	if strings.Contains(readMigFile(t, dir, "board.md"), "wip.review") {
+		t.Error("wip.review should be gone from board.md")
+	}
+}
+
+func TestSetStageWipLimitV2RefusesBelowCurrentUsage(t *testing.T) {
+	_, s := v2Dir(t)
+	// working already holds one item (T-0006) and the fixture caps it at 2.
+	if _, _, err := s.SetStageWipLimit("working", 0, false); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if _, _, err := s.Move("T-0001", MoveRequest{Stage: "working"}, today); err != nil {
+		t.Fatalf("move: %v", err)
+	}
+	if _, _, err := s.SetStageWipLimit("working", 1, false); !errors.Is(err, ErrConflict) {
+		t.Errorf("err = %v, want ErrConflict (2 items already sit on working)", err)
+	}
+}
+
+func TestSetStageWipLimitV2RejectsUndeclaredStage(t *testing.T) {
+	_, s := v2Dir(t)
+	if _, _, err := s.SetStageWipLimit("nope", 1, false); err == nil {
+		t.Error("an undeclared stage should be refused")
+	}
+}
+
+func TestSetWipLimitV2DirectoryRefusedWithAClearMessage(t *testing.T) {
+	_, s := v2Dir(t)
+	_, _, err := s.SetWipLimit(3, false)
+	if err == nil {
+		t.Fatal("SetWipLimit (no stage) should refuse a version-2 directory")
+	}
+	if !strings.Contains(err.Error(), "--stage") {
+		t.Errorf("error = %v, want it to point at --wip N --stage SLUG", err)
+	}
+}
+
+func TestSetStageWipLimitV1DirectoryRefused(t *testing.T) {
+	s := mustOpen(t, newDir(t, nil))
+	if _, _, err := s.SetStageWipLimit("ready", 1, false); err == nil {
+		t.Error("a version-1 directory should refuse a per-stage WIP limit")
 	}
 }
 

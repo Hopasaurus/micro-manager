@@ -250,11 +250,14 @@ func runAdd(env Env, in *Invocation, s *mm.Store) error {
 	}
 
 	req := mm.AddRequest{
-		Title:   title,
-		Top:     in.Bool("top"),
-		Tags:    in.Tags,
-		Blocked: in.Value("blocked"),
-		DryRun:  in.DryRun,
+		Title:       title,
+		Top:         in.Bool("top"),
+		Tags:        in.Tags,
+		Blocked:     in.Value("blocked"),         // version 1
+		Stage:       mm.Stage(in.Value("stage")), // version 2
+		Reason:      in.Value("reason"),          // version 2
+		TicklerDest: mm.Stage(in.Value("tickler-dest")),
+		DryRun:      in.DryRun,
 	}
 	if v := in.Value("section"); v != "" {
 		sec, err := mm.ParseSection(v)
@@ -684,7 +687,9 @@ func runMove(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
 	req := mm.MoveRequest{
 		Top:     in.Bool("top"),
 		End:     in.Bool("end"),
-		Blocked: in.Value("blocked"),
+		Blocked: in.Value("blocked"),         // version 1
+		Stage:   mm.Stage(in.Value("stage")), // version 2
+		Reason:  in.Value("reason"),          // version 2
 		DryRun:  in.DryRun,
 	}
 	if v := in.Value("position"); v != "" {
@@ -761,7 +766,8 @@ func runPause(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
 	}
 	req := mm.PauseRequest{
 		End:          in.Bool("end"),
-		Blocked:      in.Value("blocked"),
+		Blocked:      in.Value("blocked"),         // version 1
+		Stage:        mm.Stage(in.Value("stage")), // version 2; defaults to "ready"
 		DiscardNotes: in.Bool("discard-notes"),
 		DryRun:       in.DryRun,
 	}
@@ -904,6 +910,22 @@ func runWip(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return usagef("--wip takes a number, got %q", v)
 	}
+
+	if in.Has("stage") {
+		stage := mm.Stage(in.Value("stage"))
+		dir, res, err := s.SetStageWipLimit(stage, n, in.DryRun)
+		if err != nil {
+			return err
+		}
+		env.json.setChanges(res)
+		env.json.setResult(toJSONDirectory(dir))
+		limit, capped := dir.StageCfg.WipLimits[stage]
+		used := dir.StageUsed[stage]
+		env.porcelain.row(dir.Path, string(stage), strconv.Itoa(used), stageLimitField(limit, capped))
+		renderStageWip(env, in, stage, dir, res)
+		return nil
+	}
+
 	dir, res, err := s.SetWipLimit(n, in.DryRun)
 	if err != nil {
 		return err
@@ -914,6 +936,17 @@ func runWip(env Env, in *Invocation, s *mm.Store) error {
 		strconv.Itoa(dir.WipUsed), strconv.Itoa(dir.WipLimit))
 	renderWip(env, in, dir, res)
 	return nil
+}
+
+// stageLimitField renders a stage's cap for porcelain: the number, or empty
+// when uncapped - the same "absent means unlimited" the frontmatter key
+// itself uses (spec-file-format.md §5.1.3), rather than inventing a second
+// spelling for the same fact in this one output column.
+func stageLimitField(limit int, capped bool) string {
+	if !capped {
+		return ""
+	}
+	return strconv.Itoa(limit)
 }
 
 func runReport(env Env, in *Invocation, s *mm.Store) error {

@@ -93,22 +93,31 @@ structure.md. Without --dir, creates ./micro-manager.
 `,
 	OpAdd: `mm --add TITLE [--prio P] [--tag T]... [--section S] [--top]
               [--blocked REASON] [--created DATE] [--tickler SCHEDULE]
+              [--stage SLUG] [--reason TEXT] [--tickler-dest SLUG]
               [--detail | --detail-text TEXT | --detail-file PATH]
 
-Appends to the BOTTOM of the section by default: a new item is not automatically
-more important than everything already queued.
+Appends to the BOTTOM of the section (version 1) or stage's run (version 2)
+by default: a new item is not automatically more important than everything
+already queued.
 
 TITLE is exactly one argument — quote it if it has spaces (mm --add "Fix the
 deploy script"). A surplus positional is a usage error, not a silent second
 title; mm --add -- TITLE is the spelling for a title that starts with a dash.
 
   --top                     insert at the top instead
-  --section ready|blocked|someday
-  --blocked REASON          implies --section blocked
+  --section ready|blocked|someday     version 1
+  --blocked REASON          version 1; implies --section blocked
+  --stage SLUG               version 2; defaults to ready. A reason with no
+                            --stage implies the directory's needs_reason stage
+  --reason TEXT              version 2; required entering a needs_reason stage
+  --tickler-dest SLUG         version 2; overrides the stage's own
+                            tickler_stages destination for this item only
   --tickler SCHEDULE        schedule the item: a date (2026-09-01), a weekday
                             (mon@08:00, first-mon@08:00), or a month day
                             (15@08:00, last@08:00), each with an optional
-                            @HH:MM time. REQUIRES --section someday
+                            @HH:MM time. Requires --section someday (version
+                            1) or a --stage that is a tickler_stages source
+                            (version 2)
   --tag T                   accumulates: --tag infra --tag ci
   --detail                  create details/<ID>.md from the template, and open
                             it in $VISUAL or $EDITOR
@@ -176,10 +185,17 @@ the record, use --finish ID --outcome cancelled instead.
   --with-detail             delete the detail file too, rather than orphaning it
 `,
 	OpMove: `mm --move ID (--position N | --top | --end | --before ID | --after ID)
-               [--section S] [--blocked REASON]
+               [--section S] [--blocked REASON] [--stage SLUG] [--reason TEXT]
 
 Exactly one destination. A position past the end is an error, not a clamp.
-Moving into blocked needs a reason; moving out drops it.
+
+Version 1: --section moves between ## Ready/Blocked/Someday; moving into
+blocked needs a reason (--blocked), moving out drops it.
+
+Version 2: --stage moves onto any declared stage; --reason supplies one when
+the destination needs_reason and the item does not already carry one. Unlike
+version 1, a reason already on the item is NOT dropped on leaving a
+needs_reason stage.
 `,
 	OpStart: `mm --start ID [--slot NN]
 
@@ -188,14 +204,20 @@ If every slot is occupied this fails: finish one, pause one, or raise the limit
 deliberately with --wip.
 `,
 	OpPause: `mm --pause ID [--section S] [--end] [--discard-notes] [--blocked REASON]
+                 [--stage SLUG]
 
-Returns the item to the TOP of ## Ready, keeping started:. The slot's ## Notes
-are appended to the detail file, which is created if it does not exist — those
-notes exist nowhere else.
+Returns the item to the TOP of ## Ready (version 1) or the ready stage
+(version 2) by default, keeping started:. Notes accumulated while it was
+working are appended to the detail file, which is created if it does not
+exist — those notes exist nowhere else.
 
   --end                     append instead of inserting at the top
   --keep-notes              preserve them; this is the default
   --discard-notes           throw the notes away instead
+  --section ready|blocked|someday     version 1; --blocked implies blocked
+  --stage SLUG               version 2; defaults to ready. Pausing onto a
+                            needs_reason stage requires the item to already
+                            carry a reason:
 `,
 	OpFinish: `mm --finish ID [--outcome shipped|cancelled|obsolete] [--done DATE]
                  [--closing-note TEXT] [--discard-notes]
@@ -229,11 +251,17 @@ Violations are results, not errors: under --json the envelope reports ok:true
 because the check ran, each directory carries its own ok, and the EXIT CODE is
 what a script gates on.
 `,
-	OpWip: `mm --wip N
+	OpWip: `mm --wip N [--stage SLUG]
 
-Sets the WIP limit by creating or deleting working files — the limit is the file
-count, not a setting. Lowering it refuses if a slot that would go is occupied,
-and never renumbers an occupied slot.
+Version 1: sets the WIP limit by creating or deleting working files — the
+limit is the file count, not a setting. Lowering it refuses if a slot that
+would go is occupied, and never renumbers an occupied slot.
+
+Version 2, with --stage: sets that one stage's own cap (spec-file-format.md
+§5.1.3) instead — a real setting this time, wip.<slug> in board.md's
+frontmatter. --wip 0 --stage SLUG clears it (uncapped, which is also what
+never setting one at all means). Lowering it below the stage's current count
+refuses rather than leaving a directory already over its own new limit.
 `,
 	OpBlock: `mm --block ID --reason TEXT
 

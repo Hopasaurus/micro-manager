@@ -3,6 +3,7 @@ package mm
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 )
 
 // SetWipLimit changes the WIP limit by creating or deleting working files
@@ -29,6 +30,12 @@ func (s *Store) SetWipLimit(n int, dryRun bool) (Directory, TxResult, error) {
 	t, err := s.begin()
 	if err != nil {
 		return zero, TxResult{}, err
+	}
+	if t.model.isV2() {
+		return zero, TxResult{}, fmt.Errorf(
+			"%w: this directory is version 2, which has no working.NN.md file count to set; "+
+				"use --wip N --stage SLUG for a stage's own cap instead",
+			ErrInvalidArgument)
 	}
 	current := len(t.model.working)
 	if current == 0 {
@@ -113,6 +120,84 @@ func (s *Store) SetWipLimit(n int, dryRun bool) (Directory, TxResult, error) {
 		t.model.entries = append(t.model.entries, w.Name)
 	}
 
+	res, err := t.commit(dryRun)
+	if err != nil {
+		return zero, res, err
+	}
+	return t.model.directory(), res, nil
+}
+
+// SetStageWipLimit sets or clears one stage's WIP cap (spec-file-format.md
+// §5.1.3), version 2's per-stage generalization of SetWipLimit's file count.
+//
+// n == 0 clears the cap. There is no other way to spell "uncapped" in this
+// key's own shape: absence, not a sentinel value, is what wip.<slug> being
+// missing already means (§10.4), so writing "0" would be a second, competing
+// way to say the same thing rather than a real limit of zero items.
+func (s *Store) SetStageWipLimit(stage Stage, n int, dryRun bool) (Directory, TxResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var zero Directory
+	if n < 0 {
+		return zero, TxResult{}, fmt.Errorf("%w: a WIP limit cannot be negative", ErrInvalidArgument)
+	}
+	t, err := s.begin()
+	if err != nil {
+		return zero, TxResult{}, err
+	}
+	if !t.model.isV2() {
+		return zero, TxResult{}, fmt.Errorf(
+			"%w: a per-stage WIP limit is a version-2 concept (this directory is version 1); "+
+				"--wip N without --stage sets the version-1 slot count instead",
+			ErrInvalidArgument)
+	}
+	b, e, err := t.board()
+	if err != nil {
+		return zero, TxResult{}, err
+	}
+	if _, err := ParseStage(string(stage), b.stageCfg.Stages); err != nil {
+		return zero, TxResult{}, err
+	}
+	key := "wip." + string(stage)
+
+	before := b.FM.Get(key)
+
+	if n == 0 {
+		if !b.FM.Has(key) {
+			// A no-op writes nothing: no line, no mtime bump, no diff.
+			res, err := t.commit(dryRun)
+			if err != nil {
+				return zero, res, err
+			}
+			return t.model.directory(), res, nil
+		}
+		e.DeleteFM(key)
+		delete(b.stageCfg.WipLimits, stage)
+		t.record(Change{Kind: ChangeDeleted, File: "board.md", Before: key + ": " + before})
+	} else {
+		if used := len(b.StageItems(stage)); used > n {
+			return zero, TxResult{}, fmt.Errorf(
+				"%w: stage %q already holds %d item(s), above the new limit of %d",
+				ErrConflict, stage, used, n)
+		}
+		if before == strconv.Itoa(n) {
+			res, err := t.commit(dryRun)
+			if err != nil {
+				return zero, res, err
+			}
+			return t.model.directory(), res, nil
+		}
+		e.SetFM(key, strconv.Itoa(n))
+		b.stageCfg.WipLimits[stage] = n
+		kind := ChangeCreated
+		if before != "" {
+			kind = ChangeUpdated
+		}
+		t.record(Change{Kind: kind, File: "board.md", Before: before, After: strconv.Itoa(n)})
+	}
+
+	t.stage("board.md")
 	res, err := t.commit(dryRun)
 	if err != nil {
 		return zero, res, err

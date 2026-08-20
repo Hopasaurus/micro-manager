@@ -63,47 +63,54 @@ type jsonError struct {
 // them here would make the JSON a lossy view of a format whose whole extension
 // point is fields this implementation does not know.
 type jsonItem struct {
-	ID       string            `json:"id"`
-	Title    string            `json:"title"`
-	State    string            `json:"state"`
-	Section  string            `json:"section,omitempty"`
-	Slot     int               `json:"slot,omitempty"`
-	Position int               `json:"position,omitempty"`
-	Prio     string            `json:"prio,omitempty"`
-	Tags     []string          `json:"tags,omitempty"`
-	Detail   string            `json:"detail,omitempty"`
-	Created  string            `json:"created,omitempty"`
-	Started  string            `json:"started,omitempty"`
-	Tickler  string            `json:"tickler,omitempty"`
-	Tickled  string            `json:"tickled,omitempty"`
-	Done     string            `json:"done,omitempty"`
-	Outcome  string            `json:"outcome,omitempty"`
-	Blocked  string            `json:"blocked,omitempty"`
-	Extra    map[string]string `json:"extra,omitempty"`
-	File     string            `json:"file,omitempty"`
-	Line     int               `json:"line,omitempty"`
+	ID       string   `json:"id"`
+	Title    string   `json:"title"`
+	State    string   `json:"state"`
+	Section  string   `json:"section,omitempty"` // version 1 only
+	Stage    string   `json:"stage,omitempty"`   // version 2 only
+	Slot     int      `json:"slot,omitempty"`    // version 1 only
+	Position int      `json:"position,omitempty"`
+	Prio     string   `json:"prio,omitempty"`
+	Tags     []string `json:"tags,omitempty"`
+	Detail   string   `json:"detail,omitempty"`
+	Created  string   `json:"created,omitempty"`
+	Started  string   `json:"started,omitempty"`
+	Tickler  string   `json:"tickler,omitempty"`
+	// TicklerDest overrides the fire destination (§5.1.4); version 2 only.
+	TicklerDest string            `json:"ticklerDest,omitempty"`
+	Tickled     string            `json:"tickled,omitempty"`
+	Done        string            `json:"done,omitempty"`
+	Outcome     string            `json:"outcome,omitempty"`
+	Blocked     string            `json:"blocked,omitempty"` // version 1 only
+	Reason      string            `json:"reason,omitempty"`  // version 2 only, renamed from blocked
+	Extra       map[string]string `json:"extra,omitempty"`
+	File        string            `json:"file,omitempty"`
+	Line        int               `json:"line,omitempty"`
 }
 
 func toJSONItem(it mm.Item) jsonItem {
 	out := jsonItem{
-		ID:       string(it.ID),
-		Title:    it.Title,
-		State:    string(it.State),
-		Section:  string(it.Section),
-		Slot:     it.Slot,
-		Position: it.Pos,
-		Prio:     string(it.Prio),
-		Tags:     it.Tags,
-		Detail:   it.Detail,
-		Created:  it.Created.String(),
-		Started:  it.Started.String(),
-		Tickler:  it.Tickler,
-		Tickled:  it.Tickled.String(),
-		Done:     it.Done.String(),
-		Outcome:  string(it.Outcome),
-		Blocked:  it.Blocked,
-		File:     it.Source.File,
-		Line:     it.Source.Line,
+		ID:          string(it.ID),
+		Title:       it.Title,
+		State:       string(it.State),
+		Section:     string(it.Section),
+		Stage:       string(it.Stage),
+		Slot:        it.Slot,
+		Position:    it.Pos,
+		Prio:        string(it.Prio),
+		Tags:        it.Tags,
+		Detail:      it.Detail,
+		Created:     it.Created.String(),
+		Started:     it.Started.String(),
+		Tickler:     it.Tickler,
+		TicklerDest: string(it.TicklerDest),
+		Tickled:     it.Tickled.String(),
+		Done:        it.Done.String(),
+		Outcome:     string(it.Outcome),
+		Blocked:     it.Blocked,
+		Reason:      it.Reason,
+		File:        it.Source.File,
+		Line:        it.Source.Line,
 	}
 	if len(it.Extra) > 0 {
 		out.Extra = make(map[string]string, len(it.Extra))
@@ -535,6 +542,13 @@ func toJSONFind(res mm.DiscoveryResult) any {
 // toJSONStatus is --status: everything the one-screen summary carries, as
 // data. Slots are listed with their item or empty, and next/oldestReady are
 // null when ## Ready is empty.
+//
+// counts/wip keep their version-1 shape and meaning exactly, for a caller
+// already parsing them; they read zero for a version-2 directory, same as
+// the human renderer's slot listing is simply empty for one, rather than
+// being repurposed to mean something else. stages is version 2's own shape,
+// present only there, in stages: order - a version-2-aware caller reads
+// this instead, not counts reinterpreted.
 func toJSONStatus(st mm.Status) any {
 	slots := make([]map[string]any, 0, len(st.Directory.Slots))
 	for _, slot := range st.Directory.Slots {
@@ -547,6 +561,7 @@ func toJSONStatus(st mm.Status) any {
 	out := map[string]any{
 		"project": st.Directory.Project,
 		"path":    st.Directory.Path,
+		"version": st.Directory.Version,
 		"wip": map[string]any{
 			"used":  st.WipUsed(),
 			"limit": st.WipLimit(),
@@ -559,6 +574,21 @@ func toJSONStatus(st mm.Status) any {
 		},
 		"slots": slots,
 		"next":  nil,
+	}
+	if st.Directory.Version == 2 {
+		stages := make([]map[string]any, 0, len(st.Directory.StageCfg.Stages))
+		for _, stage := range st.Directory.StageCfg.Stages {
+			row := map[string]any{
+				"slug":  string(stage),
+				"label": st.Directory.StageCfg.Label(stage),
+				"count": st.StageCounts[stage],
+			}
+			if limit, capped := st.Directory.StageCfg.WipLimits[stage]; capped {
+				row["wipLimit"] = limit
+			}
+			stages = append(stages, row)
+		}
+		out["stages"] = stages
 	}
 	if st.Next != nil {
 		out["next"] = toJSONItem(*st.Next)
