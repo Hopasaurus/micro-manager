@@ -243,10 +243,18 @@ func TestValidatorAgreesWithCheckShOnTheRepository(t *testing.T) {
 		"../../../sample-data/sample1/micro-manager",
 		"../../../sample-data/sample2/micro-manager",
 		"../../../sample-data/sample3/micro-manager",
+		// The live board itself (../micro-manager) is version 2 as of T-0229,
+		// and check.sh has no version-2 support at all (it is entirely
+		// backlog.md/working.NN.md-shaped) - comparing it against a version-2
+		// directory would not be cross-validating one format, it would be
+		// comparing two different ones. legacy-v1, ../micro-manager's frozen
+		// pre-migration snapshot (notes/add-columns.md §7.1, decision 21),
+		// takes over the coverage this line used to provide: unlike the live
+		// board, it never changes shape out from under this comparison.
+		"../../../sample-data/legacy-v1/micro-manager",
 		"../../../sample-data/hidden/.micro-manager",
 		"../../../sample-data/symbol/µmanager",
 		"../../../sample-data/symbol-hidden/.µmanager",
-		"../micro-manager",
 	} {
 		compareValidators(t, dir, dir)
 	}
