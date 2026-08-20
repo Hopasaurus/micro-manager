@@ -15,9 +15,14 @@
          data-item-id="{{$i.ID}}"
          data-item-state="{{$i.State}}"
          {{if $i.Section}}data-section="{{$i.Section}}"{{end}}
+         {{if $i.Stage}}data-stage="{{$i.Stage}}"{{end}}
          data-prio="{{$i.Prio}}"
          data-tags="{{$i.TagList}}"
+         {{if eq $i.State "board"}}
+         data-has-reason="{{yesno $i.HasReason}}"
+         {{else}}
          data-blocked="{{yesno $i.Blocked}}"
+         {{end}}
          data-has-detail="{{yesno $i.HasDetail}}"
          data-position="{{$i.Position}}"
          {{if $i.Slot}}data-slot="{{$i.Slot}}"{{end}}
@@ -72,8 +77,13 @@
         {{if $i.TicklerNext}}data-next="{{$i.TicklerNext}}"{{end}}>{{$i.TicklerText}}</span>
   {{end}}
 
-  {{if $i.Blocked}}
-  <span data-testid="item-{{$i.ID}}-blocked-reason" class="mm-item__blocked">{{$i.Reason}}</span>
+  {{/* Not part of Appendix A's testid contract (only the panel's
+       item-field-reason form input is); shown on the card either way, for
+       version 1's blocked: and version 2's reason: alike - not only when
+       needs_reason requires it, since a reason may exist on any stage
+       (spec-file-format.md §5.1.5). */}}
+  {{if or $i.Blocked $i.HasReason}}
+  <span data-testid="item-{{$i.ID}}-reason" class="mm-item__blocked">{{$i.Reason}}</span>
   {{end}}
 
   <button data-testid="item-{{$i.ID}}-menu" class="mm-item__menu" type="button"

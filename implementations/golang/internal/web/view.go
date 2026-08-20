@@ -72,15 +72,28 @@ type projectData struct {
 type statusData struct {
 	WipUsed  int
 	WipLimit int
-	Ready    int
-	Blocked  int
-	Someday  int
+	Ready    int // version 1
+	Blocked  int // version 1
+	Someday  int // version 1
 	Done     int
+
+	// Version2 and Stages carry the same summary generalized to a
+	// stage-based board: one row per declared stage, in stages: order,
+	// instead of the four fixed version-1 counts above.
+	Version2 bool
+	Stages   []stageStatusRow
 
 	// Violations is the count status-check carries as data-violations, so a
 	// suite can assert cleanliness without opening the check view.
 	Violations int
 	Checked    bool
+}
+
+// stageStatusRow is one column's count in the status bar's version-2 form.
+type stageStatusRow struct {
+	Slug  string
+	Label string
+	Count int
 }
 
 // entryData is one row of the recent or favorites list (§10).
@@ -209,6 +222,21 @@ func (s *Server) statusFor(store *mm.Store) *statusData {
 		Blocked:  st.Blocked,
 		Someday:  st.Someday,
 		Done:     st.Done,
+	}
+	if st.Directory.Version == 2 {
+		out.Version2 = true
+		cfg := st.Directory.StageCfg
+		// spec-gui.md §5.5: the board root's data-wip-used/data-wip-limit
+		// refer to the working stage specifically; the status bar carries
+		// the same pair, for the same "how full is my plate" glance.
+		out.WipLimit = cfg.WipLimits["working"]
+		out.WipUsed = st.Directory.StageUsed["working"]
+		out.Stages = make([]stageStatusRow, 0, len(cfg.Stages))
+		for _, stage := range cfg.Stages {
+			out.Stages = append(out.Stages, stageStatusRow{
+				Slug: string(stage), Label: cfg.Label(stage), Count: st.StageCounts[stage],
+			})
+		}
 	}
 	if vs, err := store.Validate(); err == nil {
 		out.Violations = len(vs)

@@ -139,10 +139,16 @@
   {{with .App.Status}}
   <span data-testid="status-wip" class="mm-status__wip"
         data-wip-used="{{.WipUsed}}" data-wip-limit="{{.WipLimit}}">WIP {{.WipUsed}}/{{.WipLimit}}</span>
+  {{if .Version2}}
+  <span data-testid="status-counts" class="mm-status__counts">
+    {{range $i, $s := .Stages}}{{if $i}}, {{end}}<span data-testid="status-count-{{$s.Slug}}" data-count="{{$s.Count}}">{{$s.Count}} {{$s.Label}}</span>{{end}}, {{.Done}} done
+  </span>
+  {{else}}
   <span data-testid="status-counts" class="mm-status__counts"
         data-ready="{{.Ready}}" data-blocked="{{.Blocked}}" data-someday="{{.Someday}}" data-done="{{.Done}}">
     {{.Ready}} ready, {{.Blocked}} blocked, {{.Someday}} someday, {{.Done}} done
   </span>
+  {{end}}
   <span data-testid="status-check" class="mm-status__check"
         data-violations="{{.Violations}}"
         data-state="{{if not .Checked}}unknown{{else if .Violations}}error{{else}}ok{{end}}">

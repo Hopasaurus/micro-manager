@@ -36,7 +36,8 @@ type columnData struct {
 	Testid    string
 	Key       string
 	Title     string
-	Section   string // ready | blocked | someday, empty for working and done columns
+	Section   string // version 1: ready | blocked | someday, empty for working and done
+	Stage     string // version 2: the declared stage slug, empty for done
 	Slot      string // zero-padded slot number, empty for the others
 	Occupied  bool
 	IsSlot    bool
@@ -53,6 +54,18 @@ type columnData struct {
 	// data-total carries. "20 of 110" is Count of Total.
 	Total int
 	Items []itemData
+
+	// NeedsReason (version 2 only) reports whether this stage is listed in
+	// needs_reason (spec-file-format.md §5.1.5) - carried on the column so a
+	// client can compare it against a card's own data-has-reason without a
+	// second request.
+	NeedsReason bool
+	// WipCapped, WipUsed and WipLimit (version 2 only) are present exactly
+	// when this stage carries a wip.<slug> cap (§5.5: "a column with no cap
+	// carries neither" of the two attributes).
+	WipCapped bool
+	WipUsed   int
+	WipLimit  int
 }
 
 // itemData is one card. Every field here corresponds to an attribute §5.5 fixes.
@@ -60,11 +73,13 @@ type itemData struct {
 	ID        string
 	Title     string
 	State     string
-	Section   string
+	Section   string // version 1
+	Stage     string // version 2; absent for a done item
 	Prio      string
 	Tags      []string
 	TagList   string
-	Blocked   bool
+	Blocked   bool // version 1: whether it.Blocked is set
+	HasReason bool // version 2: whether it.Reason is set, on any stage (§5.5)
 	Reason    string
 	HasDetail bool
 	Position  int
@@ -187,17 +202,22 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 	if err != nil {
 		return boardData{}, err
 	}
+	// One refs resolver per render: resolution is a lookup among the boards
+	// this service knows, and the memo it keeps for item existence is only
+	// useful while the render lasts.
+	resolver := s.registry.newRefResolver()
+	doneAll := c.QueryParam("done") == "all"
+
+	if dir.Version == 2 {
+		return s.buildBoardV2(c, dir, items, filters, resolver, doneAll), nil
+	}
 
 	data := boardData{
 		WipUsed:  dir.WipUsed,
 		WipLimit: dir.WipLimit,
 		Filters:  filters,
-		DoneAll:  c.QueryParam("done") == "all",
+		DoneAll:  doneAll,
 	}
-	// One refs resolver per render: resolution is a lookup among the boards
-	// this service knows, and the memo it keeps for item existence is only
-	// useful while the render lasts.
-	resolver := s.registry.newRefResolver()
 
 	// The backlog columns (someday, ready, blocked), then working, then done:
 	// the DOM order of §5.5, which a test reads positionally.
@@ -243,6 +263,77 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 	working.Count = len(working.Items)
 	data.Columns = append(data.Columns, working)
 
+	data.Columns = append(data.Columns, s.doneColumn(items, dir, resolver, doneAll))
+
+	total := 0
+	for _, col := range data.Columns {
+		total += col.Count
+	}
+	data.Empty = total == 0
+	return data, nil
+}
+
+// buildBoardV2 is buildBoard's version-2 form (spec-gui.md §5.5): columns are
+// dynamic, one per entry in the directory's declared stages, in that order,
+// followed always by board-column-done.
+func (s *Server) buildBoardV2(c *echo.Context, dir mm.Directory, items []mm.Item, filters filterData,
+	resolver *refResolver, doneAll bool) boardData {
+	cfg := dir.StageCfg
+	data := boardData{
+		WipUsed:  dir.StageUsed["working"],
+		WipLimit: cfg.WipLimits["working"],
+		Filters:  filters,
+		DoneAll:  doneAll,
+	}
+
+	for _, stage := range cfg.Stages {
+		col := columnData{
+			Testid: "board-column-" + string(stage),
+			Key:    string(stage),
+			Title:  cfg.Label(stage),
+			Stage:  string(stage),
+			// The literal "working" stays the one column with no --add link
+			// (spec-gui.md Appendix A: "board-column-working does not"),
+			// matching --start's own hardcoded destination (board_ops.go).
+			IsWorking:   stage == "working",
+			NeedsReason: cfg.StageNeedsReason(stage),
+		}
+		if limit, capped := cfg.WipLimits[stage]; capped {
+			col.WipCapped = true
+			col.WipLimit = limit
+			col.WipUsed = dir.StageUsed[stage]
+		}
+		// §5.5: Someday carrying the collapse toggle by default is
+		// RECOMMENDED, not required of any specific stage by name any
+		// longer - this build offers it only there, matching version 1's
+		// behavior, since generalizing which stages get it to an arbitrary,
+		// unbounded set is a client-preference-persistence design of its
+		// own (T-0230's remaining GUI scope), not a rendering question.
+		if stage == "someday" {
+			col.Collapsed = somedayCollapsed(c)
+		}
+		for _, it := range items {
+			if it.State == mm.StateBoard && it.Stage == stage {
+				col.Items = append(col.Items, s.itemView(it, dir, len(col.Items)+1, resolver))
+			}
+		}
+		col.Count = len(col.Items)
+		data.Columns = append(data.Columns, col)
+	}
+
+	data.Columns = append(data.Columns, s.doneColumn(items, dir, resolver, doneAll))
+
+	total := 0
+	for _, col := range data.Columns {
+		total += col.Count
+	}
+	data.Empty = total == 0
+	return data
+}
+
+// doneColumn builds board-column-done, identical in shape for both versions:
+// done.md is unchanged between them (spec-file-format.md Appendix C).
+func (s *Server) doneColumn(items []mm.Item, dir mm.Directory, resolver *refResolver, doneAll bool) columnData {
 	done := columnData{Testid: "board-column-done", Key: "done", Title: "Done", IsDone: true}
 	limit := s.opts.Config.UI.Board.DoneLimit
 	// The full done count is the column's Total (§5.5): the header must report
@@ -254,19 +345,12 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 			continue
 		}
 		done.Total++
-		if data.DoneAll || limit == 0 || len(done.Items) < limit {
+		if doneAll || limit == 0 || len(done.Items) < limit {
 			done.Items = append(done.Items, s.itemView(it, dir, len(done.Items)+1, resolver))
 		}
 	}
 	done.Count = len(done.Items)
-	data.Columns = append(data.Columns, done)
-
-	total := 0
-	for _, col := range data.Columns {
-		total += col.Count
-	}
-	data.Empty = total == 0
-	return data, nil
+	return done
 }
 
 // somedayCollapsed reports the someday column's collapse state (§5.5).
@@ -384,26 +468,41 @@ func (s *Server) itemView(it mm.Item, dir mm.Directory, position int, resolver *
 		ID:        string(it.ID),
 		Title:     it.Title,
 		State:     string(it.State),
-		Section:   sectionKey(it.Section),
 		Prio:      string(it.Prio.Effective()),
 		Tags:      it.Tags,
 		TagList:   mm.FormatTags(it.Tags),
-		Blocked:   it.Blocked != "",
-		Reason:    it.Blocked,
 		HasDetail: it.Detail != "",
 		Position:  position,
 		Outcome:   string(it.Outcome),
 		Refs:      resolver.refsView(it),
 	}
-	if it.Slot > 0 {
-		d.Slot = fmt.Sprintf("%02d", it.Slot)
+
+	// Tickler eligibility differs by version: version 1 fixes it to Someday;
+	// version 2 generalizes it to any stage the directory names as a
+	// tickler_stages SOURCE (§5.1.4) - no longer someday-specific.
+	ticklerEligible := false
+
+	switch it.State {
+	case mm.StateBacklog, mm.StateWorking:
+		d.Section = sectionKey(it.Section)
+		d.Blocked = it.Blocked != ""
+		d.Reason = it.Blocked
+		if it.Slot > 0 {
+			d.Slot = fmt.Sprintf("%02d", it.Slot)
+		}
+		ticklerEligible = it.Section == mm.SectionSomeday
+	case mm.StateBoard:
+		d.Stage = string(it.Stage)
+		d.HasReason = it.Reason != ""
+		d.Reason = it.Reason
+		_, ticklerEligible = dir.StageCfg.TicklerDestOf(it.Stage)
 	}
 	d.Actions = actionsFor(it, dir)
 
-	// The someday card's next-fire badge (§5.5), computed on every render from
-	// the service's own clock — the same clock every mutation and the tickler
+	// The card's next-fire badge (§5.5), computed on every render from the
+	// service's own clock — the same clock every mutation and the tickler
 	// service use, so the badge and the next tick agree about today.
-	if it.State == mm.StateBacklog && it.Section == mm.SectionSomeday && it.Tickler != "" {
+	if ticklerEligible && it.Tickler != "" {
 		today, err := mm.ParseDate(mm.NewTimestamp(s.registry.now()).String()[:10])
 		if err == nil {
 			d.Tickler = it.Tickler
@@ -420,6 +519,10 @@ func (s *Server) itemView(it mm.Item, dir mm.Directory, position int, resolver *
 // with it in any case: §2.1 lets the client replicate rules to disable controls
 // early, but the server's answer is the authoritative one.
 func actionsFor(it mm.Item, dir mm.Directory) []actionData {
+	if it.State == mm.StateBoard {
+		return actionsForV2(it, dir)
+	}
+
 	full := dir.WipUsed >= dir.WipLimit && dir.WipLimit > 0
 
 	action := func(op, label string, enabled bool, reason string) actionData {
@@ -488,4 +591,77 @@ func conflictUnless(ok bool) string {
 		return ""
 	}
 	return codeConflict
+}
+
+// actionsForV2 is actionsFor's version-2 form. --start/--pause/--block/
+// --unblock stay in the menu, generalized to whichever stage the directory
+// actually declares "working"/"blocked"/"ready" as (spec-tools.md §6.1: they
+// are sugar over --move --stage <slug>, not retired operations) - the same
+// literal slugs board_ops.go's startV2/pauseV2/moveV2 already hardcode, and
+// the CLI's --start/--block/--unblock do too. A directory whose custom
+// stages: omits one of the three simply does not offer that shortcut; --move
+// (always offered) still reaches any declared stage.
+func actionsForV2(it mm.Item, dir mm.Directory) []actionData {
+	cfg := dir.StageCfg
+	action := func(op, label string, enabled bool, reason string) actionData {
+		return actionData{Op: op, Label: label, Enabled: enabled, Reason: reason}
+	}
+
+	if it.State != mm.StateBoard {
+		return []actionData{
+			// §7.2: reopening is not a specified operation.
+			action("start", "Start", false, codeConflict),
+			action("pause", "Pause", false, codeConflict),
+			action("finish", "Finish", false, codeConflict),
+			action("block", "Block", false, codeConflict),
+			action("unblock", "Unblock", false, codeConflict),
+			action("move", "Move", false, codeConflict),
+			action("move-top", "Move to top", false, codeConflict),
+			action("move-end", "Move to bottom", false, codeConflict),
+			action("note", "Note", true, ""),
+			action("edit", "Edit", true, ""),
+			action("remove", "Remove", true, ""),
+		}
+	}
+
+	working := it.Stage == "working"
+	limit, capped := cfg.WipLimits["working"]
+	full := capped && dir.StageUsed["working"] >= limit
+
+	startEnabled, startReason := !working, ""
+	switch {
+	case working:
+		startReason = codeConflict
+	case full:
+		startEnabled, startReason = false, codeWipLimitReached
+	}
+
+	out := []actionData{
+		action("start", "Start", startEnabled, startReason),
+		action("pause", "Pause", working, conflictUnless(working)),
+		action("finish", "Finish", true, ""),
+	}
+	if cfg.IsStage("blocked") {
+		out = append(out,
+			action("block", "Block", it.Stage != "blocked", conflictUnless(it.Stage != "blocked")),
+			action("unblock", "Unblock", it.Stage == "blocked", conflictUnless(it.Stage == "blocked")),
+		)
+	}
+	out = append(out,
+		action("move", "Move", true, ""),
+		// T-0147: convenience accelerators for --move --top/--end
+		// (spec-tools.md §5.1.7). Legal on any stage: the library no-ops a
+		// same-position move rather than refusing it.
+		action("move-top", "Move to top", true, ""),
+		action("move-end", "Move to bottom", true, ""),
+		action("note", "Note", true, ""),
+		action("edit", "Edit", true, ""),
+		// Unlike version 1, Store.Remove does not yet refuse a version-2
+		// item on the working stage (op_remove.go's in-progress guard keys
+		// on the version-1-only StateWorking, which no version-2 item ever
+		// has) - offering it here matches what actually happens, not what
+		// version 1 did.
+		action("remove", "Remove", true, ""),
+	)
+	return out
 }

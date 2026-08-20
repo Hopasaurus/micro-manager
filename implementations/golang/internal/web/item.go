@@ -342,6 +342,12 @@ func (s *Server) operate(c *echo.Context, op string) error {
 			req.Section = section
 			req.Blocked = c.Request().FormValue("reason")
 		}
+		if v := c.Request().FormValue("stage"); v != "" {
+			// Version 2: unlike version 1's Blocked, pauseV2 does not accept
+			// a NEW reason at pause time - it only checks whether the item
+			// already carries one for a needs_reason destination.
+			req.Stage = mm.Stage(v)
+		}
 		it, _, err := store.Pause(id, req, date)
 		if err != nil {
 			return err
@@ -364,6 +370,10 @@ func (s *Server) operate(c *echo.Context, op string) error {
 		result = mutationResult{Item: &it, Message: string(id) + " finished"}
 
 	case "block":
+		// Sugar over --move --stage blocked (spec-gui.md §6.1). Both the
+		// version-1 and version-2 fields are set unconditionally: Store.Move
+		// dispatches on the directory's actual version and reads only the
+		// pair that applies, so one call is correct for either.
 		reason := c.Request().FormValue("reason")
 		if strings.TrimSpace(reason) == "" {
 			// §7.2: blocking MUST prompt for a reason, and cancelling aborts.
@@ -371,7 +381,9 @@ func (s *Server) operate(c *echo.Context, op string) error {
 			return fmt.Errorf("%w: blocking %s needs a reason", mm.ErrInvalidArgument, id)
 		}
 		it, _, err := store.Move(id, mm.MoveRequest{
-			Section: mm.SectionBlocked, Blocked: reason, DryRun: dryRun,
+			Section: mm.SectionBlocked, Blocked: reason,
+			Stage: "blocked", Reason: reason,
+			DryRun: dryRun,
 		}, date)
 		if err != nil {
 			return err
@@ -379,8 +391,12 @@ func (s *Server) operate(c *echo.Context, op string) error {
 		result = mutationResult{Item: &it, Message: string(id) + " blocked"}
 
 	case "unblock":
+		// Sugar over --move --stage ready. Unlike version 1's Blocked field,
+		// version 2's reason: is not dropped by leaving a needs_reason stage
+		// (research decision 18), so there is nothing to clear here.
 		it, _, err := store.Move(id, mm.MoveRequest{
-			Section: mm.SectionReady, Top: true, DryRun: dryRun,
+			Section: mm.SectionReady, Stage: "ready", Top: true,
+			DryRun: dryRun,
 		}, date)
 		if err != nil {
 			return err
@@ -396,6 +412,10 @@ func (s *Server) operate(c *echo.Context, op string) error {
 			}
 			req.Section = section
 			req.Blocked = c.Request().FormValue("reason")
+		}
+		if v := c.Request().FormValue("stage"); v != "" {
+			req.Stage = mm.Stage(v)
+			req.Reason = c.Request().FormValue("reason")
 		}
 		if v := c.Request().FormValue("position"); v != "" {
 			var n int

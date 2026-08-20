@@ -30,9 +30,19 @@
 {{$c := .Column}}{{$p := .Project}}
 <section data-testid="{{$c.Testid}}" class="mm-column{{if $c.IsWorking}} mm-column--working{{end}}{{if $c.IsDone}} mm-column--done{{end}}"
          {{if $c.Section}}data-section="{{$c.Section}}"{{end}}
+         {{/* spec-gui.md §8.3: --mm-color-state-<slug>, optional and dynamic,
+              falling back to --mm-color-accent-base. Version 1's four fixed
+              columns keep their plain stylesheet rule (static/mm.css); this
+              inline style is what makes an arbitrary custom stage (one with
+              no rule of its own) themeable at all, and it still resolves to
+              the SAME value the stylesheet rule would for a board that kept
+              the default stage names, since both read the same token. */}}
+         {{if $c.Stage}}data-stage="{{$c.Stage}}" data-needs-reason="{{yesno $c.NeedsReason}}"
+         style="border-top: var(--mm-border-width-thick) solid var(--mm-color-state-{{$c.Stage}}, var(--mm-color-accent-base));"{{end}}
          {{if eq $c.Key "someday"}}data-collapsed="{{if $c.Collapsed}}true{{else}}false{{end}}"{{end}}
          data-count="{{$c.Count}}"
          {{if $c.IsDone}}data-total="{{$c.Total}}"{{end}}
+         {{if $c.WipCapped}}data-wip-used="{{$c.WipUsed}}" data-wip-limit="{{$c.WipLimit}}"{{end}}
          role="list" aria-label="{{$c.Title}}">
   <header data-testid="{{$c.Testid}}-header" class="mm-column__header">
     {{if eq $c.Key "someday"}}
