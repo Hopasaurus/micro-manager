@@ -330,8 +330,11 @@ func TestDiscoverAgainstTheRepository(t *testing.T) {
 		t.Skipf("repository fixtures not present: %v", err)
 	}
 	res := Discover(DefaultDiscoveryOptions(mustAbs(t, root)))
-	if len(res.Directories) != 6 {
-		t.Errorf("found %d directories, want 6:\n%v", len(res.Directories), discoveredPaths(res))
+	// 7 since legacy-v1 joined the corpus (T-0229): the frozen pre-migration
+	// snapshot of this repository's own board, kept to regression-test the
+	// 1->2 step against real data (notes/add-columns.md §7.1, decision 21).
+	if len(res.Directories) != 7 {
+		t.Errorf("found %d directories, want 7:\n%v", len(res.Directories), discoveredPaths(res))
 	}
 	for _, d := range res.Directories {
 		if d.Project == "" {

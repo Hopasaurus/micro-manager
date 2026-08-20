@@ -1,0 +1,217 @@
+---
+doc: done
+version: 1
+updated: 2026-08-20
+---
+
+# Done
+
+Closed items, newest month first, newest item first within a month. Cancelled
+work stays here too — see [structure.md](structure.md).
+
+## 2026-08
+
+- [x] [T-0228] Columns M2: prove the migration step against a copy of the live board | prio:med | tags:columns,migration,golang | detail:details/T-0228.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0235] Columns M1f: op_addmany.go v2, remaining --edit gaps, more v2 fixtures, --init v2 question | prio:high | tags:spec,columns,migration,golang | detail:details/T-0235.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0234] Columns M1e: op_tick.go v2 (ticklers), op_addmany.go v2, remaining --edit gaps, more v2 fixtures | prio:high | tags:spec,columns,migration,golang | detail:details/T-0234.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0233] Columns M1d: CLI --migrate wiring, op_tick.go v2, op_addmany.go v2, remaining --edit gaps | prio:high | tags:spec,columns,migration,golang,cli | detail:details/T-0233.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0232] Columns M1c: CLI --migrate wiring, op_tick.go, op_update.go, remaining v2 op coverage | prio:high | tags:spec,columns,migration,golang,cli | detail:details/T-0232.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0231] Columns M1b: migrate.go, op_tick.go, remaining v2 op coverage | prio:high | tags:spec,columns,migration,golang | detail:details/T-0231.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0227] Columns M1: Go v2 support + 1->2 migration step (fixtures only) | prio:med | tags:spec,columns,migration,golang | detail:details/T-0227.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0226] Columns M0: patch all four specs for v2 (board.md, stage field, migration mechanism) | prio:high | tags:spec,columns,migration | detail:details/T-0226.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0225] Columns: design the Go State/Stage type shape for the merged model | prio:med | tags:spec,columns,golang | detail:details/T-0225.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0224] Columns: decide how a custom stage gets a theme color | prio:med | tags:spec,columns | detail:details/T-0224.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0223] Columns: decide how --report --include-wip / --stats reference stages | prio:low | tags:spec,columns | detail:details/T-0223.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0222] Columns: decide tie-break ordering within stage:working without slot numbers | prio:med | tags:spec,columns | detail:details/T-0222.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0221] Columns: decide backlog.md's name and self-description under the merged design | prio:low | tags:spec,columns | detail:details/T-0221.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0220] Columns: lock the zero-config default stages: value | prio:low | tags:spec,columns | detail:details/T-0220.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0219] Columns: decide WIP-cap key shape (bare wip_limit vs per-stage map) | prio:med | tags:spec,columns | detail:details/T-0219.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0218] Columns: decide where ## Plan subtasks live once working files fold into backlog.md | prio:med | tags:spec,columns | detail:details/T-0218.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0217] Columns: decide whether ## section headings survive in backlog.md under the stage-field redesign | prio:med | tags:spec,columns | detail:details/T-0217.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0200] later | prio:med | created:2026-08-06 | tickled:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0210] sample scheduled task | prio:med | tags:demo | created:2026-08-07 | tickled:2026-08-07 | done:2026-08-20 | outcome:shipped
+- [x] [T-0213] tie your shoes | prio:med | created:2026-08-10 | done:2026-08-20 | outcome:shipped
+- [x] [T-0214] time for code & coffee | prio:med | created:2026-08-14 | done:2026-08-20 | outcome:shipped
+- [x] [T-0215] tie your shoes | prio:med | created:2026-08-17 | done:2026-08-20 | outcome:shipped
+- [x] [T-0211] README: a screenshot of the board view | prio:low | tags:docs | detail:details/T-0211.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
+- [x] [T-0197] GUI: the monthly Wake-up control cannot express last (spec-gui §5.6) | prio:med | tags:gui,spec | detail:details/T-0197.md | created:2026-08-06 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
+- [x] [T-0207] Tickler: add a system-settings control for tickler.interval and document the drivers | prio:med | tags:tickler,docs,ui | detail:details/T-0207.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
+- [x] [T-0206] Tickler: warn at mm-ui startup when the service is disabled | prio:med | tags:tickler,ui | detail:details/T-0206.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
+- [x] [T-0205] Tickler: log scheduled items and next fire on every pass | prio:high | tags:tickler,observability | detail:details/T-0205.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
+- [x] [T-0198] test3 | prio:med | created:2026-08-06 | tickled:2026-08-07 | done:2026-08-07 | outcome:obsolete
+- [x] [T-0193] This will wake up at 6:44 | prio:med | tags:test | detail:details/T-0193.md | created:2026-08-06 | tickled:2026-08-07 | done:2026-08-07 | outcome:obsolete
+- [x] [T-0204] Tickler not moving old items? | prio:med | tags:bug,spike | detail:details/T-0204.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
+- [x] [T-0202] mm --help --json: a machine-readable capability list | prio:med | tags:cli,spec | detail:details/T-0202.md | created:2026-08-06 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0194] detect multiple mm directories in the same directory | prio:med | detail:details/T-0194.md | created:2026-08-06 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0191] update the spec so that if backlog.md and done.md are missing it skips the directory. | prio:med | detail:details/T-0191.md | created:2026-08-06 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0203] AGENTS.md: refresh the stale Current state and its neighbours | prio:med | tags:docs | detail:details/T-0203.md | created:2026-08-06 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0187] mm cli: add the ability to bulk add tasks | prio:med | tags:new-feature | detail:details/T-0187.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0185] Conformance tests: runner, exit codes, §8.1 smoke test | prio:med | tags:plugin | detail:details/T-0185.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0184] Recommended tools: mm_block/unblock, mm_search, mm_report, mm_tick, mm_archive | prio:low | tags:plugin | detail:details/T-0184.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0183] Context injection and configuration | prio:med | tags:plugin | detail:details/T-0183.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0182] /mm command surface | prio:med | tags:plugin | detail:details/T-0182.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0181] mm_remove with the double guard | prio:med | tags:plugin | detail:details/T-0181.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0180] Workflow tools: mm_start, mm_pause, mm_finish | prio:med | tags:plugin | detail:details/T-0180.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0179] Write tools: mm_add, mm_edit, mm_move, mm_note, mm_init, mm_describe | prio:med | tags:plugin | detail:details/T-0179.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0178] Read tools: mm_status, mm_next, mm_list, mm_show, mm_board, mm_check, mm_find | prio:med | tags:plugin | detail:details/T-0178.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0177] Board resolution, pinning, and session/branch state | prio:med | tags:plugin | detail:details/T-0177.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0176] mm runner: subprocess with --json, --dir pin, timeout, exit-code mapping | prio:med | tags:plugin | detail:details/T-0176.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0175] Plugin skeleton and install: directory extension, package.json, mm-on-PATH check | prio:med | tags:plugin | detail:details/T-0175.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0173] mm --tick and the UI tickler service goroutine | prio:med | tags:cli,gui | detail:details/T-0173.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0172] Library: schedule parser + calendar math, tickler/tickled fields, Store.tick/ticklers | prio:med | tags:library | detail:details/T-0172.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0171] Spec: tickler UI — panel controls, next-fire badge (spec-gui) | prio:low | tags:gui,spec | detail:details/T-0171.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0170] Spec: tickler API, --tick, Move-clears-tickler (spec-tools §5.3, §6) | prio:med | tags:library,spec | detail:details/T-0170.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0169] Spec: tickler fields and grammar — SCHEDULE token, placement, I7 (from T-0164 spike) | prio:med | tags:format,spec | detail:details/T-0169.md | created:2026-08-05 | started:2026-08-06 | done:2026-08-06 | outcome:shipped
+- [x] [T-0186] Spec: add --prefix P to mm --init so a board's id_prefix can be set at creation | prio:med | tags:cli,spec | detail:details/T-0186.md | created:2026-08-05 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0188] Spec: --describe TEXT, the board description in --status, and --init --description (spec-tools.md) | prio:low | tags:cli,spec | detail:details/T-0188.md | created:2026-08-05 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0174] Implement the pi plugin per project/spec-pi-mm-plugin.md | prio:med | tags:plugin | detail:details/T-0174.md | created:2026-08-05 | done:2026-08-05 | outcome:obsolete
+- [x] [T-0164] Tickler service | prio:med | tags:spike | detail:details/T-0164.md | created:2026-08-04 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0162] Open the new-item panel through an htmx swap like the card title link | prio:low | tags:gui,flicker-fix | detail:details/T-0162.md | created:2026-08-04 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0142] Theme editor: edit the dark palette (colorDark) alongside the light | prio:med | tags:gui,theme | detail:details/T-0142.md | created:2026-08-03 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0145] Make a way to show all done items | prio:med | tags:new-feature,spike | detail:details/T-0145.md | created:2026-08-03 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0144] Done only shows the count up to the limit | prio:med | tags:bug | detail:details/T-0144.md | created:2026-08-03 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0143] Spec: name the compiled-in library themes in spec-gui.md §8.7 (micro-manager-lite) | prio:low | tags:format,spec | detail:details/T-0143.md | created:2026-08-03 | started:2026-08-05 | done:2026-08-05 | outcome:shipped
+- [x] [T-0045] Implement stats: throughput, cycle time, WIP over time | prio:low | tags:library,report | detail:details/T-0045.md | created:2026-07-29 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0044] Implement migrate for older directory layouts | prio:low | tags:library,ops | detail:details/T-0044.md | created:2026-07-29 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0168] Library: archive MUST move detail files into details-YYYY/, not strand them (spec-file-format.md §5.6) | prio:med | tags:library,ops | detail:details/T-0168.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0167] CLI: wire the optional operations from spec-tools.md §5.3, starting with --archive [--before YYYY-MM] | prio:low | tags:cli | detail:details/T-0167.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0166] Spec: say what coverage archiving costs — a stranded detail file breaks I9, and §10.5 names only I1/I2 | prio:med | tags:format,spec | detail:details/T-0166.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0152] Should be able to drop on "SOMEDAY" even when collapsed | prio:med | tags:new-feature | detail:details/T-0152.md | created:2026-08-03 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0043] Implement archive for rolling months into done-YYYY.md | prio:low | tags:library,ops | detail:details/T-0043.md | created:2026-07-29 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0163] gofmt the five drifting files in mm/ and guard against drift | prio:low | tags:setup | detail:details/T-0163.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0040] Pin the published module path in go.mod | prio:low | tags:setup | created:2026-07-29 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0161] Morph the board-targeting mutation swaps again (T-0138 reversal) | prio:med | tags:gui,flicker-fix | detail:details/T-0161.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0148] Check if flicker fixes need to be applied to more paths | prio:med | tags:spike | detail:details/T-0148.md | created:2026-08-03 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0111] Close the drag-behaviour test gap: non-displacing placeholder and/or a JS test runner (T-0110 follow-up) | tags:gui,test,tech-debt | detail:details/T-0111.md | created:2026-08-01 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0139] Conditional polling (D2): poll only while the SSE stream is down | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0139.md | created:2026-08-02 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0146] When saving after edit return to board | prio:med | tags:bug | detail:details/T-0146.md | created:2026-08-03 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0160] CLI: searchUpward must not fall back to the process cwd when cwd is empty | prio:low | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0159] CLI: launch the editor from the project root, not the details/ directory | prio:low | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0158] CLI: tighten the switch scanner: --json --json=false must disable; --prio -- must not take -- as a value | prio:med | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0157] CLI: stop silently dropping extra positionals for --add/--search | prio:med | tags:cli,review | detail:details/T-0157.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0156] CLI: porcelain hygiene: remove the dead porcelainOut.op field, pin --fix columns in the freeze test | prio:med | tags:cli,review | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0155] CLI: JSON error envelope must record an id only when the subject is one (--wip 100 --json names T-0100) | prio:high | tags:cli,review | detail:details/T-0155.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0154] CLI: reject --init --slots 0 and --slot-width 0 (the library treats 0 as unset) | prio:high | tags:cli,review | detail:details/T-0154.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0153] CLI: --help/--version must not vanish under --json/--porcelain (empty stdout, exit 0) | prio:high | tags:cli,review | detail:details/T-0153.md | created:2026-08-04 | started:2026-08-04 | done:2026-08-04 | outcome:shipped
+- [x] [T-0151] Delay in shutdown | prio:med | tags:bug | detail:details/T-0151.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
+- [x] [T-0147] Add 'move to top' & 'move to bottom' to card context menu. | prio:med | tags:new-feature | detail:details/T-0147.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
+- [x] [T-0150] Flicker follow up | prio:med | tags:bug | detail:details/T-0150.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
+- [x] [T-0149] Drops over the drop placeholder silently never fire (upward drags) | prio:med | tags:gui,dnd | detail:details/T-0149.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
+- [x] [T-0138] Morph leaks an htmx poll chain per externally-targeted board swap | prio:high | tags:gui,flicker-fix,regression | detail:details/T-0138.md | created:2026-08-02 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
+- [x] [T-0140] TestAuditTestids fails: no report-item-<key> rendered (Appendix A) | prio:high | tags:test,gui | detail:details/T-0140.md | created:2026-08-02 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
+- [x] [T-0141] Drag and drop fails a lot | prio:med | tags:spike | detail:details/T-0141.md | created:2026-08-03 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
+- [x] [T-0137] Theme editor updates | prio:med | tags:spike | detail:details/T-0137.md | created:2026-08-02 | started:2026-08-03 | done:2026-08-03 | outcome:shipped
+- [x] [T-0131] Measure refresh traffic after Phase 1 ships; record the Phase 2 go/no-go | prio:med | tags:gui,flicker-fix,phase-1 | detail:details/T-0131.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0130] Suppress refresh echoes in mm.js: own mutations and in-flight drags | prio:high | tags:gui,flicker-fix,phase-1 | detail:details/T-0130.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0129] Morph the board, status and check refreshes (hx-swap=morph) | prio:high | tags:gui,flicker-fix,phase-1 | detail:details/T-0129.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0128] Vendor idiomorph.js for morphing swaps (pin version, record licence) | prio:high | tags:gui,flicker-fix,phase-1 | detail:details/T-0128.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0109] Consider breaking up the htmx updates to reduce flicker | prio:med | tags:spike | detail:details/T-0109.md | created:2026-07-31 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0127] GUI: render refs as clickable cross-board links, resolved by board slug | tags:gui | detail:details/T-0127.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0126] Validators: accept the board slug and validate the shape of refs links in check.sh and the Go validator | tags:format,checker,validator | detail:details/T-0126.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0125] Spec: reserve a content-declared board slug and cross-board refs in spec-file-format.md | tags:format,spec | detail:details/T-0125.md | created:2026-08-02 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0104] Explore how micro-manager could link between boards. | prio:med | tags:spike | detail:details/T-0104.md | created:2026-07-31 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0123] Library: mm fix — deterministic repair of I1 duplicates / I2 ceiling after a merge | tags:library,ops | detail:details/T-0123.md | created:2026-08-01 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0122] Validators: reject git conflict-marker lines in check.sh and the Go validator | tags:format,checker,validator | detail:details/T-0122.md | created:2026-08-01 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0121] Spec: reserve git conflict-marker lines as invalid in spec-file-format.md (§5.1) | tags:format,spec | detail:details/T-0121.md | created:2026-08-01 | started:2026-08-02 | done:2026-08-02 | outcome:shipped
+- [x] [T-0101] Explore how micro-manager could interoperate with git, consider how merge conflicts with overlapping task IDs could be solved. | prio:med | tags:spike | detail:details/T-0101.md | created:2026-07-31 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0118] Per-task ID prefixes: per-prefix counters and I2 per counter (gated on the spec decision) | tags:format,spike | detail:details/T-0118.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0117] GUI: non-default prefix and width end to end | tags:gui | detail:details/T-0117.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0116] check.sh and the Go validator agree on the declared ID grammar (fixture corpus) | tags:check,format | detail:details/T-0116.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0120] Spec: bound id_width at 15 in spec-file-format.md (§3.3.2) | tags:format,spec | detail:details/T-0120.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0119] Spike: what id_width values each implementation can honor with native integers only (golang, typescript, clojure, java, python) | tags:format,spike | detail:details/T-0119.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0115] CLI: --init --prefix/--id-width and per-directory ID parsing | tags:cli | detail:details/T-0115.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0114] Library: honor the directory's declared ID grammar (id_prefix/id_width) | tags:library,format | detail:details/T-0114.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0113] Spec: parameterize the ID token (prefix + width) in spec-file-format.md | tags:format,spec | detail:details/T-0113.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0112] Write tasks for adding the ability to change the task prefix and set the number of digits for the task number. | prio:med | tags:spike | detail:details/T-0112.md | created:2026-08-01 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0100] Make the drop zone for each column extend to the same vertical size as the biggest column | prio:med | tags:new-feature | detail:details/T-0100.md | created:2026-07-31 | started:2026-08-01 | done:2026-08-01 | outcome:shipped
+- [x] [T-0110] Drag-and-drop doesn't seem to work for reordering tasks in Ready. | prio:med | tags:bug | detail:details/T-0110.md | created:2026-07-31 | started:2026-07-31 | done:2026-08-01 | outcome:shipped
+
+## 2026-07
+
+- [x] [T-0108] Saving settings gives an error: 'Origin "null" may not make state-changing requests here" | prio:med | tags:bug | detail:details/T-0108.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0106] Clicking "Note" on the dots menu presents this error: "a note needs some text" | prio:med | tags:bug | detail:details/T-0106.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0105] Attempting to edit via the context menu does not seem to do anything | prio:med | tags:bug | detail:details/T-0105.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0103] Error when clicking "Save and add another": render board: html/template:board.html:35:77: no such template "item-panel" | prio:high | tags:bug | detail:details/T-0103.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0099] broker.Subscribe: gate wg.Add behind a closed flag so shutdown cannot race Wait (F7) | tags:gui,sse | detail:details/T-0099.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0098] Themes listing/export: sample-one-dark serves the builtin; don't advertise ids the library lacks (F4) | tags:gui,theme,api | detail:details/T-0098.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0096] deleteThemeFile must honour dryRun (F6: DELETE ?dryRun=true removes the file anyway) | tags:gui,theme,api | detail:details/T-0096.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0107] I deleted a duplicate ticket using the context menu then later started seeing this: "I9 details/T-0102.md orphan — no item references it" | prio:med | tags:bug | detail:details/T-0107.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0095] importTheme must not write an envelope missing the theme key over a user's theme.json (F3: data loss) | tags:gui,theme,api | detail:details/T-0095.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0097] Publish a theme event when a project theme.json is deleted (F5: themeStamp zero short-circuits the disappearing case) | tags:gui,theme,sse | detail:details/T-0097.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0094] Web API tests: canonicalize paths before comparing (F1: projectIDOf fails on macOS /var vs /private/var symlink paths) | tags:gui,test | detail:details/T-0094.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0071] Add the --status, --next and --search switches to the CLI | prio:med | tags:cli,ops | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0081] There should be a "save and add another" button when saving a new item. | prio:med | tags:new-feature | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:obsolete
+- [x] [T-0080] There should be a "save and add another" button when saving a new item. | prio:med | tags:new-feature | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0082] A space in a tag breaks saving with no error message. | prio:med | tags:bug | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0085] After removing an item the confirmation dialog is not going away. | prio:high | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0083] Editing an item from the UI doesn't seem to work. | prio:high | tags:bug | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0078] The new item dialog should go away when the new item is saved. | prio:high | tags:bug | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0084] SSE doesn't seem to be showing updates. | prio:high | tags:bug | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0070] Audit the templates against the testid, property and route indexes | prio:med | tags:ui,test,phase-4 | detail:details/T-0070.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0069] Render the about view with the three spec versions | prio:low | tags:ui,view,phase-4 | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0068] Meet the accessibility requirements of the UI spec | prio:med | tags:ui,a11y,phase-4 | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0067] Implement test mode for MM_UI_TEST and the mm-test parameter | prio:med | tags:ui,test,phase-4 | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0066] Implement the SSE broker, the event stream and the polling backstop | prio:med | tags:ui,events,phase-4 | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0065] Implement the JSON API under /api/v1 with dryRun on every mutation | prio:high | tags:ui,api,phase-4 | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0064] Build the theme editor, library, import and export | prio:med | tags:ui,theme,phase-3 | detail:details/T-0064.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0063] Render the settings views for the system and project scopes | prio:med | tags:ui,view,phase-3 | detail:details/T-0063.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0073] Move someday column to left with collapsible toggle | tags:ui,view | detail:details/T-0073.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0072] Render working items in a single board column | tags:ui,view | detail:details/T-0072.md | created:2026-07-31 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0062] Render home and the projects list with favorites | prio:med | tags:ui,view,phase-3 | detail:details/T-0062.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0061] Render the check view and the status bar violation count | prio:med | tags:ui,view,phase-3 | detail:details/T-0061.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0060] Render the report view with period controls and copy as markdown | prio:med | tags:ui,view,phase-3 | detail:details/T-0060.md | created:2026-07-30 | started:2026-07-31 | done:2026-07-31 | outcome:shipped
+- [x] [T-0059] Implement drag and drop and the keyboard move mode | prio:high | tags:ui,dnd,phase-2 | detail:details/T-0059.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0058] Wire every mutating operation with its dialogs and toasts | prio:high | tags:ui,ops,phase-2 | detail:details/T-0058.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0057] Render the item panel, the item form and the add-item panel | prio:high | tags:ui,view,phase-2 | detail:details/T-0057.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0056] Render the board with columns, item cards and query filters | prio:high | tags:ui,view,phase-2 | detail:details/T-0056.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0055] Render the app shell, nav, project switcher and status bar | prio:high | tags:ui,view,phase-2 | detail:details/T-0055.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0053] Map library errors to HTTP status, JSON and HTML fragments | prio:high | tags:ui,errors,phase-1 | detail:details/T-0053.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0052] Build the project registry and the discovery cache | prio:high | tags:ui,phase-1 | detail:details/T-0052.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0051] Build the template renderer with page and fragment parity | prio:high | tags:ui,render,phase-1 | detail:details/T-0051.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0054] Build the httptest harness for the web layer | prio:high | tags:ui,test,phase-1 | detail:details/T-0054.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0050] Enforce loopback binding with Host, Origin and CSP guards | prio:high | tags:ui,security,phase-1 | detail:details/T-0050.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0049] Scaffold cmd/mm-ui, internal/web and the Echo v5 dependency | prio:high | tags:ui,setup,phase-1 | detail:details/T-0049.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0042] Implement status, next and search in the library | prio:med | tags:library,ops,phase-0 | detail:details/T-0042.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0048] Implement the recent and favorites list files | prio:med | tags:library,ui,phase-0 | detail:details/T-0048.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0041] Implement theme and config loading for the UI service | prio:high | tags:library,ui,phase-0 | detail:details/T-0041.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0047] Derive projectId from the canonical directory path | prio:high | tags:library,ui,phase-0 | detail:details/T-0047.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0046] Expose a cheap directory fingerprint for change detection | prio:high | tags:library,tx,phase-0 | detail:details/T-0046.md | created:2026-07-30 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0039] Integrate EDITOR and VISUAL for detail editing | prio:low | tags:cli | detail:details/T-0039.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0038] Implement porcelain output | prio:low | tags:cli,output | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0037] Implement block, unblock and note | prio:med | tags:library,ops | detail:details/T-0037.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0036] Implement the JSON envelope | prio:med | tags:cli,output | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0035] Implement dry-run across every mutation | prio:med | tags:cli | detail:details/T-0035.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0034] Wire check to the shared validator | prio:high | tags:cli | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0033] Render human output for every operation | prio:high | tags:cli,output | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0032] Map library errors to the seven exit codes | prio:high | tags:cli | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0031] Implement CLI directory resolution and MM_DIR | prio:high | tags:cli | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0030] Build the CLI switch parser, one operation per invocation | prio:high | tags:cli | detail:details/T-0030.md | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0029] Guard the library against stdout, os.Exit and env access | prio:med | tags:test,hygiene | created:2026-07-29 | started:2026-07-30 | done:2026-07-30 | outcome:shipped
+- [x] [T-0028] Cross-check the validator against check.sh on every fixture | prio:high | tags:test | detail:details/T-0028.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0027] Round-trip tests: parse, write unchanged, assert bytes identical | prio:high | tags:test | detail:details/T-0027.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0026] Build the test fixture corpus under testdata | prio:high | tags:test | detail:details/T-0026.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0025] Implement setWipLimit, refusing to delete an occupied slot | prio:low | tags:library,ops | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0024] Implement period resolution and report building | prio:med | tags:library,report | detail:details/T-0024.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0023] Implement the discovery walker with DiscoveryOptions | prio:med | tags:library,discover | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0022] Implement init for a new micro-manager directory | prio:med | tags:library,ops | detail:details/T-0022.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0021] Implement remove behind the force guard | prio:med | tags:library,ops | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0020] Implement finish with month group insertion | prio:high | tags:library,ops | detail:details/T-0020.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0019] Implement pause, preserving notes into the detail file | prio:high | tags:library,ops | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0018] Implement start with slot selection and WIP enforcement | prio:high | tags:library,ops | detail:details/T-0018.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0017] Implement move with every destination selector | prio:high | tags:library,ops | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0016] Implement detail files and title synchronisation on rename | prio:high | tags:library,detail | detail:details/T-0016.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0015] Implement update, preserving unregistered fields | prio:high | tags:library,ops | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0014] Implement add, including next_id allocation and --top | prio:high | tags:library,ops | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0013] Detect concurrent modification from size and mtime | prio:med | tags:library,tx | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0012] Implement the transaction envelope: read, modify, validate, write | prio:high | tags:library,tx | detail:details/T-0012.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0011] Implement Store open, directory, list and get | prio:high | tags:library,store | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0010] Implement invariants I1 to I10 as one validator | prio:high | tags:library,validate | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0009] Write files atomically: temp file, fsync, rename | prio:high | tags:library,write | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0008] Serialise items and files with byte-exact round-trip fidelity | prio:high | tags:library,write | detail:details/T-0008.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0007] Parse the working file set and derive the WIP limit from it | prio:high | tags:library,parse | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0006] Parse backlog sections and done month groups | prio:high | tags:library,parse | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0005] Parse item lines, preserving unregistered fields verbatim | prio:high | tags:library,parse | detail:details/T-0005.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0004] Parse frontmatter as a flat key-to-string map per format spec 4.1 | prio:high | tags:library,parse | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0002] Define the core domain types: Item, Slot, Directory, Change, Violation | prio:high | tags:library,types | detail:details/T-0002.md | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0003] Define the error taxonomy as sentinel errors with errors.Is support | prio:high | tags:library,errors | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
+- [x] [T-0001] Scaffold the Go module, package layout and go.mod | prio:high | tags:setup | created:2026-07-29 | started:2026-07-29 | done:2026-07-29 | outcome:shipped
