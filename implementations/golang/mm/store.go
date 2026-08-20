@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -54,9 +55,18 @@ type detailFile struct {
 // parseVs holds everything the parsers reported. Validation adds the cross-file
 // invariants on top; the two together are what --check prints.
 type dirModel struct {
-	path    string
+	path string
+
+	// version 1: backlog.md + working.NN.md. Populated when board.md is
+	// absent (store.go's load()); nil for a version-2 directory.
 	backlog *backlogFile
 	working []*workingFile
+
+	// version 2: board.md. Populated when board.md is present; nil for a
+	// version-1 directory. Never both at once (Appendix B: a directory
+	// found by both is a collision, reported, not silently merged).
+	board *boardFile
+
 	done    *doneFile
 	details map[string]*detailFile // keyed by "details/T-0042.md"
 	entries []string               // the directory listing
@@ -64,6 +74,10 @@ type dirModel struct {
 	parseVs []Violation
 	warnVs  []Violation // non-fatal findings, e.g. id_width outside 3-6
 }
+
+// isV2 reports whether this model was loaded as a version-2 (board.md)
+// directory.
+func (m *dirModel) isV2() bool { return m.board != nil }
 
 // load reads every file of the directory into one model.
 //
@@ -91,19 +105,47 @@ func (s *Store) load() (*dirModel, error) {
 		return data, true
 	}
 
-	// The ID grammar is declared in backlog.md frontmatter (§3.3.2), and must
-	// be read BEFORE any other ID is interpreted (rule 4), so backlog.md parses
-	// first and done.md and the working files inherit its grammar.
+	// The ID grammar is declared in board.md's (or backlog.md's) frontmatter
+	// (§3.3.2), and must be read BEFORE any other ID is interpreted (rule 4).
+	// board.md is checked first: its presence is what makes a directory
+	// version 2 (spec-file-format.md Appendix B); a directory carrying both
+	// is the sibling-collision case, not a version to guess between, and is
+	// left to discovery/--check to report rather than resolved silently here.
 	var g IDGrammar
-	if data, ok := read("backlog.md"); ok {
+	switch {
+	case slices.Contains(entries, "board.md"):
+		data, ok := read("board.md")
+		if !ok {
+			m.parseVs = append(m.parseVs, Violation{
+				Invariant: invFormat, At: Location{File: "board.md"}, Message: "missing",
+			})
+			g = DefaultIDGrammar()
+			break
+		}
+		var vs []Violation
+		m.board, vs = parseBoard("board.md", data)
+		m.parseVs = append(m.parseVs, vs...)
+		m.warnVs = append(m.warnVs, m.board.warnings...)
+		g = m.board.grammar
+
+	case slices.Contains(entries, "backlog.md"):
+		data, ok := read("backlog.md")
+		if !ok {
+			m.parseVs = append(m.parseVs, Violation{
+				Invariant: invFormat, At: Location{File: "backlog.md"}, Message: "missing",
+			})
+			g = DefaultIDGrammar()
+			break
+		}
 		var vs []Violation
 		m.backlog, vs = parseBacklog("backlog.md", data)
 		m.parseVs = append(m.parseVs, vs...)
 		m.warnVs = append(m.warnVs, m.backlog.warnings...)
 		g = m.backlog.grammar
-	} else {
+
+	default:
 		m.parseVs = append(m.parseVs, Violation{
-			Invariant: invFormat, At: Location{File: "backlog.md"}, Message: "missing",
+			Invariant: invFormat, At: Location{File: "board.md"}, Message: "missing",
 		})
 		g = DefaultIDGrammar()
 	}
@@ -118,16 +160,21 @@ func (s *Store) load() (*dirModel, error) {
 		})
 	}
 
-	names, _, _, wvs := discoverWorkingFiles(entries, ".")
-	m.parseVs = append(m.parseVs, wvs...)
-	for _, name := range names {
-		data, ok := read(name)
-		if !ok {
-			continue
+	// working.NN.md is version 1 only (§5.2, retired at version 2); a
+	// version-2 directory has none, and a bare directory listing must not be
+	// scolded for lacking them.
+	if m.board == nil {
+		names, _, _, wvs := discoverWorkingFiles(entries, ".")
+		m.parseVs = append(m.parseVs, wvs...)
+		for _, name := range names {
+			data, ok := read(name)
+			if !ok {
+				continue
+			}
+			w, vs := parseWorkingG(name, data, g)
+			m.working = append(m.working, w)
+			m.parseVs = append(m.parseVs, vs...)
 		}
-		w, vs := parseWorkingG(name, data, g)
-		m.working = append(m.working, w)
-		m.parseVs = append(m.parseVs, vs...)
 	}
 
 	for _, name := range detailNames(s.path) {
@@ -171,17 +218,25 @@ func detailNames(dir string) []string {
 // at parse time, so the default stands in here and the directory still
 // parses.
 func (m *dirModel) grammar() IDGrammar {
-	if m.backlog == nil {
-		return DefaultIDGrammar()
+	switch {
+	case m.board != nil:
+		g, _, _ := ParseIDGrammar(m.board.FM)
+		return g
+	case m.backlog != nil:
+		g, _, _ := ParseIDGrammar(m.backlog.FM)
+		return g
 	}
-	g, _, _ := ParseIDGrammar(m.backlog.FM)
-	return g
+	return DefaultIDGrammar()
 }
 
-// items returns every item in the directory, in a stable order: backlog by
-// section and position, then working slots by number, then done newest first.
+// items returns every item in the directory, in a stable order: board (or
+// backlog by section and working slots by number) items first, then done
+// newest first.
 func (m *dirModel) items() []*Item {
 	var out []*Item
+	if m.board != nil {
+		out = append(out, m.board.Items...)
+	}
 	if m.backlog != nil {
 		out = append(out, m.backlog.Items...)
 	}
@@ -258,7 +313,22 @@ func (m *dirModel) directory() Directory {
 			d.WipUsed++
 		}
 	}
-	if m.backlog != nil {
+	switch {
+	case m.board != nil:
+		d.Version = 2
+		d.Project = m.board.FM.Get("project")
+		d.Board = m.board.FM.Get("board")
+		d.NextID = ID(m.board.FM.Get("next_id"))
+		g := m.grammar()
+		d.IDPrefix = g.Prefix
+		d.IDWidth = g.Width
+		d.StageCfg = m.board.stageCfg
+		d.StageUsed = map[Stage]int{}
+		for stage := range d.StageCfg.WipLimits {
+			d.StageUsed[stage] = len(m.board.StageItems(stage))
+		}
+	case m.backlog != nil:
+		d.Version = 1
 		d.Project = m.backlog.FM.Get("project")
 		d.Board = m.backlog.FM.Get("board")
 		d.NextID = ID(m.backlog.FM.Get("next_id"))

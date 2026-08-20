@@ -54,6 +54,12 @@ var (
 
 	// ErrAlreadyExists: init against a directory that already holds files.
 	ErrAlreadyExists = errors.New("already exists")
+
+	// ErrVersionMismatch: a mutating operation was attempted against a
+	// directory below this implementation's current format version
+	// (spec-tools.md §5.3.4, spec-file-format.md §9). Read operations and
+	// --migrate are exempt.
+	ErrVersionMismatch = errors.New("version mismatch")
 )
 
 // InvariantError carries the violations that blocked a write.

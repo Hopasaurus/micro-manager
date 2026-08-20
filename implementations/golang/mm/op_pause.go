@@ -5,9 +5,12 @@ import "fmt"
 // PauseRequest returns a working item to the backlog (spec-tools.md §5.1.9).
 type PauseRequest struct {
 	// Section defaults to Ready. Pausing into Blocked needs a reason, because
-	// I5 ties the field to the section.
+	// I5 ties the field to the section. Version 1 only.
 	Section Section
 	Blocked string
+
+	// Stage is the version-2 destination (§5.1.1); defaults to "ready".
+	Stage Stage
 
 	// End appends instead of inserting at the top.
 	//
@@ -43,6 +46,9 @@ func (s *Store) Pause(id ID, req PauseRequest, today Date) (Item, TxResult, erro
 	it := t.model.find(id)
 	if it == nil {
 		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
+	}
+	if t.model.isV2() {
+		return s.pauseV2(t, id, req, today)
 	}
 	if it.State != StateWorking {
 		return zero, TxResult{}, fmt.Errorf(

@@ -170,6 +170,15 @@ func (it *Item) setField(file string, lineNo int, key, val string) error {
 			strings.TrimPrefix(err.Error(), ErrInvalidArgument.Error()), ": "))
 	}
 	switch key {
+	case "stage":
+		// Membership in the directory's declared stages is validated by the
+		// caller (parseBoard), which has the StageConfig this function does
+		// not; here the value is only carried through as a well-formed SLUG.
+		it.Stage = Stage(val)
+	case "reason":
+		it.Reason = val
+	case "tickler_dest":
+		it.TicklerDest = Stage(val)
 	case "prio":
 		p, err := ParsePrio(val)
 		if err != nil {
@@ -239,8 +248,8 @@ func (it *Item) setField(file string, lineNo int, key, val string) error {
 // fieldOrder is the canonical order writers emit (spec-file-format.md §6.1).
 // Readers must not depend on it; it exists so that lines a writer touches come
 // out consistent.
-var fieldOrder = []string{"prio", "tags", "refs", "detail", "created", "started",
-	"blocked", "tickler", "tickled", "done", "outcome"}
+var fieldOrder = []string{"stage", "prio", "tags", "refs", "detail", "created", "started",
+	"blocked", "reason", "tickler", "tickler_dest", "tickled", "done", "outcome"}
 
 // RenderItemLine serialises an item back to one line.
 //
@@ -280,6 +289,12 @@ func RenderItemLine(it *Item) string {
 // fieldValue renders one registered field, or "" when it should be omitted.
 func (it *Item) fieldValue(key string) string {
 	switch key {
+	case "stage":
+		return string(it.Stage)
+	case "reason":
+		return it.Reason
+	case "tickler_dest":
+		return string(it.TicklerDest)
 	case "prio":
 		return string(it.Prio)
 	case "tags":

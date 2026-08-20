@@ -8,16 +8,23 @@ import "fmt"
 // After. Section moves between sections and may be combined with a selector, in
 // which case the selector is interpreted in the DESTINATION section.
 type MoveRequest struct {
-	Section  Section // "" keeps the current section
-	Position int     // 1-based within the destination section; 0 means unset
+	Section  Section // version 1; "" keeps the current section
+	Position int     // 1-based within the destination section/stage run; 0 means unset
 	Top      bool
 	End      bool
 	Before   ID
 	After    ID
 
-	// Blocked supplies a reason when moving into ## Blocked. I5 requires one,
-	// and an item that has none yet cannot be moved there without it.
+	// Blocked supplies a reason when moving into ## Blocked (version 1). I5
+	// requires one, and an item that has none yet cannot be moved there
+	// without it.
 	Blocked string
+
+	// Stage is the version-2 destination (§5.1.1); "" keeps the current stage.
+	Stage Stage
+	// Reason supplies version 2's field when moving onto a needs_reason
+	// stage that the item does not already carry one for (§5.1.5).
+	Reason string
 
 	DryRun bool
 }
@@ -47,9 +54,9 @@ func (s *Store) Move(id ID, req MoveRequest, today Date) (Item, TxResult, error)
 		return zero, TxResult{}, fmt.Errorf(
 			"%w: give one destination: --position, --top, --end, --before or --after",
 			ErrInvalidArgument)
-	} else if n == 0 && req.Section == "" {
+	} else if n == 0 && req.Section == "" && req.Stage == "" {
 		return zero, TxResult{}, fmt.Errorf(
-			"%w: --move needs a destination: --position, --top, --end, --before, --after or --section",
+			"%w: --move needs a destination: --position, --top, --end, --before, --after, --section or --stage",
 			ErrInvalidArgument)
 	}
 	if req.Before != "" && req.Before == id {
@@ -66,6 +73,13 @@ func (s *Store) Move(id ID, req MoveRequest, today Date) (Item, TxResult, error)
 	it := t.model.find(id)
 	if it == nil {
 		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
+	}
+	if t.model.isV2() {
+		if it.State == StateDone {
+			return zero, TxResult{}, fmt.Errorf(
+				"%w: %s is done, and done items cannot be moved", ErrConflict, id)
+		}
+		return s.moveV2(t, id, req, today)
 	}
 	if it.State != StateBacklog {
 		return zero, TxResult{}, fmt.Errorf(

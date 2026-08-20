@@ -17,11 +17,16 @@ import (
 // included, sorted by file then numeric line.
 func (m *dirModel) validate() []Violation {
 	vs := append([]Violation{}, m.parseVs...)
-	vs = append(vs, m.checkIDs()...)     // I1, I2
-	vs = append(vs, m.checkBacklog()...) // I3, I5, backlog structure
+	vs = append(vs, m.checkIDs()...) // I1, I2
+	if m.isV2() {
+		vs = append(vs, m.checkBoard()...)     // I3, I5, I7: stage/reason
+		vs = append(vs, m.checkTicklerV2()...) // I7: tickler placement, v2
+	} else {
+		vs = append(vs, m.checkBacklog()...) // I3, I5, backlog structure
+		vs = append(vs, m.checkTickler()...) // I7: tickler placement, v1
+	}
 	vs = append(vs, m.checkDone()...)    // I3, I6
 	vs = append(vs, m.checkProject()...) // I7
-	vs = append(vs, m.checkTickler()...) // I7: tickler placement
 	vs = append(vs, m.checkDetails()...) // I8, I9
 	sortViolations(vs)
 	return vs
@@ -59,22 +64,28 @@ func (m *dirModel) checkIDs() []Violation {
 		seen[it.ID] = it.Source
 	}
 
-	if m.backlog == nil {
+	rootFile, rootFM := "backlog.md", (*Frontmatter)(nil)
+	switch {
+	case m.board != nil:
+		rootFile, rootFM = "board.md", m.board.FM
+	case m.backlog != nil:
+		rootFile, rootFM = "backlog.md", m.backlog.FM
+	default:
 		return vs
 	}
-	next := ID(m.backlog.FM.Get("next_id"))
+	next := ID(rootFM.Get("next_id"))
 	switch {
 	case next == "":
 		// No line: the key is ABSENT, so there is no line to point at. Line 1
 		// is the "---" delimiter, and naming it sends the reader to a line that
 		// has nothing to do with the problem.
 		vs = append(vs, Violation{
-			Invariant: "I2", At: Location{File: "backlog.md"},
+			Invariant: "I2", At: Location{File: rootFile},
 			Message: "frontmatter has no next_id",
 		})
 	case !g.ValidID(string(next)):
 		vs = append(vs, Violation{
-			Invariant: "I2", At: Location{File: "backlog.md", Line: m.backlog.FM.Line("next_id")},
+			Invariant: "I2", At: Location{File: rootFile, Line: rootFM.Line("next_id")},
 			Message: "next_id is not a " + g.String() + " id: " + string(next),
 		})
 	default:
@@ -189,6 +200,15 @@ func (m *dirModel) checkDone() []Violation {
 // which is why a malformed one arrives here as a parse violation rather than
 // being re-derived.
 func (m *dirModel) checkProject() []Violation {
+	if m.board != nil {
+		if v := m.board.FM.Get("project"); v == "" || v == "null" {
+			return []Violation{{
+				Invariant: "I7", At: Location{File: "board.md"},
+				Message: "frontmatter has no project name",
+			}}
+		}
+		return nil
+	}
 	if m.backlog == nil {
 		return nil
 	}
@@ -199,6 +219,81 @@ func (m *dirModel) checkProject() []Violation {
 		}}
 	}
 	return nil
+}
+
+// checkBoard covers I3 (open boxes only), I5 (reason required where
+// needs_reason lists the item's stage), and I7's stage-related rules: every
+// item's stage: is a declared member of stages:, and started: is required
+// whenever stage:working (folded in from version 1's I4, spec-file-format.md
+// §7).
+func (m *dirModel) checkBoard() []Violation {
+	var vs []Violation
+	cfg := m.board.stageCfg
+
+	for _, it := range m.board.Items {
+		if it.rawBox == 'x' {
+			vs = append(vs, Violation{
+				Invariant: "I3", At: it.Source,
+				Message: fmt.Sprintf("%s is closed but sits in board.md", it.ID),
+			})
+		}
+		if it.Stage != "" && !cfg.IsStage(it.Stage) {
+			vs = append(vs, Violation{
+				Invariant: "I7", At: it.Source,
+				Message: fmt.Sprintf("%s has stage:%s, which is not declared in stages:", it.ID, it.Stage),
+			})
+		}
+		if cfg.StageNeedsReason(it.Stage) && it.Reason == "" {
+			vs = append(vs, Violation{
+				Invariant: "I5", At: it.Source,
+				Message: fmt.Sprintf("%s is on stage %q, which needs_reason lists, but has no reason: field",
+					it.ID, it.Stage),
+			})
+		}
+		if it.Stage == "working" && it.Started.IsZero() {
+			vs = append(vs, Violation{
+				Invariant: "I7", At: it.Source,
+				Message: fmt.Sprintf("%s is on stage working but has no started: field", it.ID),
+			})
+		}
+	}
+	return vs
+}
+
+// checkTicklerV2 is checkTickler's version-2 form: tickler: is valid only on
+// a stage named as a SOURCE in tickler_stages (§5.1.4), tickler_dest must
+// itself be a declared stage, and — as in version 1 — a tickler item must
+// also carry created:.
+func (m *dirModel) checkTicklerV2() []Violation {
+	var vs []Violation
+	cfg := m.board.stageCfg
+	for _, it := range m.items() {
+		if it.Tickler == "" {
+			continue
+		}
+		if _, ok := cfg.TicklerDestOf(it.Stage); !ok {
+			vs = append(vs, Violation{
+				Invariant: "I7", At: it.Source,
+				Message: fmt.Sprintf("%s carries tickler: but stage %q is not a tickler_stages source",
+					it.ID, it.Stage),
+			})
+		}
+		if it.TicklerDest != "" && !cfg.IsStage(it.TicklerDest) {
+			vs = append(vs, Violation{
+				Invariant: "I7", At: it.Source,
+				Message: fmt.Sprintf("%s has tickler_dest:%s, which is not declared in stages:",
+					it.ID, it.TicklerDest),
+			})
+		}
+		if it.Created.IsZero() {
+			vs = append(vs, Violation{
+				Invariant: "I7", At: it.Source,
+				Message: fmt.Sprintf("%s carries tickler: but has no created: (the anchor a never-fired schedule needs)",
+					it.ID),
+			})
+		}
+	}
+	return vs
 }
 
 // checkTickler covers I7's tickler rules (spec-file-format.md §5.1, §7).

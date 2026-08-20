@@ -2,6 +2,7 @@ package mm
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -231,13 +232,142 @@ func ParseOutcome(s string) (Outcome, error) {
 }
 
 // State is which of the three files an item currently lives in.
+//
+// Spec version 2 narrows this to Board|Done (spec-file-format.md §5.1,
+// board.md folds working.NN.md in via Stage below); Backlog/Working remain
+// for a version-1 directory's model, read by the version-1 parsers
+// (backlogFile, workingFile) unchanged. A loaded directory uses ONE family
+// or the other, never a mix — see dirModel.board vs dirModel.backlog in
+// store.go.
 type State string
 
 const (
-	StateBacklog State = "backlog"
-	StateWorking State = "working"
+	StateBacklog State = "backlog" // version 1 only
+	StateWorking State = "working" // version 1 only
 	StateDone    State = "done"
+	StateBoard   State = "board" // version 2 only
 )
+
+// Stage is a directory-scoped value naming where a board item sits
+// (spec-file-format.md §5.1.1). It is deliberately NOT a closed Go enum:
+// the valid set is declared per directory in board.md's `stages:` key, so
+// two directories can validly disagree about what stages exist. A version-1
+// directory has no Stage; Section (below) is its equivalent.
+type Stage string
+
+// DefaultStages is the zero-config `stages:` value (spec-file-format.md
+// §5.1.1): a directory that never declares the key gets this set, in this
+// order, reproducing version 1's four sections/states exactly.
+func DefaultStages() []Stage {
+	return []Stage{"someday", "ready", "blocked", "working"}
+}
+
+// ParseStage validates s as a STAGE: a SLUG (§3.3) that is also a member of
+// the directory's declared stages. Membership is checked here rather than
+// left to the caller because a stage's validity is inseparable from the
+// directory that declares it — the same discipline §3.3.2 already applies
+// to id_prefix/id_width, and for the same reason: a bare Go string cannot
+// carry a per-directory grammar, so every call site must pass one in.
+func ParseStage(s string, declared []Stage) (Stage, error) {
+	if !validSlug(s) {
+		return "", fmt.Errorf("%w: stage %q is not a SLUG (a lowercase letter, then lowercase letters, digits or hyphens)",
+			ErrInvalidArgument, s)
+	}
+	for _, d := range declared {
+		if string(d) == s {
+			return Stage(s), nil
+		}
+	}
+	return "", fmt.Errorf("%w: stage %q is not declared in this directory's stages: (%s)",
+		ErrInvalidArgument, s, joinStages(declared))
+}
+
+func joinStages(stages []Stage) string {
+	strs := make([]string, len(stages))
+	for i, s := range stages {
+		strs[i] = string(s)
+	}
+	return strings.Join(strs, ",")
+}
+
+// StageConfig is a version-2 directory's stage declarations
+// (spec-file-format.md §5.1.1-§5.1.5). The zero value is a version-1
+// directory's absence of one.
+type StageConfig struct {
+	Stages []Stage // order-significant; column order (§5.1.1)
+
+	// Labels overrides a stage's display name (§5.1.2). Sparse: a stage with
+	// no entry derives its label from the slug (title-case, hyphens become
+	// spaces).
+	Labels map[Stage]string
+
+	// WipLimits caps how many items may sit in a stage at once (§5.1.3).
+	// Sparse: a stage with no entry is uncapped, `working` included — there
+	// is no built-in exception (research decision 10).
+	WipLimits map[Stage]int
+
+	// TicklerStages maps a SOURCE stage to its default fire DEST (§5.1.4).
+	// A stage not present as a key is not tickler-eligible: `tickler:` is
+	// invalid there.
+	TicklerStages map[Stage]Stage
+
+	// NeedsReason lists stages that require `reason:` (§5.1.5). A stage not
+	// listed does not require it, but MAY still carry one.
+	NeedsReason []Stage
+}
+
+// IsStage reports whether s is a member of the declared stages.
+func (c StageConfig) IsStage(s Stage) bool {
+	return slices.Contains(c.Stages, s)
+}
+
+// Label returns a stage's display name: the declared override, or the
+// derived default when none is set (§5.1.2).
+func (c StageConfig) Label(s Stage) string {
+	if l, ok := c.Labels[s]; ok {
+		return l
+	}
+	return deriveStageLabel(s)
+}
+
+// deriveStageLabel title-cases a slug and turns hyphens into spaces:
+// "code-review" -> "Code Review" (§5.1.2).
+func deriveStageLabel(s Stage) string {
+	words := strings.Split(string(s), "-")
+	for i, w := range words {
+		if w == "" {
+			continue
+		}
+		words[i] = strings.ToUpper(w[:1]) + w[1:]
+	}
+	return strings.Join(words, " ")
+}
+
+// TicklerDestOf returns the default fire destination for a source stage, and
+// whether that stage is tickler-eligible at all (§5.1.4).
+func (c StageConfig) TicklerDestOf(source Stage) (Stage, bool) {
+	d, ok := c.TicklerStages[source]
+	return d, ok
+}
+
+// StageNeedsReason reports whether a stage is listed in needs_reason (§5.1.5).
+func (c StageConfig) StageNeedsReason(s Stage) bool {
+	return slices.Contains(c.NeedsReason, s)
+}
+
+// DefaultStageConfig returns the StageConfig a version-2 board.md with no
+// custom keys gets: the four default stages, working uncapped, someday the
+// sole tickler source firing to ready, blocked the sole needs_reason stage.
+func DefaultStageConfig() StageConfig {
+	stages := DefaultStages()
+	return StageConfig{
+		Stages:        stages,
+		Labels:        map[Stage]string{},
+		WipLimits:     map[Stage]int{},
+		TicklerStages: map[Stage]Stage{"someday": "ready"},
+		NeedsReason:   []Stage{"blocked"},
+	}
+}
 
 // Section is a backlog.md section. Only backlog items have one.
 type Section string
@@ -413,9 +543,14 @@ type Item struct {
 	ID      ID
 	Title   string
 	State   State
-	Section Section // backlog only
-	Slot    int     // working only; 0 means not in a slot
-	Pos     int     // 1-based index within its section; 0 when not applicable
+	Section Section // version 1, backlog only
+	Slot    int     // version 1, working only; 0 means not in a slot
+	Pos     int     // 1-based index within its section or stage run; 0 when not applicable
+
+	// Stage is where the item sits on a version-2 board (§5.1.1); the empty
+	// string for a version-1 item (Section carries that role instead) or a
+	// done item (neither version gives done: a stage).
+	Stage Stage
 
 	Prio    Prio
 	Tags    []string
@@ -425,9 +560,22 @@ type Item struct {
 	Started Date
 	Done    Date
 	Outcome Outcome
-	Blocked string
-	Tickler string // a SCHEDULE (spec-file-format.md §3.3); Someday only (I7)
-	Tickled Date   // the last tickler fire, the at-most-once guard (spec-tools.md §5.3.3)
+	Blocked string // version 1's field; required under ## Blocked (I5 v1)
+
+	// Reason is version 2's field, renamed from Blocked (spec-file-format.md
+	// §5.1.5, §10): valid on any stage, required only where the directory's
+	// needs_reason lists the item's current stage, and — unlike Blocked —
+	// not dropped automatically when the item leaves that stage.
+	Reason string
+
+	Tickler string // a SCHEDULE (spec-file-format.md §3.3); placement is version-specific (I7)
+
+	// TicklerDest overrides a version-2 item's own fire destination
+	// (§5.1.4), in place of its stage's TicklerStages entry. Empty means
+	// "use the stage's default." Not used by a version-1 item.
+	TicklerDest Stage
+
+	Tickled Date // the last tickler fire, the at-most-once guard (spec-tools.md §5.3.3)
 
 	// Extra holds fields this implementation does not recognise, in the order
 	// they appeared. Unregistered keys are the format's extension point
@@ -484,9 +632,21 @@ type Directory struct {
 	IDPrefix string // id_prefix; "T" when absent
 	IDWidth  int    // id_width; 4 when absent
 
-	Slots    []Slot
-	WipLimit int // == len(Slots)
-	WipUsed  int
+	// Version is the format version this directory was read as: 1
+	// (backlog.md + working.NN.md) or 2 (board.md). Determines which of the
+	// two field groups below is populated.
+	Version int
+
+	Slots    []Slot // version 1 only
+	WipLimit int    // version 1 only; == len(Slots)
+	WipUsed  int    // version 1 only
+
+	// StageCfg is the version-2 stage declaration (§5.1.1-§5.1.5). The zero
+	// value for a version-1 directory.
+	StageCfg StageConfig
+	// StageUsed counts current items per stage, for any stage carrying a
+	// WipLimits entry (version 2 only).
+	StageUsed map[Stage]int
 }
 
 // ---------------------------------------------------------------------------

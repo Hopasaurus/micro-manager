@@ -63,6 +63,9 @@ func (s *Store) Finish(id ID, req FinishRequest, today Date) (Item, TxResult, er
 			"%w: %s was already closed on %s; edit it instead of finishing it twice",
 			ErrConflict, id, it.Done)
 	}
+	if t.model.isV2() {
+		return s.finishV2(t, id, req, outcome, when, today)
+	}
 
 	d, de, err := t.done()
 	if err != nil {

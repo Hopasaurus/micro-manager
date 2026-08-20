@@ -9,20 +9,32 @@ import (
 type AddRequest struct {
 	Title string
 
-	// Top inserts at the top of the section. The DEFAULT IS THE BOTTOM: a new
-	// item is not automatically more important than everything already queued,
-	// and ## Ready order is the user's own prioritisation.
+	// Top inserts at the top of the section (v1) or stage's run (v2). The
+	// DEFAULT IS THE BOTTOM: a new item is not automatically more important
+	// than everything already queued, and on-disk order is the user's own
+	// prioritisation.
 	Top bool
 
-	Section Section // defaults to Ready
+	Section Section // version 1; defaults to Ready
+	Blocked string  // version 1's field
+
+	// Stage is the version-2 destination (§5.1.1); defaults to "ready".
+	Stage Stage
+	// Reason is version 2's field, required when Stage is listed in the
+	// directory's needs_reason (§5.1.5).
+	Reason string
+	// TicklerDest overrides this item's fire destination (§5.1.4). Only
+	// meaningful alongside Tickler.
+	TicklerDest Stage
+
 	Prio    Prio
 	Tags    []string
 	Refs    []Ref
-	Blocked string
 	Created Date // defaults to today; settable for backfilling
 
 	// Tickler sets the item's schedule (a SCHEDULE, spec-file-format.md §3.3).
-	// It requires the Someday section, where I7 allows it, and the item's
+	// In version 1 it requires the Someday section; in version 2 it requires
+	// Stage to name a tickler_stages source (§5.1.4). Either way the item's
 	// created date anchors a never-fired recurring schedule's first fire.
 	Tickler string
 
@@ -37,7 +49,7 @@ type AddRequest struct {
 	DryRun bool
 }
 
-// Add creates a backlog item, allocating its ID from next_id.
+// Add creates a board or backlog item, allocating its ID from next_id.
 func (s *Store) Add(req AddRequest, today Date) (Item, TxResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -46,6 +58,9 @@ func (s *Store) Add(req AddRequest, today Date) (Item, TxResult, error) {
 	t, err := s.begin()
 	if err != nil {
 		return zero, TxResult{}, err
+	}
+	if t.model.isV2() {
+		return s.addV2(t, req, today)
 	}
 	b, e, err := t.backlog()
 	if err != nil {

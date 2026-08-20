@@ -38,6 +38,13 @@ func (s *Store) Start(id ID, req StartRequest, today Date) (Item, TxResult, erro
 	if it == nil {
 		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
+	if t.model.isV2() {
+		if it.State == StateDone {
+			return zero, TxResult{}, fmt.Errorf(
+				"%w: %s is done, and done work does not go back onto the board", ErrConflict, id)
+		}
+		return s.startV2(t, id, today)
+	}
 	switch it.State {
 	case StateBacklog:
 	case StateWorking:

@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0227] Columns M1: Go v2 support + 1->2 migration step (fixtures only) | prio:med | tags:spec,columns,migration,golang | detail:details/T-0227.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
 - [x] [T-0226] Columns M0: patch all four specs for v2 (board.md, stage field, migration mechanism) | prio:high | tags:spec,columns,migration | detail:details/T-0226.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
 - [x] [T-0225] Columns: design the Go State/Stage type shape for the merged model | prio:med | tags:spec,columns,golang | detail:details/T-0225.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
 - [x] [T-0224] Columns: decide how a custom stage gets a theme color | prio:med | tags:spec,columns | detail:details/T-0224.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped

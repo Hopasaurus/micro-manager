@@ -100,6 +100,20 @@ func conflictMarkerFindings(vs []Violation) []Violation {
 	return out
 }
 
+// board returns the board.md editor, creating it on first use. Version 2
+// only.
+func (t *tx) board() (*boardFile, *fileEdit, error) {
+	if t.model.board == nil {
+		return nil, nil, fmt.Errorf("%w: board.md is missing", ErrNotFound)
+	}
+	e, ok := t.dirty["board.md"]
+	if !ok {
+		e = t.model.board.Edit()
+		t.dirty["board.md"] = e
+	}
+	return t.model.board, e, nil
+}
+
 // backlog returns the backlog editor, creating it on first use.
 func (t *tx) backlog() (*backlogFile, *fileEdit, error) {
 	if t.model.backlog == nil {
@@ -231,11 +245,17 @@ func (t *tx) reparse() []Violation {
 		return []byte(joinLines(fallback))
 	}
 
-	// The grammar comes from the re-parsed backlog, never from the in-memory
-	// model: a transaction that edited the frontmatter must be validated under
-	// the grammar it is about to write.
+	// The grammar comes from the re-parsed board/backlog, never from the
+	// in-memory model: a transaction that edited the frontmatter must be
+	// validated under the grammar it is about to write.
 	g := DefaultIDGrammar()
-	if t.model.backlog != nil {
+	switch {
+	case t.model.board != nil:
+		b, vs := parseBoard("board.md", bytesFor("board.md", t.model.board.Lines))
+		m.board = b
+		m.parseVs = append(m.parseVs, vs...)
+		g = b.grammar
+	case t.model.backlog != nil:
 		b, vs := parseBacklog("backlog.md", bytesFor("backlog.md", t.model.backlog.Lines))
 		m.backlog = b
 		m.parseVs = append(m.parseVs, vs...)
