@@ -76,6 +76,15 @@ func (s *Store) Remove(id ID, req RemoveRequest, today Date) (Removal, TxResult,
 		touchUpdated(e, today)
 		t.stage("backlog.md")
 		t.record(Change{Kind: ChangeDeleted, ID: id, File: "backlog.md", Before: before})
+	case StateBoard:
+		b, e, err := t.board()
+		if err != nil {
+			return zero, TxResult{}, err
+		}
+		b.RemoveItem(e, it)
+		touchUpdated(e, today)
+		t.stage("board.md")
+		t.record(Change{Kind: ChangeDeleted, ID: id, File: "board.md", Before: before})
 	case StateDone:
 		d, e, err := t.done()
 		if err != nil {

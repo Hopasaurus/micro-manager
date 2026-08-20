@@ -128,21 +128,31 @@ func applyUpdate(it *Item, req UpdateRequest) error {
 
 	if req.Blocked != nil {
 		if strings.Contains(*req.Blocked, "|") {
-			return fmt.Errorf("%w: a blocked: reason may not contain %q", ErrInvalidArgument, "|")
+			return fmt.Errorf("%w: a reason may not contain %q", ErrInvalidArgument, "|")
 		}
-		// I5 ties the field to the section, and --edit cannot move an item, so
-		// the two must already agree.
-		if *req.Blocked == "" && it.Section == SectionBlocked {
-			return fmt.Errorf(
-				"%w: %s is under Blocked, so it needs a reason; unblock it with --move or --unblock",
-				ErrConflict, it.ID)
+		if it.State == StateBoard {
+			// Version 2's reason: is valid on any stage (spec-file-format.md
+			// §5.1.5) - no section to agree with, and nothing here can know
+			// whether the item's current stage requires one, since that is a
+			// directory-level declaration (needs_reason) applyUpdate is not
+			// given. A request to clear a required reason still fails, just
+			// later: the transaction's own I5 check catches it at commit.
+			it.Reason = *req.Blocked
+		} else {
+			// I5 ties the field to the section, and --edit cannot move an
+			// item, so the two must already agree.
+			if *req.Blocked == "" && it.Section == SectionBlocked {
+				return fmt.Errorf(
+					"%w: %s is under Blocked, so it needs a reason; unblock it with --move or --unblock",
+					ErrConflict, it.ID)
+			}
+			if *req.Blocked != "" && it.State == StateBacklog && it.Section != SectionBlocked {
+				return fmt.Errorf(
+					"%w: a blocked: reason only belongs in Blocked; move %s there first",
+					ErrConflict, it.ID)
+			}
+			it.Blocked = *req.Blocked
 		}
-		if *req.Blocked != "" && it.State == StateBacklog && it.Section != SectionBlocked {
-			return fmt.Errorf(
-				"%w: a blocked: reason only belongs in Blocked; move %s there first",
-				ErrConflict, it.ID)
-		}
-		it.Blocked = *req.Blocked
 	}
 
 	if req.Created != nil {
@@ -214,6 +224,14 @@ func setAnyField(it *Item, key, value string) error {
 		it.Outcome = o
 	case "blocked":
 		it.Blocked = value
+	case "reason":
+		// Version 2's field (§5.1.5). Routed to its own Item field for the
+		// same reason "blocked" is above it: leaving it in Extra alongside an
+		// already-registered it.Reason would render reason: twice on the
+		// same line the moment the field already carries a value.
+		it.Reason = value
+	case "tickler_dest":
+		it.TicklerDest = Stage(value)
 	case "tickler":
 		if _, err := ParseSchedule(value); err != nil {
 			return err
@@ -262,6 +280,17 @@ func unsetAnyField(it *Item, key string) error {
 				ErrConflict, it.ID)
 		}
 		it.Blocked = ""
+	case "reason":
+		// Unlike v1's blocked:, v2's reason: is not dropped automatically on
+		// leaving a needs_reason stage (research decision 18) - but an
+		// explicit --unset still has to be allowed to remove it, or there
+		// would be no way to clear a stale one. Whether the item's current
+		// stage still requires it is a directory-level question this
+		// function is not given the StageConfig to answer; the transaction's
+		// own I5 check catches a now-missing required reason at commit.
+		it.Reason = ""
+	case "tickler_dest":
+		it.TicklerDest = ""
 	case "tickler":
 		it.Tickler = ""
 	case "tickled":

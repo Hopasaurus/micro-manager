@@ -151,7 +151,10 @@ func (s *Store) Stats(p Period, opts StatsOptions, today Date) (StatsResult, err
 	}
 
 	res := StatsResult{Period: p, Path: s.path, Bucket: bucket}
-	if m.backlog != nil {
+	switch {
+	case m.board != nil:
+		res.Project = m.board.FM.Get("project")
+	case m.backlog != nil:
 		res.Project = m.backlog.FM.Get("project")
 	}
 

@@ -105,7 +105,10 @@ func (s *Store) Report(p Period, opts ReportOptions) (Report, error) {
 	}
 
 	rep := Report{Period: p, Path: s.path}
-	if m.backlog != nil {
+	switch {
+	case m.board != nil:
+		rep.Project = m.board.FM.Get("project")
+	case m.backlog != nil:
 		rep.Project = m.backlog.FM.Get("project")
 	}
 

@@ -18,8 +18,16 @@ type Status struct {
 	Someday int
 	Done    int
 
-	// Next is the top of ## Ready, nil when the section is empty. It is the same
-	// item Next() returns, carried here so a status screen needs one call.
+	// StageCounts holds a version-2 directory's per-stage counts, one entry
+	// for every declared stage (zero counts included, so a front end can
+	// render every column without guessing which stages exist). Empty for
+	// version 1, where Ready/Blocked/Someday above carry the equivalent.
+	StageCounts map[Stage]int
+
+	// Next is the top of the ready-equivalent list (## Ready, or a version-2
+	// board's "ready" stage when one is declared), nil when it is empty or
+	// there is none. It is the same item Next() returns, carried here so a
+	// status screen needs one call.
 	Next *Item
 
 	// OldestReady is the oldest Ready item that has never been started - the one
@@ -49,24 +57,31 @@ func (s *Store) Status() (Status, error) {
 	}
 
 	out := Status{Directory: m.directory()}
-	var ready []*Item
+	if m.isV2() {
+		out.StageCounts = map[Stage]int{}
+		for _, st := range m.board.stageCfg.Stages {
+			out.StageCounts[st] = 0
+		}
+	}
 	for _, it := range m.items() {
 		switch it.State {
 		case StateBacklog:
 			switch it.Section {
 			case SectionReady:
 				out.Ready++
-				ready = append(ready, it)
 			case SectionBlocked:
 				out.Blocked++
 			case SectionSomeday:
 				out.Someday++
 			}
+		case StateBoard:
+			out.StageCounts[it.Stage]++
 		case StateDone:
 			out.Done++
 		}
 	}
 
+	ready := readyEquivalent(m)
 	if len(ready) > 0 {
 		next := *ready[0]
 		out.Next = &next
@@ -111,18 +126,42 @@ func oldestUntouched(ready []*Item) *Item {
 	return nil
 }
 
-// Next returns the top of ## Ready - the thing to start next (spec-tools.md
-// §5.2).
+// readyEquivalent returns the ready-equivalent items in file order: a
+// version-1 directory's ## Ready section, or a version-2 directory's "ready"
+// stage when one is declared. Nil when the section/stage is empty or, for a
+// custom version-2 stage set with no "ready" slug, does not exist at all -
+// inventing an equivalent for a directory that declares none is not this
+// function's call to make.
+func readyEquivalent(m *dirModel) []*Item {
+	switch {
+	case m.board != nil:
+		if !m.board.stageCfg.IsStage("ready") {
+			return nil
+		}
+		return m.board.StageItems("ready")
+	case m.backlog != nil:
+		if sec := m.backlog.Section(SectionReady); sec != nil {
+			return sec.Items
+		}
+	}
+	return nil
+}
+
+// Next returns the top of the ready-equivalent list - the thing to start
+// next (spec-tools.md §5.2).
 //
-// ErrNotFound when the section is empty, which is what lets the CLI exit
-// non-zero and a script stop rather than start something arbitrary.
+// ErrNotFound when it is empty, which is what lets the CLI exit non-zero and
+// a script stop rather than start something arbitrary.
 func (s *Store) Next() (Item, error) {
-	items, err := s.List(Filter{Section: SectionReady, Limit: 1})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, err := s.load()
 	if err != nil {
 		return Item{}, err
 	}
-	if len(items) == 0 {
+	ready := readyEquivalent(m)
+	if len(ready) == 0 {
 		return Item{}, fmt.Errorf("%w: ## Ready is empty", ErrNotFound)
 	}
-	return items[0], nil
+	return *ready[0], nil
 }

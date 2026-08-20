@@ -339,14 +339,15 @@ func (m *dirModel) directory() Directory {
 	return d
 }
 
-// Filter narrows a listing. A zero Filter matches the backlog, which is what
-// `mm --list` shows by default.
+// Filter narrows a listing. A zero Filter matches the backlog (version 1) or
+// the board (version 2), which is what `mm --list` shows by default.
 type Filter struct {
-	State   State // "" means backlog only; StateAll spans everything
+	State   State // "" means the open, not-done state; StateAll spans everything
 	Section Section
+	Stage   Stage // version 2 only; "" means every stage
 	Prio    Prio
 	Tag     string
-	Blocked bool // only items carrying a blocked: field
+	Blocked bool // items carrying a blocked: field (v1) or a reason: field (v2)
 	Limit   int
 }
 
@@ -368,7 +369,15 @@ func (s *Store) List(f Filter) ([]Item, error) {
 
 	want := f.State
 	if want == "" {
-		want = StateBacklog
+		// The open, not-done state is version-specific: a version-2 item's
+		// State is StateBoard, never StateBacklog, so defaulting to
+		// StateBacklog unconditionally would match nothing at all on a
+		// version-2 directory.
+		if m.isV2() {
+			want = StateBoard
+		} else {
+			want = StateBacklog
+		}
 	}
 	var out []Item
 	for _, it := range m.items() {
@@ -378,13 +387,16 @@ func (s *Store) List(f Filter) ([]Item, error) {
 		if f.Section != "" && it.Section != f.Section {
 			continue
 		}
+		if f.Stage != "" && it.Stage != f.Stage {
+			continue
+		}
 		if f.Prio != "" && it.Prio.Effective() != f.Prio {
 			continue
 		}
 		if f.Tag != "" && !hasTag(it.Tags, f.Tag) {
 			continue
 		}
-		if f.Blocked && it.Blocked == "" {
+		if f.Blocked && it.Blocked == "" && it.Reason == "" {
 			continue
 		}
 		out = append(out, *it)

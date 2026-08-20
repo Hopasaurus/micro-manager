@@ -342,6 +342,16 @@ func (t *tx) writeItemLine(it *Item, today Date) (string, error) {
 		t.stage("backlog.md")
 		return "backlog.md", nil
 
+	case StateBoard:
+		_, e, err := t.board()
+		if err != nil {
+			return "", err
+		}
+		e.ReplaceItem(it)
+		touchUpdated(e, today)
+		t.stage("board.md")
+		return "board.md", nil
+
 	case StateDone:
 		_, e, err := t.done()
 		if err != nil {
