@@ -43,6 +43,7 @@ Operations:
   --fix                     repair duplicate IDs after a merge
   --archive                 roll old month groups out of done.md
   --migrate                 bring an older directory up to the current format
+                            (legacy repairs, then the versioned chain)
   --stats                   throughput, cycle time, work in flight, tags
   --tick                    fire due someday schedules (tickler)
   --help, --version
@@ -314,30 +315,50 @@ that is not there.
 
 Porcelain columns: id file detail
 `,
-	OpMigrate: `mm --migrate [--project NAME] [--dry-run]
+	OpMigrate: `mm --migrate [--project NAME] [--to VERSION] [--dry-run]
 
-Brings a directory written by an earlier revision of the format up to the
-current one, and reports every change (spec-tools.md §5.3). Three legacy shapes,
-and nothing else — a migration that rewrites what it was not asked to rewrite is
-indistinguishable from corruption in the diff:
+Runs two independent things, in order, and reports every change from both
+(spec-tools.md §5.3, §5.3.4):
 
-  working.md                renamed to the lowest free working.NN.md, at the
-                            digit width the directory already uses
-  no project                backlog.md gains one: --project NAME, or the parent
-                            directory's name, reported either way
-  tags: [infra, ci]         a YAML flow sequence becomes the TAGLIST the format
-                            uses everywhere, infra,ci — on item lines and in
-                            working-file frontmatter alike
+  1. The legacy repair. Three specific pre-version-1 shapes, and nothing
+     else — a migration that rewrites what it was not asked to rewrite is
+     indistinguishable from corruption in the diff:
 
-Safe to run twice: the second run finds nothing to do. A tags value it cannot
-convert — a space inside a tag — is left exactly as written and named on stderr,
-and the rest of the migration still runs.
+       working.md              renamed to the lowest free working.NN.md, at
+                                the digit width the directory already uses
+       no project               backlog.md gains one: --project NAME, or the
+                                parent directory's name, reported either way
+       tags: [infra, ci]        a YAML flow sequence becomes the TAGLIST the
+                                format uses everywhere, infra,ci — on item
+                                lines and in working-file frontmatter alike
 
-Unlike --fix, it does not refuse over a violation it does not own: it is the
-first thing to run on an old directory, and --fix blocks on the very thing this
-clears. It does refuse two writes that would leave a directory --check rejects:
-a working.md whose content is not a working file, and a conversion that would
-reveal a duplicate ID.
+  2. The versioned chain. Brings the directory to --to, or the latest
+     version this build implements when --to is absent — which is how a
+     version-1 directory (backlog.md + working.NN.md) becomes version 2
+     (board.md): folded stage by stage, blocked: renamed reason:, working-file
+     notes moved into details/<ID>.md. --to VERSION stops partway instead,
+     useful once this build supports more than one version bump.
+
+Both phases run even though the second reads what the first may have just
+written: a directory the legacy repair just made valid version 1 is exactly
+the directory that can now migrate. Safe to run twice — a second run finds
+nothing left to do at either phase, exit 0 either way. A directory with git
+uncommitted changes is named on stderr first, a recommendation, not a guard.
+
+A tags value the legacy repair cannot convert — a space inside a tag — is
+left exactly as written and named on stderr; the rest of that phase still
+runs. If it leaves the directory still invalid, the version chain refuses to
+proceed past it — reported as "version not migrated", not a command failure,
+since the legacy repair's own progress already stands. Resolve what --check
+still reports and run --migrate again.
+
+Unlike --fix, the legacy repair does not refuse over a violation it does not
+own: it is the first thing to run on an old directory, and --fix blocks on
+the very thing this clears. It does refuse two writes that would leave a
+directory --check rejects: a working.md whose content is not a working file,
+and a conversion that would reveal a duplicate ID. The version chain refuses
+similarly over any line it cannot parse at all, rather than silently leaving
+the item out of the migrated board.
 
 Porcelain columns: kind file line after
 `,

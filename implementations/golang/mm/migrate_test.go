@@ -355,6 +355,45 @@ func TestMigrateOneToTwoDryRunWritesNothing(t *testing.T) {
 	}
 }
 
+// A line that fails to parse at all is invisible to m.backlog.Items - the
+// permissive parser reports it as a Violation and moves on - so it must
+// refuse rather than silently rebuild board.md without the item.
+func TestMigrateOneToTwoRefusesRatherThanDroppingAnUnparseableItem(t *testing.T) {
+	dir := migV1Dir(t)
+	backlog := readMigFile(t, dir, "backlog.md")
+	// A space inside a tag is not a TAGLIST the parser can read; the whole
+	// line fails, unlike a flow sequence op_migrate.go's legacy repair can
+	// convert.
+	backlog = strings.Replace(backlog,
+		"- [ ] [T-0001] Ready item | prio:med | created:2026-07-01",
+		"- [ ] [T-0001] Ready item | prio:med | tags:not a tag | created:2026-07-01", 1)
+	if err := os.WriteFile(filepath.Join(dir, "backlog.md"), []byte(backlog), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := mustOpen(t, dir)
+
+	var invErr *InvariantError
+	if _, err := s.MigrateVersion(MigrateVersionRequest{}, today); !errors.As(err, &invErr) {
+		t.Fatalf("err = %v, want *InvariantError (unreadable lines must block, not silently drop the item)", err)
+	}
+	// Nothing written: board.md must not exist, backlog.md must be untouched.
+	if _, err := os.Stat(filepath.Join(dir, "board.md")); !os.IsNotExist(err) {
+		t.Error("board.md should not exist after a refused migration")
+	}
+	if got := readMigFile(t, dir, "backlog.md"); got != backlog {
+		t.Error("backlog.md should be untouched after a refused migration")
+	}
+}
+
+func readMigFile(t *testing.T, dir, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
 func TestMigrateVersionErrors(t *testing.T) {
 	dir := migV1Dir(t)
 	s := mustOpen(t, dir)

@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -1259,12 +1261,33 @@ func runArchive(env Env, in *Invocation, s *mm.Store) error {
 }
 
 // runMigrate wires spec-tools.md §5.3's --migrate, the second optional
-// operation to reach the CLI.
+// operation to reach the CLI. It runs two independent things, in order:
 //
-// --project is reused from --init rather than given a name of its own: it means
-// the same thing in both, the human name of the directory, and a second switch
-// for one concept is a second thing to remember.
+//  1. The legacy repair (T-0044): three specific pre-version-1 shapes, still
+//     real and still version-independent, so still worth fixing on its own.
+//  2. The versioned chain (§5.3.4): brings the directory to --to, or the
+//     latest version this build implements when --to is absent. This is
+//     where a version-1 directory becomes version 2.
+//
+// Both run even though the second reads what the first may have just
+// written — a directory the legacy repair just made valid v1 is exactly the
+// directory that can now migrate. Both report under one invocation because
+// the spec names one switch for both (§5.3, §5.3.4), and a caller checking
+// "is this old?" should not have to run two commands to find out.
+//
+// --project is reused from --init rather than given a name of its own: it
+// means the same thing in both, the human name of the directory, and a
+// second switch for one concept is a second thing to remember.
 func runMigrate(env Env, in *Invocation, s *mm.Store) error {
+	var toVersion int
+	if in.Has("to") {
+		n, err := strconv.Atoi(in.Value("to"))
+		if err != nil || n < 1 {
+			return usagef("--to takes a version number, got %q", in.Value("to"))
+		}
+		toVersion = n
+	}
+
 	res, tx, err := s.Migrate(mm.MigrateRequest{
 		Project: in.Value("project"),
 		DryRun:  in.DryRun,
@@ -1272,16 +1295,98 @@ func runMigrate(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return err
 	}
-	env.json.setChanges(tx)
-	env.json.setResult(toJSONMigrate(res))
+
+	steps, verErr := s.MigrateVersion(mm.MigrateVersionRequest{To: toVersion, DryRun: in.DryRun}, env.Today)
+	var blocked string
+	switch {
+	case verErr == nil:
+		// proceeds with steps as returned - nil when the directory was
+		// already at the target version and to==0 (bare --migrate): the
+		// chain had nothing to do, which MigrateVersion reports as
+		// ErrConflict, caught below rather than reached here. This case is
+		// only hit when a step actually ran.
+	case errors.Is(verErr, mm.ErrConflict):
+		// "already at the target version" (spec-tools.md §5.3.4: "a no-op,
+		// not a failure"). Nothing to add to the report.
+	case errors.Is(verErr, mm.ErrInvalidArgument):
+		// A bad --to. The legacy repair above may already have written
+		// something real and independent of this; that stands, but a
+		// malformed flag is still the caller's mistake to hear about.
+		return verErr
+	default:
+		var invErr *mm.InvariantError
+		if !errors.As(verErr, &invErr) {
+			return verErr
+		}
+		// The legacy repair already made its own, independent progress; the
+		// version bump just cannot proceed yet (spec-tools.md §5.3.4's
+		// per-step validation refused it, most often over content --migrate
+		// itself cannot repair - see --check). Reported as a warning, not a
+		// command failure - the same "fixes what it understands, leaves the
+		// rest reported" philosophy the legacy repair follows.
+		blocked = invErr.Error()
+	}
+
+	if warn := gitDirtyWarning(s.Path()); warn != "" {
+		env.json.warn(warn)
+		if !in.Quiet && !in.JSON && !in.Porcelain {
+			fmt.Fprintf(env.Stderr, "mm: warning: %s\n", warn)
+		}
+	}
+
+	allChanges := append(append([]mm.Change{}, tx.Changes...), stepChanges(steps)...)
+	env.json.changes = toJSONChanges(mm.TxResult{Changes: allChanges})
+	env.json.setResult(toJSONMigrate(res, steps))
 	for _, c := range res.Changes {
 		env.porcelain.row(string(c.Kind), c.File, strconv.Itoa(c.Line), c.After)
+	}
+	for _, st := range steps {
+		for _, c := range st.Changes {
+			env.porcelain.row(string(c.Kind), c.File, "0", c.After)
+		}
 	}
 	for _, w := range res.Warnings {
 		env.json.warn(w)
 	}
-	renderMigrate(env, in, res)
+	for _, st := range steps {
+		for _, w := range st.Warnings {
+			env.json.warn(w)
+		}
+	}
+	if blocked != "" {
+		env.json.warn("version not migrated: " + blocked)
+	}
+	renderMigrate(env, in, res, steps, blocked)
 	return nil
+}
+
+// stepChanges flattens a chain run's per-step changes into one slice, in
+// step order.
+func stepChanges(steps []mm.MigrationResult) []mm.Change {
+	var out []mm.Change
+	for _, st := range steps {
+		out = append(out, st.Changes...)
+	}
+	return out
+}
+
+// gitDirtyWarning returns a warning string when dir sits inside a git
+// working tree with uncommitted changes, or "" when it does not apply - not
+// a repo, git is not installed, or the tree is clean. Best effort and never
+// fatal (spec-tools.md §5.3.4: a warning, not a guard).
+//
+// This lives here, not in package mm: the library must not run programs
+// (mm's TestLibraryImports forbids os/exec there, for the same reason
+// editor.go's $EDITOR launch lives here rather than in the library).
+func gitDirtyWarning(dir string) string {
+	out, err := exec.Command("git", "-C", dir, "status", "--porcelain").Output()
+	if err != nil {
+		return ""
+	}
+	if strings.TrimSpace(string(out)) == "" {
+		return ""
+	}
+	return "the target directory has uncommitted git changes; consider committing before migrating"
 }
 
 // runTick wires spec-tools.md §5.3.3's --tick, the fourth optional operation

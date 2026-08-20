@@ -253,11 +253,14 @@ func toJSONArchive(r mm.ArchiveResult) jsonArchive {
 	return out
 }
 
-// jsonMigrate is the --migrate result: every repair, with what it changed and
-// what it changed it to, so a caller can diff a migration without re-reading
-// the files.
+// jsonMigrate is the --migrate result. Changes is the legacy repair's own
+// shape (spec-tools.md §5.3, T-0044) — kept exactly as it was, since a caller
+// already parses it — and Steps is the versioned chain's result (§5.3.4),
+// empty when the directory was already at the latest version this build
+// implements or the legacy repair was the whole story.
 type jsonMigrate struct {
 	Changes []jsonMigrateChange `json:"changes"`
+	Steps   []jsonMigrationStep `json:"steps,omitempty"`
 }
 
 type jsonMigrateChange struct {
@@ -268,12 +271,31 @@ type jsonMigrateChange struct {
 	After  string `json:"after,omitempty"`
 }
 
-func toJSONMigrate(r mm.MigrateResult) jsonMigrate {
-	out := jsonMigrate{Changes: []jsonMigrateChange{}}
+// jsonMigrationStep is one link of the chain --migrate walked.
+type jsonMigrationStep struct {
+	From     int          `json:"from"`
+	To       int          `json:"to"`
+	Changes  []jsonChange `json:"changes"`
+	Warnings []string     `json:"warnings"`
+}
+
+func toJSONMigrate(r mm.MigrateResult, steps []mm.MigrationResult) jsonMigrate {
+	out := jsonMigrate{Changes: []jsonMigrateChange{}, Steps: []jsonMigrationStep{}}
 	for _, c := range r.Changes {
 		out.Changes = append(out.Changes, jsonMigrateChange{
 			Kind: string(c.Kind), File: c.File, Line: c.Line,
 			Before: c.Before, After: c.After,
+		})
+	}
+	for _, st := range steps {
+		warnings := st.Warnings
+		if warnings == nil {
+			warnings = []string{}
+		}
+		out.Steps = append(out.Steps, jsonMigrationStep{
+			From: st.From, To: st.To,
+			Changes:  toJSONChanges(mm.TxResult{Changes: st.Changes}),
+			Warnings: warnings,
 		})
 	}
 	return out

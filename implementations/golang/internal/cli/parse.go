@@ -142,7 +142,7 @@ var valueModifiers = map[string]bool{
 	"section": true, "prio": true, "title": true, "blocked": true,
 	"created": true, "started": true, "done": true, "outcome": true,
 	"detail-text": true, "detail-file": true, "slot": true,
-	"project": true, "slots": true, "slot-width": true,
+	"project": true, "slots": true, "slot-width": true, "to": true,
 	"prefix": true, "id-width": true,
 	"tickler": true,
 	"period":  true, "week": true, "since": true, "until": true,

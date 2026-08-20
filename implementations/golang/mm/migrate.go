@@ -167,6 +167,36 @@ func (s *Store) migrateOneToTwo(dryRun bool, today Date) (MigrationResult, error
 	if m.backlog == nil {
 		return res, fmt.Errorf("%w: backlog.md is missing; version 1 requires it", ErrNotFound)
 	}
+
+	// A line that fails to parse at all is not in m.backlog.Items or a
+	// working file's Item - the permissive parser (parsefile.go) reports it
+	// as a Violation and moves on, which is exactly right for --check but
+	// fatal here: this step rebuilds board.md FROM the parsed items, so a
+	// line the parser could not read would be silently missing from the
+	// result rather than merely still-broken in it. Refuse instead, naming
+	// what needs fixing first - --fix or a hand edit, then --migrate again.
+	var unreadable []Violation
+	for _, v := range m.parseVs {
+		if v.Invariant != invFormat {
+			continue
+		}
+		if v.At.File == "backlog.md" {
+			unreadable = append(unreadable, v)
+			continue
+		}
+		if _, _, ok := isWorkingFileName(v.At.File); ok {
+			unreadable = append(unreadable, v)
+		}
+	}
+	if len(unreadable) > 0 {
+		// InvariantError, not a bare ErrConflict: this is "here is what blocks
+		// the migration," the same shape every other refusal-to-write in this
+		// package uses, and distinguishable from MigrateVersion's "already at
+		// the target version" ErrConflict, which a caller treats as a benign
+		// no-op rather than something to report loudly.
+		return res, &InvariantError{Violations: unreadable}
+	}
+
 	res.Changes = append(res.Changes, Change{
 		Kind: ChangeMoved, File: "board.md", Before: "backlog.md", After: "board.md",
 	})

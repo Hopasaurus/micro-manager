@@ -157,18 +157,25 @@ func joinCounts(counts []mm.TagCount) string {
 	return strings.Join(parts, ", ")
 }
 
-// renderMigrate reports every repair, which §5.3 requires in as many words, and
-// says so plainly when there was nothing to repair: a directory that is already
-// current is the answer to "is this old?", not a silence.
+// renderMigrate reports every repair the legacy phase made and every change
+// the versioned chain made, which §5.3/§5.3.4 require in as many words, and
+// says so plainly when there was nothing to do at all: a directory that is
+// already current is the answer to "is this old?", not a silence.
 //
-// The warnings — a tags value it recognized and could not convert — go to
-// stderr and survive --quiet, for the same reason --archive's do: they name
-// something still wrong that the run did not fix.
-func renderMigrate(env Env, in *Invocation, res mm.MigrateResult) {
+// blocked carries the version chain's own reason for not proceeding, when it
+// has real content to report but could not (an unrelated, pre-existing
+// problem the legacy repair does not understand) - reported, not swallowed,
+// but not a command failure either: see runMigrate.
+//
+// The warnings — a tags value it recognized and could not convert, an
+// uncommitted git tree — go to stderr and survive --quiet, for the same
+// reason --archive's do: they name something still wrong or still worth
+// knowing that the run did not itself fix.
+func renderMigrate(env Env, in *Invocation, res mm.MigrateResult, steps []mm.MigrationResult, blocked string) {
 	if !in.Quiet {
-		if len(res.Changes) == 0 {
-			out(env, "%snothing to migrate: the directory is already current\n", prefix(in))
-		} else {
+		did := false
+		if len(res.Changes) > 0 {
+			did = true
 			out(env, "%smigrated %d thing(s)\n", prefix(in), len(res.Changes))
 			for _, c := range res.Changes {
 				switch c.Kind {
@@ -181,10 +188,51 @@ func renderMigrate(env Env, in *Invocation, res mm.MigrateResult) {
 				}
 			}
 		}
+		for _, st := range steps {
+			did = true
+			out(env, "%smigrated version %d -> %d (%d thing(s))\n",
+				prefix(in), st.From, st.To, len(st.Changes))
+			for _, c := range st.Changes {
+				out(env, "  %s\n", stepChangeLine(c))
+			}
+		}
+		if !did && blocked == "" {
+			out(env, "%snothing to migrate: the directory is already current\n", prefix(in))
+		}
 	}
 	for _, w := range res.Warnings {
 		fmt.Fprintf(env.Stderr, "mm: warning: %s\n", w)
 	}
+	for _, st := range steps {
+		for _, w := range st.Warnings {
+			fmt.Fprintf(env.Stderr, "mm: warning: %s\n", w)
+		}
+	}
+	if blocked != "" {
+		fmt.Fprintf(env.Stderr, "mm: warning: version not migrated: %s\n", blocked)
+	}
+}
+
+// stepChangeLine renders one version-chain Change. Unlike an ordinary
+// operation's change set, several of these carry no item id at all — the
+// board.md rename, done.md's version bump, a working file going away — so
+// each Kind gets its own wording rather than one generic "id: after" line.
+func stepChangeLine(c mm.Change) string {
+	switch {
+	case c.Kind == mm.ChangeMoved && c.ID == "" && c.Before != "" && c.After != "":
+		return fmt.Sprintf("renamed %s -> %s", c.Before, c.After)
+	case c.Kind == mm.ChangeMoved && c.ID != "":
+		return fmt.Sprintf("%s -> %s", c.ID, c.After)
+	case c.Kind == mm.ChangeCreated && c.ID != "":
+		return fmt.Sprintf("%s: created %s", c.ID, c.File)
+	case c.Kind == mm.ChangeUpdated && c.ID != "":
+		return fmt.Sprintf("%s: %s", c.ID, c.File)
+	case c.Kind == mm.ChangeUpdated:
+		return fmt.Sprintf("updated %s", c.File)
+	case c.Kind == mm.ChangeDeleted:
+		return fmt.Sprintf("deleted %s", c.File)
+	}
+	return fmt.Sprintf("%s %s", c.Kind, c.File)
 }
 
 // renderFix reports each renumbering and the next_id the repair wrote. A
