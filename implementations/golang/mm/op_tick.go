@@ -21,10 +21,11 @@ import "fmt"
 // the run continues (spec-tools.md §5.3.3 rule: "a failing item never aborts
 // the run").
 
-// Tickler is one scheduled someday item, as Store.Ticklers reports it.
+// Tickler is one scheduled item, as Store.Ticklers reports it.
 type Tickler struct {
 	ID       ID
 	Schedule string // the expression, verbatim
+	Dest     Stage  // version 2 only: where a fire would land (§5.1.4)
 	Last     Date   // tickled:, zero when never fired
 	Next     Date   // Schedule.next(last ?? created), zero when the schedule is spent
 	Due      bool   // the run's own due test at the listing's now: due on or before it
@@ -34,6 +35,7 @@ type Tickler struct {
 type FiredTickler struct {
 	ID      ID
 	Kind    FireKind
+	Dest    Stage  // version 2 only: the stage the fire landed on (§5.1.4)
 	Tickled Date   // the date stamped as tickled:
 	Spawned ID     // the spawned item, for Kind == FireSpawn
 	Before  string // the prototype's line before the fire
@@ -62,7 +64,8 @@ type TickResult struct {
 	Errors []TickError
 }
 
-// Ticklers lists every scheduled someday item (spec-tools.md §6.1).
+// Ticklers lists every scheduled item: version 1's ## Someday, or version
+// 2's items on any stage (spec-tools.md §6.1).
 //
 // now is where the caller judges "due". Next is Schedule.next(tickled ??
 // created), the same anchor the due test uses, and Due is Schedule.Due itself
@@ -79,15 +82,20 @@ func (s *Store) Ticklers(now Date) ([]Tickler, error) {
 	if err != nil {
 		return nil, err
 	}
+	var items []*Item
+	switch {
+	case m.board != nil:
+		// Any stage may be a tickler_stages source (§5.1.4); a listing does
+		// not enforce placement, it reports what is on disk.
+		items = m.board.Items
+	case m.backlog != nil:
+		if sec := m.backlog.Section(SectionSomeday); sec != nil {
+			items = sec.Items
+		}
+	}
+
 	var out []Tickler
-	if m.backlog == nil {
-		return out, nil
-	}
-	sec := m.backlog.Section(SectionSomeday)
-	if sec == nil {
-		return out, nil
-	}
-	for _, it := range sec.Items {
+	for _, it := range items {
 		if it.Tickler == "" {
 			continue
 		}
@@ -99,21 +107,31 @@ func (s *Store) Ticklers(now Date) ([]Tickler, error) {
 		if after.IsZero() {
 			after = it.Created
 		}
-		out = append(out, Tickler{
+		tk := Tickler{
 			ID:       it.ID,
 			Schedule: it.Tickler,
 			Last:     it.Tickled,
 			Next:     sch.Next(after),
 			Due:      sch.Due(now, it.Tickled, it.Created),
-		})
+		}
+		if m.board != nil {
+			dest, ok := m.board.stageCfg.TicklerDestOf(it.Stage)
+			if it.TicklerDest != "" {
+				dest, ok = it.TicklerDest, true
+			}
+			if ok {
+				tk.Dest = dest
+			}
+		}
+		out = append(out, tk)
 	}
 	return out, nil
 }
 
-// Tick runs the tickler once (spec-tools.md §5.3.3): every due someday item
-// fires, each fire in its own transaction. dryRun validates and reports
-// without writing anything, and the two runs are guaranteed to agree — the due
-// test is the same, and dry-run fires are not stamped, so a real run a minute
+// Tick runs the tickler once (spec-tools.md §5.3.3): every due item fires,
+// each fire in its own transaction. dryRun validates and reports without
+// writing anything, and the two runs are guaranteed to agree — the due test
+// is the same, and dry-run fires are not stamped, so a real run a minute
 // later fires the same set.
 //
 // A tick is date-granular like every operation: now is the caller's today,
@@ -126,6 +144,19 @@ func (s *Store) Tick(now Date, dryRun bool) (TickResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	m, err := s.load()
+	if err != nil {
+		return TickResult{}, err
+	}
+	if m.isV2() {
+		return s.tickLoopV2(now, dryRun)
+	}
+	return s.tickLoopV1(now, dryRun)
+}
+
+// tickLoopV1 is Tick's version-1 body: every ## Someday item fires into
+// ## Ready. s.mu is already held by Tick.
+func (s *Store) tickLoopV1(now Date, dryRun bool) (TickResult, error) {
 	var res TickResult
 	// done is the run's own ledger: every item the run has fired or failed,
 	// which is what keeps a dry run (nothing is written, so nothing on disk

@@ -2,7 +2,7 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0235
+next_id: T-0236
 updated: 2026-08-20
 ---
 
@@ -22,7 +22,7 @@ thing that can be started.
 
 ## Ready
 
-- [ ] [T-0234] Columns M1e: op_tick.go v2 (ticklers), op_addmany.go v2, remaining --edit gaps, more v2 fixtures | prio:high | tags:spec,columns,migration,golang | detail:details/T-0234.md | created:2026-08-20
+- [ ] [T-0235] Columns M1f: op_addmany.go v2, remaining --edit gaps, more v2 fixtures, --init v2 question | prio:high | tags:spec,columns,migration,golang | detail:details/T-0235.md | created:2026-08-20
 - [ ] [T-0228] Columns M2: prove the migration step against a copy of the live board | prio:med | tags:columns,migration,golang | detail:details/T-0228.md | created:2026-08-20
 - [ ] [T-0229] Columns M3: cutover -- migrate the live board for real | prio:med | tags:columns,migration,golang | detail:details/T-0229.md | created:2026-08-20
 - [ ] [T-0230] Columns M4: finish CLI/GUI/TUI surface, retire v1 mutation support | prio:med | tags:columns,migration,golang | detail:details/T-0230.md | created:2026-08-20

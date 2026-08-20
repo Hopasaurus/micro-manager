@@ -448,3 +448,160 @@ func (e *StageWipLimitError) Error() string {
 }
 
 func (e *StageWipLimitError) Unwrap() error { return ErrWipLimitReached }
+
+// ---------------------------------------------------------------------------
+// Tick
+// ---------------------------------------------------------------------------
+
+// tickLoopV2 is Tick's version-2 body: every board item carrying tickler:
+// fires, on whatever stage it sits on — version 1 hardcoded ## Someday as
+// the only eligible section, version 2 generalizes that to any stage named
+// as a SOURCE in tickler_stages (§5.1.4). s.mu is already held by Tick.
+func (s *Store) tickLoopV2(now Date, dryRun bool) (TickResult, error) {
+	var res TickResult
+	done := map[ID]bool{}
+
+	for {
+		t, err := s.begin()
+		if err != nil {
+			return res, err
+		}
+		b, e, err := t.board()
+		if err != nil {
+			return res, err
+		}
+
+		// Pick the first still-undone item that is due. Order is file order,
+		// which is deterministic: two runs over the same directory fire the
+		// same sequence, dry run and real run alike.
+		var due *Item
+		for _, it := range b.Items {
+			if done[it.ID] || it.Tickler == "" {
+				continue
+			}
+			sch, perr := ParseSchedule(it.Tickler)
+			if perr != nil {
+				// Hand-edited garbage is an I7 shape violation, but a tick run
+				// is not --check: the item must not wedge the run, so it is
+				// reported per-item and the run moves on.
+				res.Errors = append(res.Errors, TickError{ID: it.ID, Error: perr})
+				done[it.ID] = true
+				continue
+			}
+			if sch.Due(now, it.Tickled, it.Created) {
+				due = it
+				break
+			}
+		}
+		if due == nil {
+			return res, nil
+		}
+
+		fired, ferr := fireOneV2(t, b, e, due, now, dryRun)
+		if ferr != nil {
+			res.Errors = append(res.Errors, TickError{ID: due.ID, Error: ferr})
+		} else {
+			res.Fired = append(res.Fired, fired)
+		}
+		done[due.ID] = true
+	}
+}
+
+// fireOneV2 performs one board item's fire inside its own transaction. The
+// destination is the item's own tickler_dest override when it has one, else
+// its stage's tickler_stages default (§5.1.4) — version 1's hardcoded
+// ## Ready, generalized.
+//
+// One-shot: move to the destination stage, drop the schedule, stamp
+// tickled:today. Recurring: stamp the prototype (it stays on its stage) and
+// spawn a fresh item on the destination stage whose fields are title, prio
+// and tags only — no detail:, no refs, no reason:, no unregistered extras,
+// no created-from-the-prototype (the spawn is created today). The
+// no-detail-copy rule is what keeps I9's "every detail file is claimed by
+// exactly one item" true for the spawned item; no reason: is what keeps a
+// spawn onto a needs_reason destination from inheriting a reason that may no
+// longer apply — such a spawn is refused by the same commit-time check that
+// refuses one by hand (I5), reported as this fire's error, not written.
+//
+// A WIP-capped destination is checked explicitly, unlike needs_reason and
+// started: (§7 folded from I4), which the transaction's own validation
+// already refuses a bad write over: I3-I10 has no invariant for a WIP cap
+// (spec-file-format.md §10.4 "a limit can be violated by editing the file,
+// same as everything else"), so nothing else would catch a fire that
+// overfilled one.
+func fireOneV2(t *tx, b *boardFile, e *fileEdit, it *Item, now Date, dryRun bool) (FiredTickler, error) {
+	sch, err := ParseSchedule(it.Tickler)
+	if err != nil {
+		return FiredTickler{}, err // unreachable: tickLoopV2 only fires valid schedules
+	}
+
+	dest, ok := b.stageCfg.TicklerDestOf(it.Stage)
+	if it.TicklerDest != "" {
+		dest, ok = it.TicklerDest, true
+	}
+	if !ok {
+		return FiredTickler{}, fmt.Errorf(
+			"%w: %s carries tickler: but stage %q is not a tickler_stages source and it has no tickler_dest:",
+			ErrInvalidArgument, it.ID, it.Stage)
+	}
+	if !b.stageCfg.IsStage(dest) {
+		return FiredTickler{}, fmt.Errorf(
+			"%w: %s's fire destination %q is not declared in stages:", ErrInvalidArgument, it.ID, dest)
+	}
+	if limit, capped := b.stageCfg.WipLimits[dest]; capped {
+		if used := len(b.StageItems(dest)); used >= limit {
+			return FiredTickler{}, &StageWipLimitError{Stage: dest, Limit: limit, Occupants: b.StageItems(dest)}
+		}
+	}
+
+	fired := FiredTickler{ID: it.ID, Dest: dest, Tickled: now}
+
+	if sch.IsOneShot() {
+		before := RenderItemLine(it)
+		it.Tickler = ""
+		it.TicklerDest = ""
+		it.Tickled = now
+		b.RemoveItem(e, it)
+		b.InsertItem(e, dest, len(b.StageItems(dest)), it)
+		t.record(Change{Kind: ChangeMoved, ID: it.ID, File: "board.md",
+			Before: before, After: RenderItemLine(it)})
+		fired.Kind = FireMove
+		fired.Before = before
+		fired.After = RenderItemLine(it)
+	} else {
+		before := RenderItemLine(it)
+		it.Tickled = now
+		e.ReplaceItem(it)
+		t.record(Change{Kind: ChangeUpdated, ID: it.ID, File: "board.md",
+			Before: before, After: RenderItemLine(it)})
+		fired.Kind = FireSpawn
+		fired.Before = before
+		fired.After = RenderItemLine(it)
+
+		g := t.model.grammar()
+		nid, err := allocNextV2(e, b, g)
+		if err != nil {
+			return fired, err
+		}
+		spawn := &Item{
+			ID:      nid,
+			Title:   it.Title,
+			State:   StateBoard,
+			Stage:   dest,
+			Prio:    it.Prio,
+			Tags:    append([]string(nil), it.Tags...),
+			Created: now,
+		}
+		b.InsertItem(e, dest, len(b.StageItems(dest)), spawn)
+		t.record(Change{Kind: ChangeCreated, ID: nid, File: "board.md",
+			After: RenderItemLine(spawn)})
+		fired.Spawned = nid
+	}
+
+	touchUpdated(e, now)
+	t.stage("board.md")
+	if _, err := t.commit(dryRun); err != nil {
+		return fired, err
+	}
+	return fired, nil
+}
