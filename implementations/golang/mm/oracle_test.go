@@ -233,6 +233,14 @@ func TestFindingComparisonIsNotTooForgiving(t *testing.T) {
 func TestValidatorAgreesWithCheckShOnFixtures(t *testing.T) {
 	requireBash(t)
 	for _, f := range fixtures(t) {
+		// check.sh has no version-2 support at all (it is entirely
+		// backlog.md/working.NN.md-shaped) - see
+		// TestValidatorAgreesWithCheckShOnTheRepository's identical
+		// exclusion of the live board for the full reasoning. A board.md
+		// fixture is not a shape this comparison can make sense of yet.
+		if _, err := os.Stat(filepath.Join(f.Path, "board.md")); err == nil {
+			continue
+		}
 		compareValidators(t, f.Name, f.Path)
 	}
 }
