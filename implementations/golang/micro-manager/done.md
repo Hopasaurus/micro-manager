@@ -21,6 +21,11 @@ work stays here too — see [structure.md](structure.md).
 - [x] [T-0219] Columns: decide WIP-cap key shape (bare wip_limit vs per-stage map) | prio:med | tags:spec,columns | detail:details/T-0219.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
 - [x] [T-0218] Columns: decide where ## Plan subtasks live once working files fold into backlog.md | prio:med | tags:spec,columns | detail:details/T-0218.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
 - [x] [T-0217] Columns: decide whether ## section headings survive in backlog.md under the stage-field redesign | prio:med | tags:spec,columns | detail:details/T-0217.md | created:2026-08-19 | started:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0200] later | prio:med | created:2026-08-06 | tickled:2026-08-20 | done:2026-08-20 | outcome:shipped
+- [x] [T-0210] sample scheduled task | prio:med | tags:demo | created:2026-08-07 | tickled:2026-08-07 | done:2026-08-20 | outcome:shipped
+- [x] [T-0213] tie your shoes | prio:med | created:2026-08-10 | done:2026-08-20 | outcome:shipped
+- [x] [T-0214] time for code & coffee | prio:med | created:2026-08-14 | done:2026-08-20 | outcome:shipped
+- [x] [T-0215] tie your shoes | prio:med | created:2026-08-17 | done:2026-08-20 | outcome:shipped
 - [x] [T-0211] README: a screenshot of the board view | prio:low | tags:docs | detail:details/T-0211.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
 - [x] [T-0197] GUI: the monthly Wake-up control cannot express last (spec-gui §5.6) | prio:med | tags:gui,spec | detail:details/T-0197.md | created:2026-08-06 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
 - [x] [T-0207] Tickler: add a system-settings control for tickler.interval and document the drivers | prio:med | tags:tickler,docs,ui | detail:details/T-0207.md | created:2026-08-07 | started:2026-08-07 | done:2026-08-07 | outcome:shipped
