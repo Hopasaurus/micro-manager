@@ -1,9 +1,9 @@
 # micro-manager — terminal user interface specification
 
-    Spec version: 1
-    Date:         2026-07-31
+    Spec version: 2
+    Date:         2026-08-20
     Status:       draft
-    Depends on:   spec-file-format.md (v1), spec-tools.md (v1), spec-gui.md (v1)
+    Depends on:   spec-file-format.md (v2), spec-tools.md (v2), spec-gui.md (v2)
 
 This document specifies the micro-manager terminal user interface: a keyboard-
 driven front end for a lighter workflow than the web GUI. It is language- and
@@ -225,23 +225,28 @@ Every screen shows:
 
 ### 5.1 Board
 
-The primary view. Columns in this order, matching the GUI:
+The primary view. **Columns are dynamic, matching the GUI (`spec-gui.md`
+§5.5)**: one per entry in the directory's declared `stages`
+(`spec-file-format.md` §5.1.1), in that order, followed always by Done. A
+board that never customizes `stages` shows the familiar Someday, Ready,
+Blocked, Working ahead of Done; nothing in this document fixes that list by
+name any longer.
 
-1. Someday
-2. Ready
-3. Blocked
-4. one Working column for all working items, ordered by slot number
-5. Done
-
-Each column shows a title, a count, and its items. The focused column MUST be
-visually distinct in every colour tier, including monochrome (§11).
+Each column shows a title (from `spec-file-format.md` §5.1.2's
+`stage_labels`, or its derived default), a count, and its items. The focused
+column MUST be visually distinct in every colour tier, including monochrome
+(§11).
 
 An item row shows, in a fixed order: priority marker, ID, title, tag list,
-detail indicator, and blocked marker where applicable. Title is truncated last,
-after tags. Working item rows additionally show the slot number and `started`.
-A someday item carrying `tickler` (format spec §6) MAY additionally show its
-next fire beside the item — a MAY, not a requirement: the TUI is not required
-to render the tickler at all (`spec-tools.md` §5.3.3, `spec-gui.md` §2.4).
+detail indicator, and a reason marker where the item carries `reason`
+(format spec §6). Title is truncated last, after tags. A row in the
+`working` column additionally shows `started`; there is no slot number to
+show, since order within `working` is plain item order like every other
+column (`spec-file-format.md` §5.1.6). An item on a tickler-eligible stage
+(a `SOURCE` in `tickler_stages`, format spec §5.1.4) carrying `tickler` MAY
+additionally show its next fire beside the item — a MAY, not a requirement:
+the TUI is not required to render the tickler at all (`spec-tools.md`
+§5.3.3, `spec-gui.md` §2.4).
 
 Columns scroll independently. The focused item MUST remain visible, with at
 least one row of context above and below where the column is long enough.
@@ -332,9 +337,9 @@ provide every recommended one in §5.2.
 | `--show` | Item screen |
 | `--edit` | Item screen fields |
 | `--remove` | `x`, with confirmation |
-| `--move` | Move mode (§7.3) |
-| `--start` | `s`, or move mode into a slot column |
-| `--pause` | `S`, or move mode out of a slot column |
+| `--move` | Move mode (§7.3) — any declared stage, not only Ready/Blocked/Someday |
+| `--start` | `s`, or move mode into the Working column |
+| `--pause` | `S`, or move mode out of the Working column |
 | `--finish` | `f`, or move mode into Done |
 | `--report` | Report screen |
 | `--check` | Check screen and the status line |
@@ -432,11 +437,13 @@ Requirements:
 3. An illegal target MUST be shown as illegal — with a reason — and MUST refuse
    to commit rather than silently reverting to the last legal target.
 4. Legal transitions are exactly those in `spec-gui.md` §7.2: reorder within a
-   column; between backlog sections; backlog into a slot (`--start`); slot into
-   backlog (`--pause`); backlog or slot into Done (`--finish`). Slot-to-slot and
-   anything out of Done are illegal.
-5. Transitions requiring input — a block reason, a finish outcome — MUST prompt
-   on commit. Cancelling the prompt cancels the move.
+   column; between any two non-Working, non-Done columns; any column into
+   Working (`--start`); Working into any other non-Done column (`--pause`);
+   any column into Done (`--finish`). Working-to-Working and anything out of
+   Done are illegal.
+5. Transitions requiring input — a reason for a `needs_reason` stage, a
+   finish outcome — MUST prompt on commit. Cancelling the prompt cancels the
+   move.
 6. On rejection, restore the original position, keep focus on the item, and show
    the error. For `WipLimitReached`, show occupants and remedies.
 
@@ -717,6 +724,7 @@ fallback when no `tui.attrs` entry exists.
 | `border.focus` | focused column border | focus marker glyph |
 | `accent.*` | selection, active screen | `reverse` |
 | `state.ready/blocked/someday/working/done` | column titles, item state | column position plus text label |
+| `state.<slug>` (OPTIONAL, custom stages) | column title, item state — falls back to `accent.*` when the theme sets no token for the stage (`spec-gui.md` §8.3) | column position plus text label |
 | `prio.high/med/low` | priority marker | `▲ ■ ▼` glyphs (`^ = v` in ASCII) |
 | `feedback.success/warning/danger/info` | status messages | text prefix `ok:` `warn:` `error:` `info:` |
 | `selection.*` | focused item row | `reverse` |

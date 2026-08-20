@@ -1,9 +1,9 @@
 # micro-manager — user interface specification
 
-    Spec version: 1
-    Date:         2026-07-31
+    Spec version: 2
+    Date:         2026-08-20
     Status:       draft
-    Depends on:   spec-file-format.md (v1), spec-tools.md (v1)
+    Depends on:   spec-file-format.md (v2), spec-tools.md (v2)
     Covers:       web GUI (normative); the TUI is specified in spec-tui.md
 
 This document specifies the micro-manager user interface. It is language- and
@@ -155,16 +155,17 @@ Query parameters on `/p/:projectId/board`, all OPTIONAL and combinable:
 
 | Parameter | Values |
 |---|---|
-| `section` | `ready` \| `blocked` \| `someday` |
-| `state` | `backlog` \| `working` \| `done` \| `all` |
+| `stage` | any declared `STAGE` slug (`spec-file-format.md` §5.1.1), repeatable |
+| `state` | `board` \| `done` \| `all` |
 | `prio` | `high` \| `med` \| `low` |
 | `tag` | tag name, repeatable |
 | `q` | free-text search |
 | `done` | `all` — render every done item, ignoring `ui.board.doneLimit`. Without it the done column is capped at the limit (§5.5). |
 
 On `/p/:projectId/report`: `period`, `since`, `until`, `group-by`,
-`include-wip`, `include-backlog`, `include-archives` — same vocabulary and
-precedence as `spec-tools.md` §5.1.11.
+`include-wip`, `include-stage` (repeatable), `include-backlog`,
+`include-archives` — same vocabulary and precedence as `spec-tools.md`
+§5.1.11.
 
 Rules:
 
@@ -244,6 +245,7 @@ status.
 | `PreconditionFailed` | 412 | |
 | `InvariantViolation` | 422 | Body carries the violation list. |
 | `Concurrent` | 409 | Client MUST re-read before retrying. |
+| `VersionMismatch` | 409 | Body names both versions; client SHOULD offer the migration action of §5.9. |
 | `Io` | 500 | |
 
 Error body:
@@ -251,7 +253,7 @@ Error body:
 ```json
 { "ok": false,
   "errors": [ { "code": "WipLimitReached", "message": "...",
-                "id": "T-0042", "file": "working.03.md" } ] }
+                "id": "T-0042", "file": "board.md" } ] }
 ```
 
 ### 4.4 Test mode
@@ -293,17 +295,17 @@ class names alone, so tests never depend on styling decisions.
 |---|---|---|
 | `data-state` | `loading` \| `ready` \| `empty` \| `error` | any container that loads |
 | `data-busy` | `true` \| `false` | app root; `false` means quiescent |
-| `data-item-state` | `backlog` \| `working` \| `done` | item cards |
-| `data-section` | `ready` \| `blocked` \| `someday` | items and backlog columns |
+| `data-item-state` | `board` \| `done` | item cards |
+| `data-stage` | any declared `STAGE`, absent for a done item | items and board columns |
 | `data-prio` | `high` \| `med` \| `low` \| `none` | item cards |
 | `data-tags` | comma-separated `TAGLIST`, empty if none | item cards |
-| `data-slot` | zero-padded slot number | working item cards |
-| `data-collapsed` | `true` \| `false` | `board-column-someday` |
+| `data-collapsed` | `true` \| `false` | any collapsible `board-column-*` (§5.5) |
 | `data-outcome` | `shipped` \| `cancelled` \| `obsolete` | done items |
-| `data-blocked` | `true` \| `false` | item cards |
-| `data-tickler` | the item's `tickler:` `SCHEDULE`, absent otherwise | someday item cards |
+| `data-has-reason` | `true` \| `false` | item cards |
+| `data-needs-reason` | `true` \| `false` | board columns — whether this column's stage is in `needs_reason` |
+| `data-tickler` | the item's `tickler:` `SCHEDULE`, absent otherwise | item cards on a tickler-eligible stage |
 | `data-has-detail` | `true` \| `false` | item cards |
-| `data-wip-used` / `data-wip-limit` | integers | board |
+| `data-wip-used` / `data-wip-limit` | integers | board; and any column whose stage carries a `wip.<slug>` cap |
 | `data-theme-name` / `data-theme-source` | name; `project` \| `system` \| `builtin` | app root |
 | `data-scanned-at` | `TIMESTAMP` | discovery views |
 | `data-project-id` / `data-project-name` | id; `project` frontmatter value | app root |
@@ -409,20 +411,28 @@ Empty lists MUST render the container with `data-count="0"` and
 
 `/p/:projectId/board` — the primary view and the drag-and-drop surface.
 
-Columns, in this DOM order:
+**Columns are dynamic, one per entry in the directory's declared `stages`**
+(`spec-file-format.md` §5.1.1), in that order, followed always by
+`board-column-done` — the one column that stays structurally last, because
+`done.md` is a genuinely different, terminal file (§5.1.6 there). A board
+that never customizes `stages` renders the familiar four ahead of Done —
+Someday, Ready, Blocked, Working — but nothing in this document hardcodes
+that list any longer; a fifth declared stage (`review`, say) is a fifth
+`board-column-*` section rendered in its declared position, with no
+different markup shape than the built-in four.
 
-1. `board-column-someday` — leftmost column; carries `board-column-someday-toggle`
-2. `board-column-ready`
-3. `board-column-blocked`
-4. `board-column-working` — one column for all working items, ordered by slot number
-5. `board-column-done`
+**Testid pattern: `board-column-<slug>`**, uniformly — `board-column-someday`,
+`board-column-review`, and so on. There is no separate naming scheme for a
+custom stage; every column, built-in or not, is addressed the same way.
+Column *label* text comes from `spec-file-format.md` §5.1.2 (`stage_labels`,
+or the derived title-case default) — never the raw slug.
 
 ```html
 <section data-testid="board" class="mm-board"
          data-wip-used="1" data-wip-limit="3" data-state="ready">
 
   <section data-testid="board-column-someday" class="mm-column"
-           data-section="someday" data-count="3" data-collapsed="false"
+           data-stage="someday" data-count="3" data-collapsed="false"
            role="list" aria-label="Someday">
     <header data-testid="board-column-someday-header" class="mm-column__header">
       <button data-testid="board-column-someday-toggle" class="mm-column__toggle"
@@ -437,23 +447,37 @@ Columns, in this DOM order:
   </section>
 
   <section data-testid="board-column-ready" class="mm-column"
-           data-section="ready" data-count="7"
+           data-stage="ready" data-count="7"
            role="list" aria-label="Ready">…</section>
 
-  <section data-testid="board-column-working" class="mm-column mm-column--working"
-           data-count="1" role="list">…</section>
+  <section data-testid="board-column-working" class="mm-column"
+           data-stage="working" data-count="1"
+           data-wip-used="1" data-wip-limit="3"
+           role="list" aria-label="Working">…</section>
+
+  <!-- a declared custom stage renders with identical structure -->
+  <section data-testid="board-column-review" class="mm-column"
+           data-stage="review" data-count="2"
+           role="list" aria-label="Code Review">…</section>
 
   <section data-testid="board-column-done" data-count="12" role="list">…</section>
 </section>
 ```
+
+`data-wip-used`/`data-wip-limit` on the board root refer to the `working`
+stage specifically, kept for the common "how full is my plate" glance a
+dashboard wants at the top level. **Any column whose stage carries a
+`wip.<slug>` cap** (`spec-file-format.md` §5.1.3) — `working` or otherwise —
+carries the same two attributes on the column itself; a column with no cap
+carries neither.
 
 Item card, identical in every column:
 
 ```html
 <article data-testid="item-T-0042" class="mm-item"
          role="listitem" tabindex="0" draggable="true"
-         data-item-id="T-0042" data-item-state="backlog" data-section="ready"
-         data-prio="high" data-tags="infra,ci" data-blocked="false"
+         data-item-id="T-0042" data-item-state="board" data-stage="ready"
+         data-prio="high" data-tags="infra,ci" data-has-reason="false"
          data-has-detail="true" data-position="3">
   <h3 data-testid="item-T-0042-title" class="mm-item__title">…</h3>
   <span data-testid="item-T-0042-id" class="mm-item__id">T-0042</span>
@@ -466,13 +490,25 @@ Item card, identical in every column:
 </article>
 ```
 
+`data-item-state` is `board` or `done` (`spec-tools.md` §6.1's two-value
+`State`); `data-stage` carries the item's `stage:` and is absent for a done
+item. `data-has-reason` reports whether the item carries `reason:`
+(`spec-file-format.md` §5.1.5) — true on any stage now, not only one whose
+`needs_reason` requires it; a client that wants to flag *missing* a required
+reason compares `data-has-reason` against the column's own knowledge of
+whether its stage is in `needs_reason`, carried as `data-needs-reason` on
+the column element.
+
 `data-position` is the 1-based index within its column and MUST be kept accurate
 after every reorder — it is how a test asserts ordering without reading text.
-Within `board-column-working`, cards are ordered by slot number. `board-column-working`
-MUST be rendered even when empty (`data-count="0"`).
+Ordering within every column, `working` included, is plain item order
+(`spec-file-format.md` §5.1.6) — there is no slot-derived order to fall back
+to. Every declared column MUST be rendered even when empty (`data-count="0"`).
 
-**A someday card carrying `tickler:`** (format spec §6) additionally carries
-`data-tickler="<schedule>"` on the article and a next-fire badge:
+**A card on a tickler-eligible stage carrying `tickler:`** (a stage named as
+a `SOURCE` in `tickler_stages`, `spec-file-format.md` §5.1.4) additionally
+carries `data-tickler="<schedule>"` on the article and a next-fire badge —
+this is no longer someday-specific:
 
 ```html
 <span data-testid="item-T-0042-tickler" class="mm-item__tickler"
@@ -489,11 +525,18 @@ next fire is `null` — already due, the next tick fires it — reads `due`.
 `null`. The badge is the affordance — visible text, never a colour-only or
 tooltip-only hint (§5.1).
 
-`board-column-someday` is the leftmost column. Its header MUST contain a toggle button
-`board-column-someday-toggle` in its upper-left corner. When expanded (`data-collapsed="false"`
-or absent), the toggle displays `>` and the column body displays its items. When collapsed
-(`data-collapsed="true"`), the toggle displays `v`, the column body is hidden, the column title
-"Someday" is rotated 90 degrees, and the column shrinks to show only the rotated header.
+**Every column MAY be collapsed, not only Someday** — `stages` is a directory
+choice, so no column is structurally more collapse-worthy than another
+anymore. Any `board-column-<slug>` whose header carries a
+`board-column-<slug>-toggle` button supports it, with the same behavior
+version 1 defined for Someday specifically: when expanded
+(`data-collapsed="false"` or absent), the toggle displays `>` and the column
+body displays its items; when collapsed (`data-collapsed="true"`), the
+toggle displays `v`, the column body is hidden, the column title is rotated
+90 degrees, and the column shrinks to show only the rotated header. An
+implementation MAY offer the toggle on every column or only some; `Someday`
+carrying it by default, matching version 1's behavior, is RECOMMENDED but no
+longer required of any specific stage by name.
 
 The done column reports what is really done, not what fits:
 
@@ -527,9 +570,10 @@ the DOM.
   <h2 data-testid="item-panel-title" id="item-panel-title">…</h2>
   <form data-testid="item-form">
     <input    data-testid="item-field-title"   name="title">
+    <select   data-testid="item-field-stage"   name="stage">
     <select   data-testid="item-field-prio"    name="prio">
     <input    data-testid="item-field-tags"    name="tags">
-    <input    data-testid="item-field-blocked" name="blocked">
+    <input    data-testid="item-field-reason"  name="reason">
     <fieldset data-testid="item-tickler" data-present="true">
       <legend>Wake up</legend>
       <select data-testid="tickler-kind" name="tickler-kind">
@@ -545,6 +589,7 @@ the DOM.
               pattern="(0?[1-9]|[12][0-9]|3[01]|last)"
               name="tickler-monthday">
       <input  data-testid="tickler-time" type="time" name="tickler-time">
+      <select data-testid="tickler-dest" name="tickler-dest">…</select>
     </fieldset>
     <textarea data-testid="item-field-detail"  name="detail"></textarea>
     <button   data-testid="item-save">Save</button>
@@ -563,24 +608,45 @@ the DOM.
 </aside>
 ```
 
+`item-field-reason` is renamed from version 1's `item-field-blocked`
+(`spec-file-format.md` §5.1.5, §10) and is always rendered, not only for a
+`stage:blocked` item — `reason` is valid on any stage now, required only
+where the directory's `needs_reason` lists the item's current stage. A
+client SHOULD mark it required (visually and via `aria-required`) exactly
+when `item-field-stage`'s current value is in `needs_reason`, and MUST
+re-evaluate that on every stage change, including one made in this same
+form before saving.
+
 `item-action-remove` MUST carry `data-guarded="true"` and MUST open
 `dialog-confirm-remove` requiring explicit confirmation, per `spec-tools.md`
 §5.1.6. It MUST NOT be satisfiable by a single click.
 
-For an item in a working slot, `item-plan` renders subtasks as
-`subtask-<n>` checkboxes and `item-notes` renders the dated log.
+For an item whose stage is `working`, `item-plan` renders the item's detail
+file's `## Plan` subtasks as `subtask-<n>` checkboxes and `item-notes`
+renders its `## Notes` dated log (`spec-file-format.md` §5.4) — but neither
+is exclusive to `working` any longer: any item with a detail file MAY show
+both, since subtasks and notes always live in `details/<ID>.md` now, not in
+a transient working file.
 
 **The Wake-up group** — the tickler controls — is one partial served by both
 panels, rendered inside `item-form`:
 
-- New-item panel (`/p/:projectId/new`): rendered when its section selector
-  (`item-field-section`, new panel only) is Someday. The selector defaults to
-  Ready, where the group is hidden.
-- Item panel: rendered for a someday item. `data-present="true"` with the
-  controls pre-filled from the item's parsed schedule when it carries
-  `tickler`; `data-present="false"` (kind `never`, controls empty) when it
-  does not — an unscheduled someday item can gain a tickler here, and
-  choosing kind `never` removes one.
+- New-item panel (`/p/:projectId/new`): rendered when its stage selector
+  (`item-field-stage`, new panel only) is set to a stage named as a
+  `SOURCE` in the directory's `tickler_stages` (`spec-file-format.md`
+  §5.1.4; default `someday`). The selector defaults to `ready`, where the
+  group is hidden unless `ready` itself is `tickler_stages`-eligible.
+- Item panel: rendered for an item on a tickler-eligible stage.
+  `data-present="true"` with the controls pre-filled from the item's parsed
+  schedule when it carries `tickler`; `data-present="false"` (kind `never`,
+  controls empty) when it does not — an unscheduled eligible item can gain a
+  tickler here, and choosing kind `never` removes one.
+- `tickler-dest`, new in this version: a select of declared stages,
+  defaulting to the current stage's `tickler_stages` `DEST`. Composing it
+  sets `tickler_dest` (`spec-file-format.md` §5.1.4, §6) only when it
+  differs from that default — leaving it at the default keeps the field
+  absent, so a board that never overrides a destination writes no extra
+  data.
 
 The kind select chooses the shape; the matching input is shown and the others
 hidden. The server composes the `tickler:` value from the controls:
@@ -618,6 +684,7 @@ hidden. The server composes the `tickler:` value from the controls:
     <input  data-testid="report-until" type="date">
     <select data-testid="report-group-by">…</select>
     <input  data-testid="report-include-wip" type="checkbox">
+    <select data-testid="report-include-stage" multiple>…</select>
   </form>
   <div data-testid="report-body">
     <section data-testid="report-group-shipped" data-count="7">
@@ -682,12 +749,38 @@ Both `/settings` and `/p/:projectId/settings` use the same skeleton, with
     <button data-testid="settings-scan-rescan">…</button>
     <span   data-testid="settings-scan-status" data-scanned-at="…">…</span>
   </section>
-  <section data-testid="settings-wip">
-    <input data-testid="settings-wip-limit" type="number" min="1">
+  <section data-testid="settings-wip" data-scope="project">
+    <!-- one row per declared stage; a stage with no wip.<slug> key renders
+         its input empty, meaning uncapped -->
+    <div data-testid="settings-wip-row-working">
+      <span>working</span>
+      <input data-testid="settings-wip-limit-working" type="number" min="1">
+    </div>
+    <div data-testid="settings-wip-row-review">
+      <span>review</span>
+      <input data-testid="settings-wip-limit-review" type="number" min="1">
+    </div>
+  </section>
+  <section data-testid="settings-migrate" data-version="1" hidden>
+    <p>This board is on an older format version.</p>
+    <button data-testid="settings-migrate-run">Migrate</button>
   </section>
   <button data-testid="settings-save">Save</button>
 </section>
 ```
+
+`settings-wip` is per-stage and project-scoped, unlike version 1's single
+directory-wide `settings-wip-limit`: one `settings-wip-limit-<slug>` input
+per entry in the directory's `stages`, matching `wip.<slug>`
+(`spec-file-format.md` §5.1.3). An empty input on save removes that stage's
+cap (uncapped) rather than writing an invalid value.
+
+`settings-migrate` is present, and its `hidden` attribute removed, only when
+the open board reports `VersionMismatch`-eligible (§4.3) — i.e. it is a
+version-1 directory. `settings-migrate-run` calls the migrate action
+(`spec-tools.md` §5.3.4); on success the view MUST re-fetch the directory
+summary and re-render, since every column, testid, and config key described
+in this document changes shape the moment the migration lands.
 
 `settings-lists` and `settings-scan` MUST be present only when
 `data-scope="system"` — list counts and scan roots are system-scoped (§9.4, §9.5).
@@ -727,17 +820,17 @@ provide every recommended one in §5.2.
 | `--show` | Item panel |
 | `--edit` | `item-form` |
 | `--remove` | `item-action-remove` → `dialog-confirm-remove` |
-| `--move` | Drag (§7), or `item-*-action-move` |
+| `--move` | Drag (§7), or `item-*-action-move` — any declared stage, not only Ready/Blocked/Someday |
 | `--start` | Drag to the working column, or `item-action-start` |
-| `--pause` | Drag from the working column to a backlog column, or `item-action-pause` |
+| `--pause` | Drag from the working column to another column, or `item-action-pause` |
 | `--finish` | Drag to the done column, or `item-action-finish` |
 | `--report` | `/p/:id/report` |
 | `--check` | `/p/:id/check`, plus `status-check` |
-| `--block` / `--unblock` | Drag to/from the blocked column, or item actions |
+| `--block` / `--unblock` | Drag to/from the `blocked` column, or item actions — sugar over `--move --stage blocked`/`ready` |
 | `--note` | `item-notes` |
-| `--wip` | `settings-wip-limit` |
+| `--wip` | `settings-wip`, per stage (§5.9) |
 | `--status` | `app-status` |
-| `--next` | Top card of `board-column-ready` |
+| `--next` | Top card of the board's default resting column (`ready`, unless `stages` orders differently) |
 | `--search` | `search-input` |
 | `--find` | `/projects` |
 | `--tick` | The tickler service (§2.4), when `tickler.interval` is set — the GUI's equivalent of a scheduled `--tick`, not a manual button |
@@ -773,16 +866,20 @@ column's own drop-target styling carries the feedback.
 
 | From | To | Operation | Notes |
 |---|---|---|---|
-| backlog column | same column | `--move --position N` | reorder |
-| ready/someday | blocked | `--block` | MUST prompt for a reason; cancelling aborts |
-| blocked | ready/someday | `--unblock` | drops `blocked:` |
-| ready/blocked/someday | ready/blocked/someday | `--move --section` | |
-| backlog column | working column | `--start` | server picks the lowest idle slot; fails `WipLimitReached` when full |
-| working column | ready/someday | `--pause` | position from drop index |
-| working column | blocked | `--pause --section blocked` | MUST prompt for a reason; cancelling aborts |
-| working column | working column | — | **illegal**; there is no working order to rearrange |
-| backlog or working | done | `--finish` | MUST prompt for outcome, default `shipped` |
-| done | anywhere | — | **illegal** in v1; reopening is not a specified operation |
+| any non-`working`, non-done column | same column | `--move --position N` | reorder |
+| any column | a `needs_reason` column (e.g. `blocked`) | `--move --stage` / `--block` | MUST prompt for a reason unless the item already carries one; cancelling aborts |
+| a `needs_reason` column | another column | `--move --stage` / `--unblock` | `reason:` is kept, not dropped (`spec-file-format.md` §5.1.5) |
+| any two non-`working`, non-done columns | — | `--move --stage` | general case; every declared stage is a legal destination for every other |
+| any column | `working` | `--start` | fails `WipLimitReached` when that stage's `wip.working` cap is met |
+| `working` | any other non-done column | `--pause` | position from drop index |
+| `working` | `working` | — | **illegal**; there is no working order to rearrange beyond plain reorder (first row) |
+| any column | done | `--finish` | MUST prompt for outcome, default `shipped` |
+| done | anywhere | — | **illegal**; reopening is not a specified operation |
+
+A column whose stage is a tickler-eligible `SOURCE` moving an item *out* of
+it MUST drop `tickler:`/`tickler_dest:` (`spec-file-format.md` §5.1.4) as
+part of the same drop — the schedule is consumed, matching `--move`'s rule
+(`spec-tools.md` §5.1.7).
 
 An illegal target MUST be marked `data-drop-allowed="false"` on hover and MUST
 reject the drop with no request issued.
@@ -908,6 +1005,16 @@ drag.valid     drag.invalid
 Values are `#rrggbb` or `#rrggbbaa`. The set is intentionally small and
 semantic: it is the largest palette a terminal can render faithfully, and every
 token maps to something a TUI also needs.
+
+**`state.<slug>` is open-ended, not closed to the five listed above** — a
+theme MAY additionally declare `state.<slug>` for any stage a board
+declares (`spec-file-format.md` §5.1.1), e.g. `state.review`. Unlike the
+five REQUIRED tokens above, a `state.<slug>` token is entirely OPTIONAL:
+when a declared stage has no matching token, a client MUST render it in
+`accent.base` rather than treating the theme as incomplete. This keeps the
+REQUIRED set exactly five, independent of any specific board's `stages`
+list, while still letting a theme author give a custom stage its own color
+when they care to.
 
 **`gui` — ignored by the TUI.**
 
@@ -1148,11 +1255,17 @@ config MUST NOT set it.
   "ui": {
     "density": "compact",
     "defaultView": "board",
-    "board": { "showSomeday": true, "doneLimit": 20 }
+    "board": { "collapsedStages": ["someday"], "doneLimit": 20 }
   },
   "report": { "period": "this-week", "groupBy": "outcome" }
 }
 ```
+
+`ui.board.collapsedStages` lists which columns render collapsed by default
+(§5.5) — renamed and generalized from version 1's boolean `showSomeday`,
+since every column supports the same toggle now, not only Someday. A stage
+named there that the directory no longer declares is simply never matched;
+an implementation MUST NOT error on it.
 
 `ui.board.doneLimit` caps how many done cards the board column renders (default
 20; 0 means no cap). It is a display cap, not a truth: the column header still
@@ -1202,9 +1315,12 @@ directories named per `spec-file-format.md` Appendix B. Rules:
 4. Results are deduplicated by canonical path, so the same directory reachable
    from two roots appears once.
 5. Discovery MUST NOT descend into a matched directory (`spec-tools.md` §4).
-   A match that holds neither `backlog.md` nor `done.md` is not a project and
-   MUST NOT be listed — the emptiness test of `spec-file-format.md`
-   Appendix B — and it is still not descended into. A project list that
+   A match that holds none of `board.md`, `backlog.md`, or `done.md` is not
+   a project and MUST NOT be listed — the emptiness test of
+   `spec-file-format.md` Appendix B — and it is still not descended into. A
+   directory found by `backlog.md` alone is listed as a version-1 project,
+   with a badge or marker so the migration action (§5.9) is discoverable
+   from `/projects` too, not only from a board already open. A project list that
    offered a source repository sharing the name would be one the user has to
    learn to ignore.
 6. `includeHidden` defaults to **true**, because `.micro-manager` and
@@ -1400,9 +1516,8 @@ home  favorites-list  recent-list  project-open  project-init
 project-card-<projectId>  project-card-name  project-card-path
 project-card-wip  project-card-favorite-toggle
 
-board  board-column-someday  board-column-someday-toggle  board-column-ready  board-column-blocked
-board-column-working  board-column-done
-board-column-<key>-header  -title  -count  -add  -body  (backlog columns carry -add; board-column-working does not)
+board  board-column-<slug>  board-column-<slug>-toggle  board-column-done
+board-column-<slug>-header  -title  -count  -add  -body  (every non-done column carries -add; board-column-working does not)
 board-column-done-show-all
 item-<ID>  item-<ID>-title  item-<ID>-id  item-<ID>-prio
 item-<ID>-tags  item-<ID>-tag-<tag>  item-<ID>-detail-indicator
@@ -1410,14 +1525,14 @@ item-<ID>-tickler  item-<ID>-menu  item-<ID>-action-<operation>
 drop-placeholder
 
 item-panel  item-panel-title  item-form  item-field-<field>
-item-field-section  item-tickler
+item-field-stage  item-field-reason  item-tickler
 tickler-kind  tickler-date  tickler-weekday  tickler-ordinal
-tickler-monthday  tickler-time
+tickler-monthday  tickler-time  tickler-dest
 item-save  item-cancel  item-actions  item-action-<operation>
 item-notes  item-plan  item-meta  subtask-<n>
 
 report  report-controls  report-period  report-since  report-until
-report-group-by  report-include-wip  report-body
+report-group-by  report-include-wip  report-include-stage  report-body
 report-group-<key>  report-item-<ID>  report-copy
 
 check  check-run  check-results  check-violation-<n>
@@ -1425,7 +1540,9 @@ check  check-run  check-results  check-violation-<n>
 settings  settings-theme  settings-theme-select  settings-theme-source
 settings-theme-edit  settings-theme-export  settings-theme-import
 settings-theme-clear  settings-lists  settings-recent-count
-settings-favorites-count  settings-wip  settings-wip-limit  settings-save
+settings-favorites-count  settings-wip  settings-wip-row-<slug>
+settings-wip-limit-<slug>  settings-migrate  settings-migrate-run
+settings-save
 settings-scan  settings-scan-roots  settings-scan-root-<n>
 settings-scan-root-<n>-remove  settings-scan-root-add
 settings-scan-max-depth  settings-scan-follow-symlinks  settings-scan-hidden
@@ -1444,6 +1561,9 @@ projects-root-<n>
 --mm-color-accent-base  --mm-color-accent-fg  --mm-color-accent-muted
 --mm-color-state-ready  --mm-color-state-blocked  --mm-color-state-someday
 --mm-color-state-working  --mm-color-state-done
+--mm-color-state-<slug>  (OPTIONAL, one per custom stage a theme declares a
+                          token for; falls back to --mm-color-accent-base
+                          when absent, §8.3)
 --mm-color-prio-high  --mm-color-prio-med  --mm-color-prio-low
 --mm-color-feedback-success  --mm-color-feedback-warning
 --mm-color-feedback-danger   --mm-color-feedback-info

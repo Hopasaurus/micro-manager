@@ -1,19 +1,20 @@
 # micro-manager — tooling specification
 
-    Spec version: 1
-    Date:         2026-07-29
+    Spec version: 2
+    Date:         2026-08-20
     Status:       draft
-    Depends on:   spec-file-format.md (spec version 1)
+    Depends on:   spec-file-format.md (spec version 2)
 
 This document specifies the command line tooling that reads and writes
 micro-manager directories. It is language-agnostic: it constrains behavior,
 argument surface, error semantics, and the split between library and wrapper,
 not the implementation language or its idioms.
 
-`spec-file-format.md` defines the on-disk formats and the invariants I1–I10.
-This document defines what a tool may do to them. Where the two disagree about
-what a file may contain, the format spec wins; a tool that would have to violate
-it is wrong, not the data.
+`spec-file-format.md` defines the on-disk formats and the invariants I1–I10
+(I4 and I10 retired at spec version 2; see that document's §7). This document
+defines what a tool may do to them. Where the two disagree about what a file
+may contain, the format spec wins; a tool that would have to violate it is
+wrong, not the data.
 
 ---
 
@@ -146,8 +147,7 @@ analogue; the rest apply to both.
 | Parsing and writing files | ✓ | |
 | Invariant validation | ✓ | |
 | Deciding a move is illegal | ✓ | |
-| WIP-limit enforcement | ✓ | |
-| Choosing the next free slot | ✓ | |
+| Per-stage WIP-limit enforcement | ✓ | |
 | Report period arithmetic | ✓ | |
 | Parsing `--since 2026-07-01` into a date | | ✓ (CLI-only) |
 | Opening `$EDITOR` on a detail file | | ✓ (CLI-only) |
@@ -226,7 +226,7 @@ envelope, whose `result` states what this build accepts:
   "operation": "help",
   "result": {
     "version": "0.1.0",
-    "formatSpec": "1",
+    "formatSpec": "2",
     "operations": ["add", "add-many", "archive", "..."],
     "modifiers": ["age", "all", "before", "..."]
   },
@@ -306,11 +306,17 @@ otherwise. The tool MUST resolve it in this order, stopping at the first hit:
    `spec-file-format.md` Appendix B, and use the result if exactly one is found.
 
 Steps 3 and 4 are DISCOVERY, so both apply Appendix B's emptiness test: a
-name-matching directory holding neither `backlog.md` nor `done.md` is not a
-candidate at all. It cannot be resolved to, and it cannot make a resolution
-ambiguous — which is the practical half of the rule, since a source tree that
-happens to contain a directory of that name would otherwise force every command
-in it to be answered with `--dir`.
+name-matching directory holding none of `board.md`, `backlog.md`, or `done.md`
+is not a candidate at all. It cannot be resolved to, and it cannot make a
+resolution ambiguous — which is the practical half of the rule, since a
+source tree that happens to contain a directory of that name would otherwise
+force every command in it to be answered with `--dir`.
+
+A directory found only by `backlog.md` resolves like any other candidate —
+it is a version-1 board, and `--migrate` (§5.3) and `--check` MUST still be
+reachable against it. Every other mutating operation MUST refuse with a
+version-mismatch error naming both versions (§10) rather than misparsing it
+(`spec-file-format.md` §9).
 
 If more than one candidate is found at the resolving step, the tool MUST fail
 with a not-found error listing the candidates and their `project` names, rather
@@ -347,20 +353,24 @@ A conforming implementation MUST provide all of these.
 #### 5.1.1 `--init` — create a directory
 
 ```
-mm --init [--dir PATH] --project NAME [--slots N] [--slot-width W]
+mm --init [--dir PATH] --project NAME [--wip-limit N]
              [--prefix P] [--description TEXT]
 ```
 
-Creates a micro-manager directory: `backlog.md` with the three sections and
-`next_id: T-0001`, `done.md` with no month groups, `N` working files
-(default 1), and `details/` containing `_template.md`. `structure.md` SHOULD be
-written too.
+Creates a micro-manager directory: `board.md` with `next_id: T-0001` and the
+default `stages: someday,ready,blocked,working` (format spec §5.1.1), `done.md`
+with no month groups, and `details/` containing `_template.md`. `structure.md`
+SHOULD be written too.
 
-`--slot-width` sets the digit width for working files (default 2, per
-format spec §5.2.1). `--slots` sets how many are created.
+`--wip-limit N` writes `wip.working: N` into the fresh `board.md` (format
+spec §5.1.3). Absent, no `wip.working` key is written and `working` starts
+**uncapped** — this is the one place version 2 does not reproduce version 1's
+out-of-the-box behavior by default (a fresh version-1 board always got one
+working file, so effectively `--wip-limit 1`); a caller that wants that
+default back passes `--wip-limit 1` explicitly.
 
 `--prefix P` claims the board's ID grammar at creation (format spec §3.3.2):
-the fresh `backlog.md` declares `id_prefix: P` and its first `next_id` is
+the fresh `board.md` declares `id_prefix: P` and its first `next_id` is
 `P-0001` instead of `T-0001`. P MUST be one to four uppercase ASCII letters
 (`A-Z`); anything else — including empty — is `InvalidArgument`. The prefix is
 the one grammar decision a board cannot re-make cleanly later: every existing
@@ -378,8 +388,10 @@ written.
 > operation and modifier switches to share one namespace so that no modifier may
 > reuse an operation's name. A parser implementing §3.2 literally reads
 > `mm --init --project P --wip 2` as two operations and refuses it. Renamed to
-> `--slots` rather than making the meaning of `--wip` depend on which operation
-> preceded it, which is exactly the context-sensitivity §3.2 exists to prevent.
+> `--slots`, and later `--wip-limit` when version 2 retired the working-file
+> count this modifier used to set (format spec §5.2, retired) in favor of a
+> `wip.working` frontmatter default — the collision with the `--wip` operation
+> (§5.2) is the same one each rename exists to avoid, not a new one.
 >
 > **The same collision remains in two places** and must be resolved the same way
 > when those operations are implemented. `--note ID TEXT` (§5.2) collided with
@@ -388,34 +400,40 @@ written.
 > with `--add --detail` (§5.1.2).
 
 Errors: `AlreadyExists` if the target already holds any of these files;
-`InvalidArgument` if `--project` is empty or `--prefix` is not one to four
-uppercase ASCII letters.
+`InvalidArgument` if `--project` is empty, `--prefix` is not one to four
+uppercase ASCII letters, or `--wip-limit` is not a positive integer.
 
 ---
 
-#### 5.1.2 `--add` — create a backlog item
+#### 5.1.2 `--add` — create a board item
 
 ```
-mm --add TITLE [--top] [--section ready|blocked|someday]
-             [--prio high|med|low] [--tag T]... [--blocked REASON]
+mm --add TITLE [--top] [--stage SLUG]
+             [--prio high|med|low] [--tag T]... [--reason TEXT]
              [--detail] [--detail-text TEXT] [--detail-file PATH]
-             [--created DATE] [--tickler SCHEDULE]
+             [--created DATE] [--tickler SCHEDULE] [--tickler-dest SLUG]
 ```
 
 Allocates the ID from `next_id`, writes the item line, increments `next_id`.
 
-- **Position: appended to the bottom of the section by default.** `--top`
+- **Position: appended to the bottom of the stage's run by default.** `--top`
   inserts at the top instead. The two are mutually exclusive with each other and
   with nothing else.
-- `--section` defaults to `ready`. `--section blocked` REQUIRES `--blocked`;
-  supplying `--blocked` implies `--section blocked` if no section was named.
+- `--stage` defaults to `ready`. A stage listed in the directory's
+  `needs_reason` (format spec §5.1.5; default `blocked`) REQUIRES `--reason`;
+  supplying `--reason` with no `--stage` named implies `--stage blocked` (or
+  whichever single stage is the directory's `needs_reason` default). `SLUG`
+  MUST be a member of the directory's declared `stages`.
 - `--created` defaults to today. It exists for backfilling.
 - `--tickler SCHEDULE` schedules the item (a SCHEDULE expression,
-  spec-file-format §3.3). It REQUIRES `--section someday` — I7 allows the field
-  nowhere else — and the item's `created:` anchors a never-fired recurring
-  schedule's first fire. The GUI composes this value from its Wake-up controls
-  (spec-gui §5.6); the CLI accepts the same grammar, which is the one the
-  library parses.
+  spec-file-format §3.3). It REQUIRES `--stage` to name a `SOURCE` in the
+  directory's `tickler_stages` (format spec §5.1.4; default `someday`) — I7
+  allows the field nowhere else — and the item's `created:` anchors a
+  never-fired recurring schedule's first fire. The GUI composes this value
+  from its Wake-up controls (spec-gui §5.6); the CLI accepts the same
+  grammar, which is the one the library parses.
+- `--tickler-dest SLUG` sets `tickler_dest`, overriding where this item's own
+  fires land (format spec §5.1.4). Only meaningful alongside `--tickler`.
 - `--tag` accumulates: `--tag infra --tag ci` produces `tags:infra,ci`.
 
 Detail file, at most one of:
@@ -431,23 +449,25 @@ Returns the created item, including its assigned ID. The ID MUST be reported in
 every output mode — a caller that just created an item needs its handle.
 
 Errors: `InvalidArgument` (empty title, title containing `|`, malformed tag,
-bad date, `--section blocked` without a reason), `Conflict` (`next_id` exhausted
-at the declared width's cap — `T-9999` for the default grammar).
+bad date, an unknown `--stage`, a `needs_reason` stage without `--reason`),
+`Conflict` (`next_id` exhausted at the declared width's cap — `T-9999` for
+the default grammar).
 
 ---
 
 #### 5.1.3 `--list` — read items
 
 ```
-mm --list [--section S] [--state backlog|working|done|all]
-          [--prio P] [--tag T] [--blocked] [--limit N] [--all]
+mm --list [--stage SLUG] [--state board|done|all]
+          [--prio P] [--tag T] [--has-reason] [--limit N] [--all]
 ```
 
-Lists items. Default state is `backlog`; `--state all` spans backlog, working
-slots, and done. Filters combine with AND. Order MUST be the on-disk order —
-`## Ready` order is meaningful (format spec §5.1) and a listing that re-sorts it
-by default hides the user's own prioritization. `--sort` MAY be offered but MUST
-default to on-disk order.
+Lists items. Default state is `board` (every non-done stage); `--state all`
+spans board and done; `--state done` is done only. `--stage SLUG` narrows
+further, to one declared stage. Filters combine with AND. Order MUST be the
+on-disk order — order within a stage is meaningful (format spec §5.1.6) and
+a listing that re-sorts it by default hides the user's own prioritization.
+`--sort` MAY be offered but MUST default to on-disk order.
 
 `--all` lists across every discovered directory, grouping by directory and
 showing each `project` name.
@@ -462,8 +482,8 @@ Errors: none beyond resolution failures.
 mm --show ID [--detail]
 ```
 
-Prints one item: every field, its current state (which file it lives in, and
-which slot if working), and — with `--detail` — the full detail file body.
+Prints one item: every field, its current state (`board`, with its `stage`,
+or `done`), and — with `--detail` — the full detail file body.
 
 `--show` MUST work regardless of where the item lives.
 
@@ -476,7 +496,8 @@ Errors: `NotFound`.
 ```
 mm --edit ID [--title TITLE] [--prio P] [--tag T]... [--untag T]...
              [--set KEY=VALUE]... [--unset KEY]...
-             [--blocked REASON] [--detail|--detail-text|--detail-file]
+             [--reason TEXT] [--tickler-dest SLUG]
+             [--detail|--detail-text|--detail-file]
 ```
 
 Modifies fields in place, wherever the item lives. Position is not changed —
@@ -519,91 +540,107 @@ either delete it in the same transaction or report the orphan; silently leaving
 an invalid directory is not conforming. RECOMMENDED: `--with-detail` deletes it,
 and the default reports what was left behind.
 
-Errors: `NotFound`, `PreconditionFailed` (no `--force`), `Conflict` (item is in
-a working slot — pause or finish it first).
+Errors: `NotFound`, `PreconditionFailed` (no `--force`), `Conflict` (item's
+`stage` is `working` — pause or finish it first).
 
 ---
 
-#### 5.1.7 `--move` — reposition a backlog item
+#### 5.1.7 `--move` — reposition or restage a board item
 
 ```
 mm --move ID (--position N | --top | --end | --before ID2 | --after ID2)
-            [--section S]
+            [--stage SLUG] [--reason TEXT]
 ```
 
-Moves an item within `backlog.md`. Exactly one destination selector is required.
+Moves an item within `board.md` — to a new position within its current
+stage, to a new stage, or both at once. Exactly one destination selector is
+required.
 
-- `--position N` — 1-based index within the target section. `N` greater than the
-  section length is an error, not a clamp; silently doing something adjacent to
-  what was asked is worse than refusing.
-- `--top`, `--end` — first or last in the section.
-- `--before`/`--after ID2` — relative to another item, which MUST be in the same
-  section after any `--section` is applied.
-- `--section S` moves between sections. Combined with a position selector, the
-  position is interpreted in the destination section. Moving into `blocked`
-  REQUIRES a `blocked:` field to exist or be supplied via `--blocked`; moving
-  out of `blocked` MUST drop it (I5). Moving out of `someday` MUST drop a
-  `tickler:` field — the schedule is consumed, and the checker would otherwise
-  reject the field outside `## Someday` (format spec I7); `tickled:` is kept,
-  it is historical (§5.3.3).
+- `--position N` — 1-based index within the target stage's run. `N` greater
+  than the run's length is an error, not a clamp; silently doing something
+  adjacent to what was asked is worse than refusing.
+- `--top`, `--end` — first or last within the target stage's run.
+- `--before`/`--after ID2` — relative to another item, which MUST be in the
+  same stage after any `--stage` is applied.
+- `--stage S` moves between stages, generalized to any two stages the
+  directory declares — not only among version 1's Ready/Blocked/Someday.
+  `S` MUST be a member of `stages`. Combined with a position selector, the
+  position is interpreted in the destination stage's run. Moving into a
+  stage listed in `needs_reason` (format spec §5.1.5) REQUIRES `reason` to
+  exist already or be supplied via `--reason`; moving *out* of one does
+  **not** drop `reason` (format spec §5.1.5 — unlike version 1's `blocked`,
+  it is no longer forbidden outside its required stage, so there is nothing
+  to strip). Moving out of a `tickler_stages` `SOURCE` (format spec §5.1.4)
+  MUST drop `tickler:` and `tickler_dest:` — the schedule is consumed, and
+  the checker would otherwise reject the field outside its declared sources
+  (format spec I7); `tickled:` is kept, it is historical (§5.3.3).
+- Moving into `working` or out of `working` is legal here too, and any
+  declared `wip.<slug>` cap on the destination is still pre-commit-validated
+  regardless of which operation is used (§8) — that check is not `--start`'s
+  alone. What `--start` and `--pause` (§5.1.8, §5.1.9) add on top is the
+  `started` stamp and notes preservation, which `--move` does not; an
+  implementation MAY still route `--move --stage working` through the same
+  underlying library call as `--start` minus those extras, rather than
+  maintaining two independent code paths.
 
-Only backlog items can be moved: ordering is meaningless in `done.md` beyond its
-month grouping, and working slots are interchangeable (format spec §5.2.1).
-Moving an item between working slots is `--start --slot`, not `--move`.
+Only board items can be moved: ordering is meaningless in `done.md` beyond
+its month grouping.
 
-Errors: `NotFound`, `Conflict` (item not in backlog), `InvalidArgument`
-(position out of range, `--before` naming an item in another section).
+Errors: `NotFound`, `Conflict` (item not in `board.md`), `InvalidArgument`
+(position out of range, `--before` naming an item in another stage, unknown
+`--stage`, a `needs_reason` destination without `reason`).
 
 ---
 
-#### 5.1.8 `--start` — backlog → working
+#### 5.1.8 `--start` — any stage → `working`
 
 ```
-mm --start ID [--slot NN]
+mm --start ID
 ```
 
-Removes the item line from `backlog.md` and writes its fields into a working
-file's frontmatter, setting `status: working` and `started` to today. Fields
-transfer verbatim, including unregistered ones and `detail:` (format spec §5.2
-requires identical lexical forms, so this is a copy, never a conversion). The
-body sections are left empty except `## Task`, which SHOULD be seeded with the
-title and a link to the detail file when one exists.
+Sets `stage:working` and `started` to today, in place in `board.md`. Every
+other field is preserved verbatim, including unregistered ones — this is a
+single-file, in-place edit (format spec §5.1.6), not a move between files.
+The item is appended to the end of the `working` run (format spec §5.1.6).
 
-Slot selection: `--slot NN` names one explicitly and fails if it is occupied.
-Without it, the **lowest-numbered idle slot** is used.
+**If `working` has a `wip.working` cap and is already at it, this MUST fail
+with `WipLimitReached`.** The tool MUST NOT raise the cap to make room — that
+would silently change a deliberate limit, which is the one thing the cap
+exists to prevent. The error message MUST state the limit, what currently
+occupies it, and the three ways forward: finish something, pause something,
+or raise the limit deliberately with `--wip` (§5.2). A directory with no
+`wip.working` key has no cap and this error cannot occur.
 
-**If every working file is occupied, this MUST fail with `WipLimitReached`.**
-The tool MUST NOT create a new working file to make room — that would silently
-raise the WIP limit, which is the one thing the limit exists to prevent. The
-error message MUST state the limit, what currently occupies the slots, and the
-three ways forward: finish something, pause something, or raise the limit
-deliberately with `--wip`.
-
-Errors: `NotFound`, `Conflict` (item not in backlog), `WipLimitReached`,
-`PreconditionFailed` (`--slot` names an occupied or nonexistent slot).
+Errors: `NotFound`, `Conflict` (item already `stage:working`, or is in
+`done.md`), `WipLimitReached`.
 
 ---
 
-#### 5.1.9 `--pause` — working → backlog
+#### 5.1.9 `--pause` — `working` → another stage
 
 ```
-mm --pause ID [--top] [--section S] [--keep-notes|--discard-notes]
+mm --pause ID [--top] [--stage S] [--keep-notes|--discard-notes]
 ```
 
-The inverse of `--start`. Writes the item back as a backlog line preserving all
-fields including `started`, and resets the slot to `status: idle` with every
-item field `null`.
+The inverse of `--start`. A single-file, in-place edit of `board.md`: sets
+`stage` to the destination (default `ready`) and preserves every other field,
+including `started`.
 
-Subtasks in `## Plan` are discarded — they are scratch by design. `## Notes`
-content is the risk: it exists nowhere else. The tool MUST NOT discard it
-silently. Default behavior MUST be to preserve it by appending to the item's
-detail file, creating that file if necessary; `--discard-notes` opts out
-explicitly.
+Subtasks in the item's detail file's `## Plan` (format spec §5.4) are left as
+they are — nothing about pausing touches `details/`. `## Notes` content in
+the same file needs no special handling either, now that it lives in
+`details/<ID>.md` permanently rather than in a working file that is about to
+stop existing (format spec §5.1, "Where `## Task`/…​ go"); `--keep-notes` /
+`--discard-notes` are kept as accepted no-ops for command-line compatibility
+with version-1 scripts, since there is no longer a transient copy to decide
+the fate of.
 
-Position defaults to the top of `## Ready` — a paused item is usually the next
-thing you will pick up, not the last. `--top`/`--section` override.
+Position defaults to the top of the destination stage's run — a paused item
+is usually the next thing you will pick up, not the last. `--top`/`--stage`
+override.
 
-Errors: `NotFound`, `Conflict` (item is not in a working slot).
+Errors: `NotFound`, `Conflict` (item's `stage` is not `working`),
+`InvalidArgument` (unknown `--stage`).
 
 ---
 
@@ -614,22 +651,21 @@ mm --finish ID [--outcome shipped|cancelled|obsolete] [--done DATE]
               [--closing-note TEXT]
 ```
 
-Moves an item to `done.md`: box becomes `x`, `done` is set (default today),
-`outcome` is set (default `shipped`), all other fields are preserved, and the
-line is inserted at the **top** of the month group matching the `done` date,
-creating that group if absent and placing it in newest-first order.
+Moves an item from `board.md` to `done.md`, dropping `stage:`: box becomes
+`x`, `done` is set (default today), `outcome` is set (default `shipped`),
+all other fields are preserved, and the line is inserted at the **top** of
+the month group matching the `done` date, creating that group if absent and
+placing it in newest-first order.
 
-One field does not survive: a scheduled item carries `tickler:` nowhere but
-`## Someday` (format spec I7), and `done.md` is not it, so finishing a
-scheduled item drops the schedule — the user's way to retire a prototype.
-`tickled:` is kept, it is historical (§5.3.3).
+One field does not survive: a scheduled item carries `tickler:` only on a
+stage named in `tickler_stages` (format spec §5.1.4), and `done.md` is not
+one, so finishing a scheduled item drops `tickler:` and `tickler_dest:` — the
+user's way to retire a prototype. `tickled:` is kept, it is historical
+(§5.3.3).
 
-MUST work from a working slot (resetting it to idle) and from `backlog.md`
-directly — closing something without ever starting it is normal, and
-`--outcome cancelled` from the backlog is the supported way to abandon work.
-
-`## Notes` from a working slot is handled as in `--pause`: preserved into the
-detail file by default, since this is the last moment it exists.
+MUST work from any stage, including `working` — closing something without
+ever starting it is normal, and `--outcome cancelled` from any stage is the
+supported way to abandon work.
 
 `--closing-note TEXT` appends a closing note to the detail file, creating it if
 needed.
@@ -650,8 +686,8 @@ already in `done.md`).
 ```
 mm --report [--period TOKEN | --last-week | --this-week | --week YYYY-Www
              | --since DATE [--until DATE]]
-            [--group-by outcome|tag|day|none] [--include-wip]
-            [--include-backlog] [--include-archives] [--all]
+            [--group-by outcome|tag|day|none] [--include-stage SLUG]...
+            [--include-wip] [--include-backlog] [--include-archives] [--all]
 ```
 
 Gathers completed items into a list. This is the operation people run at the end
@@ -715,9 +751,15 @@ Content:
 - `--group-by` defaults to `none` (a flat list). `outcome` groups shipped /
   cancelled / obsolete; `tag` repeats an item under each of its tags and lists
   untagged items last; `day` groups by `done` date.
-- `--include-wip` appends what is currently in the working slots, marked as
-  in progress. RECOMMENDED for a standup-style report.
-- `--include-backlog` appends the top few `## Ready` items as "next".
+- `--include-stage SLUG` appends what currently sits in a given stage, marked
+  with that stage; repeatable, one stage per occurrence. `--include-wip` is
+  kept as a shorthand for `--include-stage working` — the highest-frequency
+  case and RECOMMENDED for a standup-style report — rather than retired now
+  that the general form exists, so existing scripts and muscle memory keep
+  working.
+- `--include-backlog` appends the top few items from the board's default
+  resting stage (`ready`, unless the directory's `stages` orders differently)
+  as "next".
 - `--include-archives` also reads `done-YYYY.md` files. Without it, a report
   covering an archived period silently returns nothing, so the tool MUST warn
   when the requested period predates the oldest month group present in
@@ -743,9 +785,11 @@ Runs every invariant I1–I10 and reports violations as `file:line: message`,
 sorted by path then numeric line. Exits 1 if any directory has a violation.
 
 `--all` checks what discovery found, which excludes a name-matching directory
-holding neither `backlog.md` nor `done.md` (`spec-file-format.md` Appendix B).
-A directory named explicitly is checked whatever it holds: failing the same
-test there is an error, since the user asked about that directory.
+holding none of `board.md`, `backlog.md`, or `done.md`
+(`spec-file-format.md` Appendix B). A directory named explicitly is checked
+whatever it holds: failing the same test there is an error, since the user
+asked about that directory. `--check` runs against a version-1 directory too
+(§4) and reports it against version-1's own invariants, not version-2's.
 
 `--check` MUST also report a **sibling collision** — two recognized names in
 one parent directory, `spec-file-format.md` Appendix B — against each colliding
@@ -766,23 +810,23 @@ that its absence pushes users back to editing by hand.
 
 | Switch | Behavior |
 |---|---|
-| `--block ID --reason TEXT` | Move to `## Blocked` and set `blocked:`. Sugar over `--move --section blocked`. |
-| `--unblock ID [--top]` | Move to `## Ready` and drop `blocked:`. |
-| `--note ID TEXT` | Append a dated entry to the working file's `## Notes`, or to the detail file if the item is not in a slot. The highest-frequency write in daily use. |
-| `--wip N` | Set the WIP limit by creating or deleting working files. Deleting MUST refuse unless the highest-numbered files are idle (I10), and MUST NOT renumber occupied slots. |
-| `--status` | One screen: what is in each slot, WIP `n/N`, counts by section, oldest untouched Ready item, and — when set — the board description (§5.3.2). The JSON envelope carries it in `directory.description` (§9.2); human output MAY show it. |
-| `--next` | Print the top of `## Ready` — the thing to start next. Exits non-zero if empty. |
+| `--block ID --reason TEXT` | Move to `stage:blocked` and set `reason:`. Sugar over `--move --stage blocked`; still named for the common default even though the underlying mechanism is now any `needs_reason` stage. |
+| `--unblock ID [--top]` | Move to `stage:ready`. Does NOT drop `reason:` (format spec §5.1.5) — unlike version 1, the field is not forbidden outside `## Blocked`, so there is nothing to strip. |
+| `--note ID TEXT` | Append a dated entry to the item's detail file's `## Notes`, creating the file if needed (format spec §5.4). The highest-frequency write in daily use. |
+| `--wip N [--stage SLUG]` | Set stage `SLUG`'s WIP cap (default `working`) by writing its `wip.<slug>` key (format spec §5.1.3); `--wip 0` or an absent-key equivalent removes the cap. Unlike version 1, this is a frontmatter edit, not a file count — it MUST refuse only if the stage already holds more items than the new cap, not because of slot contiguity, which no longer exists. |
+| `--status` | One screen: counts per stage, WIP `n/N` for each capped stage, the oldest untouched item in the board's default resting stage, and — when set — the board description (§5.3.2). The JSON envelope carries it in `directory.description` (§9.2); human output MAY show it. |
+| `--next` | Print the top of the board's default resting stage (`ready`, unless the directory orders `stages` differently) — the thing to start next. Exits non-zero if empty. |
 | `--search QUERY` | Substring or regex match over titles, tags, and detail bodies; reports state and location per hit. |
-| `--find` | List discovered micro-manager directories with their `project` names. The discovery step, exposed — so a name-matching directory that fails Appendix B's emptiness test does not appear. |
+| `--find` | List discovered micro-manager directories with their `project` names. The discovery step, exposed — so a name-matching directory that fails Appendix B's emptiness test does not appear. Reports a version-1 directory too, marked as such. |
 | `--detail ID` | Open, create, or print the detail file for an item. |
-| `--subtask ID TEXT` / `--subtask-done ID N` | Append to and tick off `## Plan` entries in a working slot. |
+| `--subtask ID TEXT` / `--subtask-done ID N` | Append to and tick off `## Plan` entries in the item's detail file (format spec §5.4). No longer restricted to an item in `stage:working` — any item's detail file MAY carry a plan. |
 | `--add-many [FILE]` | Add many items in ONE transaction, one per input line (§5.2.1). Sugar over repeated `--add`, except for the part that is not sugar: the whole batch commits or none of it does. |
 
 #### 5.2.1 `--add-many` in detail
 
 ```
-mm --add-many [FILE] [--top] [--section ready|blocked|someday]
-              [--prio high|med|low] [--tag T]... [--blocked REASON]
+mm --add-many [FILE] [--top] [--stage SLUG]
+              [--prio high|med|low] [--tag T]... [--reason TEXT]
               [--created DATE] [--tickler SCHEDULE]
 ```
 
@@ -800,7 +844,7 @@ implementation of it would drift.
 
 **One transaction, not N.** This is the whole reason the operation exists
 rather than being left to a shell loop. All the items are built, all their IDs
-are allocated, the result is validated once, and then `backlog.md` is written
+are allocated, the result is validated once, and then `board.md` is written
 once (§7). A malformed line anywhere means **nothing** is written, and the
 error names the line. A loop over `--add` gives the opposite: eleven items
 added and the twelfth rejected, with no record of where the run stopped.
@@ -819,10 +863,11 @@ TITLE | prio:high | tags:infra,ci
   checklist pasted out of a document is valid input as it stands.
 - The fields are the format's `key:value` pairs, separated by ` | `
   (space pipe space), and MUST be exactly the set `--add` can set:
-  `prio`, `tags`, `refs`, `created`, `blocked`, `tickler`, and unregistered
-  keys, which are preserved verbatim as everywhere else. A registered field
-  `--add` cannot set — `detail`, `started`, `done`, `outcome`, `tickled` — is a
-  usage error naming the line, not a silently dropped value.
+  `stage`, `prio`, `tags`, `refs`, `created`, `reason`, `tickler`,
+  `tickler_dest`, and unregistered keys, which are preserved verbatim as
+  everywhere else. A registered field `--add` cannot set — `detail`,
+  `started`, `done`, `outcome`, `tickled` — is a usage error naming the line,
+  not a silently dropped value.
 - `detail:` is refused for a reason worth stating: the path must match the
   item's own ID (I8), and the ID does not exist until this operation allocates
   it. A caller who wants detail files adds the items and then writes them.
@@ -834,18 +879,22 @@ TITLE | prio:high | tags:infra,ci
   so `[WIP] Ship the thing` stays an ordinary title.
 
 **Modifiers are defaults; a line's own fields win.** `--prio high` sets the
-priority of every line that does not name one. `--section` chooses the section
-for the batch, and a line's `blocked:` reason moves that line to `## Blocked`
-exactly as it would under `--add` — so one run may write into two sections.
+priority of every line that does not name one. `--stage` chooses the stage
+for the batch, and a line's own `stage:` field, if present, overrides it for
+that line — so one run may write into several stages. A line's `reason:`
+does NOT imply a `needs_reason` stage the way it does under `--add`
+(§5.1.2) unless the line also names one: a bulk import is not a place to
+guess which stage a bare `reason:` was meant to imply.
 
 A line's fields mean **exactly** what the same fields mean to `--add`, which
 settles the one case where the two could plausibly differ: `tickler:` does NOT
-imply `--section someday` the way `blocked:` implies `## Blocked`, because
-`--add` requires the section to be named (§5.1.2) and a bulk line is not a
-place to invent a second rule. A schedule on a line in any other section is the
-same error `--add` raises.
+imply a tickler-eligible `--stage` the way `--add` infers one is required,
+because `--add` requires the stage to be named when it carries a schedule
+(§5.1.2) and a bulk line is not a place to invent a second rule. A schedule
+on a line whose stage is not `tickler_stages`-eligible is the same error
+`--add` raises.
 
-**Order is the input's order.** Appended to the bottom of the section by
+**Order is the input's order.** Appended to the bottom of the stage's run by
 default; `--top` inserts the batch at the top, still in the input's order. A
 `--top` that reversed the batch would be a surprise nobody wants: the list
 someone pasted is a list they had already put in an order.
@@ -870,12 +919,12 @@ MAY be provided.
 | Switch | Behavior |
 |---|---|
 | `--archive [--before YYYY-MM \| --age DAYS]` | Move old month groups from `done.md` to `done-YYYY.md`, and their detail files to `details-YYYY/` (format spec §5.6). MUST warn that archived items leave the ID pool and stop being covered by I1/I2 (format spec §10.5). |
-| `--migrate` | Bring a directory to the current format version: rename `working.md` → `working.01.md`, add a missing `project`, normalize `tags` from a YAML flow sequence to a `TAGLIST`. MUST be dry-runnable and MUST report every change. |
+| `--migrate [--to VERSION]` | Bring a directory to the current (or a named) format version by applying every step in the versioned migration chain between its current version and the target, as one transaction. MUST be dry-runnable and MUST report every change. See §5.3.4. |
 | `--stats [--since DATE]` | Throughput, cycle time from `started` to `done`, WIP over time, tag distribution. |
 | `--export [--format json\|csv]` | Whole-directory dump for external tooling. |
-| `--top-up` | Interactive triage over `## Someday`, promoting items to `## Ready`. |
+| `--top-up` | Interactive triage over the `someday` stage (or whichever stages a directory's `tickler_stages` treats that way), promoting items to `ready`. |
 | `--describe TEXT` | Write or replace the first paragraph of `structure.md` — the board description (§5.3.2). |
-| `--tick [--dry-run]` | Run the tickler once: evaluate every `## Someday` item's `tickler:` schedule against today and fire the due ones — one-shot items move to `## Ready` with the schedule consumed; recurring items are prototypes that spawn a new Ready item on each fire (§5.3.3). MUST report what fired and what errored. |
+| `--tick [--dry-run]` | Run the tickler once: evaluate every tickler-eligible item's `tickler:` schedule against today and fire the due ones — one-shot items move to their destination stage with the schedule consumed; recurring items are prototypes that spawn a new item there on each fire (§5.3.3). MUST report what fired and what errored. |
 
 #### 5.3.1 `--archive` in detail
 
@@ -955,41 +1004,48 @@ Errors: none specific to the value — free prose cannot be invalid.
 
 #### 5.3.3 `--tick` in detail
 
-Runs the tickler once: every `## Someday` item carrying `tickler:` (format
-spec §6) is evaluated against today, and the due ones fire. Firing is a
-mutation like any other — it accepts `--dry-run` and runs the §7 transaction
-machinery. The default is manual, like every operation; a scheduled run is
-the cron/systemd surface (`mm --tick --dir …` from a timer, with
-`Persistent=true` so a missed run fires on boot).
+Runs the tickler once: every item whose current stage is a `SOURCE` named in
+the directory's `tickler_stages` (format spec §5.1.4; default `someday`) and
+that carries `tickler:` (format spec §6) is evaluated against today, and the
+due ones fire. Firing is a mutation like any other — it accepts `--dry-run`
+and runs the §7 transaction machinery. The default is manual, like every
+operation; a scheduled run is the cron/systemd surface (`mm --tick --dir …`
+from a timer, with `Persistent=true` so a missed run fires on boot).
+
+**A fire's destination** is the item's own `tickler_dest`, if it carries one,
+otherwise its current stage's `DEST` entry in `tickler_stages` (format spec
+§5.1.4) — `ready`, for a board that never customizes either.
 
 **Two kinds of fire**, a property of the schedule value, not a separate flag
 (format spec §3.3 `SCHEDULE`):
 
-- **One-shot** (`tickler:2026-09-01`): the item moves to `## Ready`, its
-  `tickler:` field is dropped, and `tickled:<today>` is stamped. The schedule
-  is consumed; the item is an ordinary ready item from here on.
+- **One-shot** (`tickler:2026-09-01`): the item moves to its destination, its
+  `tickler:` and `tickler_dest:` fields are dropped, and `tickled:<today>` is
+  stamped. The schedule is consumed; the item is an ordinary item of its new
+  stage from here on.
 - **Recurring** (`mon@08:00`, `first-mon@08:00`, `15@08:00`, `last@08:00`):
-  the item is a **prototype**. A new item is added to `## Ready` — a fresh ID
-  (`next_id` bumps, format spec I2), the prototype's title, `prio`, and
-  `tags`, and `created:<today>` — while the prototype stays in `## Someday`
-  with `tickler` intact and `tickled:<today>` stamped, ready for its next
-  fire.
+  the item is a **prototype**. A new item is added at its destination — a
+  fresh ID (`next_id` bumps, format spec I2), the prototype's title, `prio`,
+  and `tags`, and `created:<today>` — while the prototype stays at its
+  source stage with `tickler` (and `tickler_dest`, if any) intact and
+  `tickled:<today>` stamped, ready for its next fire.
 
 **A spawn copies title, prio, and tags — nothing else.** In particular it
 carries no `detail:`: format spec I9 claims every detail file exactly once, so
 a spawned copy pointing at the prototype's file would abort the transaction on
 validation. The prototype keeps its own detail; the spawned copy starts bare.
 
-**Both fires live entirely in `backlog.md`** — Someday and Ready are the same
-file, so a fire is a single-file transaction, the simplest shape the envelope
-has. Nothing in a fire touches working files, `done.md`, or `details/`.
+**Every fire lives entirely in `board.md`** — every stage is the same file,
+so a fire is a single-file transaction, the simplest shape the envelope has.
+Nothing in a fire touches `done.md` or `details/`.
 
-**The move out of Someday clears `tickler`.** A fire's one-shot path is
-exactly the §5.1.7 rule — moving an item out of `## Someday` drops `tickler:`
-and keeps `tickled:` — plus `tickled:<today>`. Without the rule, dragging a
-scheduled someday item to Ready would leave a field the checker rejects
-(format spec I7: `tickler` is Someday-only) and the move would die with
-`InvariantViolation` for no visible reason.
+**The move out of the source stage clears `tickler` and `tickler_dest`.** A
+fire's one-shot path is exactly the §5.1.7 rule — moving an item out of a
+`tickler_stages` `SOURCE` drops `tickler:` and `tickler_dest:` and keeps
+`tickled:` — plus `tickled:<today>`. Without the rule, moving a scheduled
+item to a non-eligible stage would leave a field the checker rejects (format
+spec I7: `tickler` is valid only in a declared `SOURCE`) and the move would
+die with `InvariantViolation` for no visible reason.
 
 **Due test.** Let `last` be `tickled` (absent for a never-fired item):
 
@@ -1027,6 +1083,62 @@ Errors: a malformed `tickler:` value (hand-edited garbage) is reported as a
 per-item error and the run continues — never fatal. `Concurrent` and `Io`
 apply as for any write (§7).
 
+#### 5.3.4 `--migrate` in detail
+
+Version 1 of this document treated `--migrate` as a grab-bag of small,
+unversioned historical fixups. This version replaces that with a general,
+**chained** mechanism: a directory's format version (`board.md`'s or
+`backlog.md`'s `version:` key, `spec-file-format.md` §5.1) determines where
+it enters the chain, and `--migrate` applies every step from there to the
+target version, in order, as one operation.
+
+**The chain is a registered, ordered list of steps**, each a `(from, to)`
+version pair with its own transform. An implementation adds a step the day a
+new incompatible format version ships; it never replaces or renumbers an
+existing one. This document's step:
+
+| From | To | Changes |
+|---|---|---|
+| 1 | 2 | `backlog.md` renamed `board.md`; `working.NN.md` folded in via `stage:` (one item line per working file, `slot` dropped); `blocked:` renamed `reason:`; new `board.md` frontmatter keys `stages`, `stage_labels`, `wip.<slug>`, `tickler_stages`, `needs_reason`; new item field `tickler_dest`; working-file `## Notes`/`## Plan`/`## Blockers` content moved into `details/<ID>.md`. Full detail: `spec-file-format.md` Appendix C. |
+
+`--to VERSION` targets a specific version instead of the latest this build
+implements — chiefly useful once an implementation supports more than one
+version bump and a caller wants to stop partway for inspection. Absent,
+`--migrate` targets the latest version this build implements.
+
+**Every step in the run is one transaction**, reusing §7's existing
+discipline rather than a parallel one: read every file the step touches,
+build the target-version model in memory, validate it against the *target*
+version's invariants, write atomically, report exactly what changed.
+`--dry-run` computes and reports without writing, as every mutation must
+(§3.4). A directory two versions behind runs both steps in one invocation,
+validating after each, so a bug in step 1 can never leave step 2 running
+against an invalid intermediate state.
+
+**`--migrate` SHOULD warn when the target directory is inside a git working
+tree with uncommitted changes**, recommending a commit first. This is cheap
+insurance that reuses git rather than a backup mechanism the format doesn't
+otherwise need, and it MUST NOT block the migration — a warning, not a guard.
+
+**Longevity policy**, stated here for readers of the operation (the format's
+own statement is `spec-file-format.md` §9): a conforming implementation MUST
+fully support the current version's complete operation set and MUST be able
+to migrate any older version forward — every step function is cheap to keep
+indefinitely, a one-shot transform rather than a parallel implementation. It
+is NOT required to support full day-to-day mutation against an unmigrated
+directory; `--add`, `--start`, `--pause`, `--finish`, `--move`, `--edit`, and
+`--remove` SHOULD refuse against a directory below the current version with
+`VersionMismatch` (§6.3), naming both versions and pointing at `--migrate`.
+`--list`, `--show`, `--check`, and `--migrate` itself MUST continue to work
+against an older version; other read operations MAY, at an implementation's
+discretion.
+
+Errors: `InvalidArgument` (`--to` naming a version this build does not
+implement, or one older than the directory's current version), `Conflict`
+(directory is already at the target version — a no-op, not a failure, but
+one worth distinguishing so a script can tell "nothing to do" from
+"something went wrong").
+
 ## 6. Library API
 
 Notation is pseudo-code: `name(params) -> Result<T, Error>`. Implementations map
@@ -1039,10 +1151,9 @@ semantics survive. Field names are normative; parameter passing style is not.
 Item {
   id            ID              # "T-0042"
   title         string
-  state         Backlog | Working | Done
-  section       Ready | Blocked | Someday | null    # backlog only
-  slot          int | null                          # working only
-  position      int | null                          # 1-based, backlog only
+  state         Board | Done                          # format spec §5.1, §5.3
+  stage         Stage | null                           # board only (format spec §5.1.1)
+  position      int | null                          # 1-based, within its stage's run
   prio          "high" | "med" | "low" | null
   tags          [string]
   detail        path | null
@@ -1050,16 +1161,29 @@ Item {
   started       date | null
   done          date | null
   outcome       "shipped" | "cancelled" | "obsolete" | null
-  blocked       string | null
-  tickler       string | null   # SCHEDULE, Someday only (format spec §6)
+  reason        string | null   # format spec §6; required where needs_reason lists `stage`
+  tickler       string | null   # SCHEDULE; valid only where `stage` is a tickler_stages SOURCE
+  tickler_dest  Stage | null    # overrides the fire destination for this item (format spec §5.1.4)
   tickled       date | null     # last tickler fire (format spec §6)
   extra         map<string,string>   # unregistered fields, preserved verbatim
   source        Location             # file + line, for diagnostics
 }
 
-Slot        { number int, width int, occupied bool, item Item|null }
-Directory   { path, project string, wipLimit int, wipUsed int, nextId ID,
-              description string | null   # first paragraph of structure.md (§5.3.2); null when none }
+Stage       — a directory-scoped value, not a closed enum (format spec §5.1.1)
+  parseStage(string, declared []Stage) -> Stage  # InvalidArgument if not a member of `declared`
+  String()    -> string   # the stored slug, verbatim
+
+StageConfig {
+  stages          [Stage]                # order-significant (format spec §5.1.1)
+  labels          map<Stage,string>      # format spec §5.1.2; sparse, missing = derive from slug
+  wipLimits       map<Stage,int>         # format spec §5.1.3; sparse, missing = uncapped
+  ticklerStages   map<Stage,Stage>       # SOURCE -> DEST (format spec §5.1.4)
+  needsReason     [Stage]                # format spec §5.1.5
+}
+Directory   { path, project string, nextId ID, stages StageConfig,
+              wipUsed map<Stage,int>,   # current count per stage with a wipLimits entry
+              description string | null   # first paragraph of structure.md (§5.3.2); null when none
+              version int }               # this directory's current format version
 Violation   { file path, line int|null, invariant string, message string }
 
 DiscoveryOptions {
@@ -1086,13 +1210,16 @@ Schedule    — immutable value type (format spec §3.3 SCHEDULE)
   fireDate()             -> DATE|null   # a one-shot's date; null when recurring
   next(after DATE)       -> DATE|null   # smallest fire instant strictly after;
                                         # null when it will never fire again
-Tickler     { id ID, schedule string, last DATE|null, next DATE|null }
+Tickler     { id ID, schedule string, dest Stage, last DATE|null, next DATE|null }
                                         # read-only; last = tickled; next =
                                         # Schedule.next(last ?? created) against
                                         # the caller's "now" (§5.3.3)
 TickResult  { fired [FiredTickler], errors [TickError] }
-FiredTickler { id ID, kind move|spawn, spawned ID|null, tickled DATE }
+FiredTickler { id ID, kind move|spawn, spawned ID|null, dest Stage, tickled DATE }
 TickError   { id ID, error string }
+
+MigrationStep    { from int, to int }   # one entry per registered chain link (§5.3.4)
+MigrationResult  { from int, to int, changes [Change], warnings [string] }
 ```
 
 `extra` is load-bearing: format spec §9 makes unregistered fields the extension
@@ -1112,16 +1239,17 @@ Store.addMany([AddRequest])     -> [Item]          # --add-many (§5.2.1), ONE t
 Store.parseAddLine(string)      -> AddRequest      # the §5.2.1 line grammar
 Store.update(ID, UpdateRequest) -> Item
 Store.remove(ID, RemoveOptions) -> Change
-Store.move(ID, Destination)     -> Item
-Store.start(ID, slot?)          -> Item
+Store.move(ID, Destination)     -> Item            # Destination carries an optional target Stage
+Store.start(ID)                 -> Item
 Store.pause(ID, PauseOptions)   -> Item
 Store.finish(ID, FinishOptions) -> Item
 Store.report(Period, ReportOptions) -> Report
 Store.validate()                -> [Violation]
-Store.setWipLimit(int)          -> Directory
+Store.setWipLimit(Stage, int|null)  -> Directory   # null clears the cap (§5.1.3)
 Store.setDescription(text)      -> Directory   # --describe (§5.3.2)
 Store.ticklers(now DATE)        -> [Tickler]   # read-only (§5.3.3)
 Store.tick(now DATE, dryRun bool) -> TickResult  # --tick (§5.3.3)
+Store.migrate(toVersion int|null, dryRun bool) -> [MigrationResult]  # --migrate (§5.3.4)
 discover(DiscoveryOptions)      -> DiscoveryResult
 ```
 
@@ -1136,14 +1264,15 @@ exit codes (§10) and a UI maps them to messages.
 
 | Error | Raised when |
 |---|---|
-| `NotFound` | ID, slot, or directory does not exist. |
+| `NotFound` | ID or directory does not exist. |
 | `Ambiguous` | Directory resolution matched more than one candidate. |
-| `InvalidArgument` | A value fails the format spec: bad date, unknown prio, pipe in a title, malformed tag. |
-| `Conflict` | The operation contradicts the item's state: starting a done item, moving a working item, finishing twice. |
-| `WipLimitReached` | `--start` with every slot occupied. Distinct from `Conflict` because it is the one error with a routine, expected remedy. |
-| `PreconditionFailed` | A guard was not satisfied: `--remove` without `--force`, `--slot` on an occupied slot. |
-| `InvariantViolation` | The requested change would produce a directory that fails I1–I10. Carries the `Violation` list. |
+| `InvalidArgument` | A value fails the format spec: bad date, unknown prio, pipe in a title, malformed tag, an unknown `Stage`. |
+| `Conflict` | The operation contradicts the item's state: starting a done item, moving an already-`working` item into `working`, finishing twice. |
+| `WipLimitReached` | A stage's `wip.<slug>` cap is already met. Distinct from `Conflict` because it is the one error with a routine, expected remedy. |
+| `PreconditionFailed` | A guard was not satisfied: `--remove` without `--force`. |
+| `InvariantViolation` | The requested change would produce a directory that fails I1–I10 (I4, I10 retired). Carries the `Violation` list. |
 | `Concurrent` | The directory changed underneath the operation (§7). |
+| `VersionMismatch` | A mutating operation was attempted against a directory below the implementation's current format version (§5.3.4, `spec-file-format.md` §9). Names both versions and points at `--migrate`. |
 | `Io` | Filesystem or permission failure. |
 
 Every error MUST carry a message naming the item or file involved. `Conflict`
@@ -1152,9 +1281,12 @@ and `WipLimitReached` SHOULD name the remedy.
 ## 7. Transactions, atomicity, concurrency
 
 An operation is a transaction over one directory. It MUST be all-or-nothing:
-`--start` touches `backlog.md` and a working file, `--edit --title` touches an
-item's file and possibly a detail file, and a partial application of either
-leaves the directory invalid.
+`--edit --title` touches an item's line in `board.md` and possibly a detail
+file, `--finish` touches `board.md` and `done.md`, and a partial application
+of either leaves the directory invalid. Most board-side operations —
+`--start`, `--pause`, `--move`, `--edit` without a title change — are
+single-file edits of `board.md` alone (format spec §5.1.6), a simpler shape
+than version 1's `backlog.md` + `working.NN.md` split.
 
 Required behavior:
 
@@ -1167,9 +1299,13 @@ Required behavior:
    or the new one, never a truncated one.
 4. **Order writes so a crash between them is recoverable.** Where a multi-file
    transaction cannot be made atomic, order the writes so the surviving state
-   fails validation loudly rather than losing an item. For `--start`: write the
-   working file first, then remove the line from `backlog.md`. A crash between
-   them duplicates the item — which I1 catches — instead of destroying it.
+   fails validation loudly rather than losing an item. For `--finish`: write
+   `done.md` first, then remove the line from `board.md`. A crash between them
+   duplicates the item — which I1 catches — instead of destroying it. A
+   migration step (§5.3.4) follows the same principle across more files: the
+   `1→2` step writes `board.md` (with every folded-in item) before deleting
+   any `working.NN.md` file, so an interruption leaves a duplicate to re-run
+   over, never a hole.
 5. **Detect concurrent modification.** Record each file's size and modification
    time when read; if they differ at write time, abort with `Concurrent`. This
    is cheap and catches the realistic case: the user editing by hand in another
@@ -1181,7 +1317,8 @@ Required behavior:
 
 Never-do list:
 
-- MUST NOT reorder `## Ready` as a side effect of an unrelated operation.
+- MUST NOT reorder a stage's item run as a side effect of an unrelated
+  operation.
 - MUST NOT renumber IDs or decrement `next_id`.
 - MUST NOT drop unregistered fields or unknown frontmatter keys.
 - MUST NOT rewrite files it did not need to change. A no-op operation writes
@@ -1235,7 +1372,7 @@ One JSON object on stdout, nothing else — no progress text, no warnings mixed 
   "operation": "add",
   "directory": { "path": "...", "project": "Sample One", "description": "A small-file todo system." },
   "result": { },
-  "changes": [ { "kind": "created", "id": "T-0004", "file": "backlog.md" } ],
+  "changes": [ { "kind": "created", "id": "T-0004", "file": "board.md" } ],
   "warnings": [],
   "errors": []
 }
@@ -1274,6 +1411,7 @@ appended to.
 | 4 | Precondition failed: WIP limit reached, wrong state, guard not satisfied. |
 | 5 | Concurrent modification. |
 | 6 | I/O or environment failure. |
+| 7 | Version mismatch: a mutating operation was attempted against a directory below the implementation's current format version (`VersionMismatch`, §6.3, §5.3.4). |
 
 `--dry-run` returns the code the real run would have returned, so it can gate a
 script.
@@ -1303,21 +1441,24 @@ mm --add "Rotate the leaked token" --prio high --top
 
 # reorder after triage
 mm --move T-0042 --position 3
-mm --move T-0031 --section someday
+mm --move T-0031 --stage someday
 
-# start work; fails cleanly at the limit
+# start work; fails cleanly at the limit (only if wip.working is set)
 mm --start T-0042
 # -> error: WIP limit reached (3/3)
-#      slot 01  T-0018  Migrate the build cache
-#      slot 02  T-0027  Fix flaky auth test
-#      slot 03  T-0031  Rewrite the deploy docs
+#      T-0018  Migrate the build cache
+#      T-0027  Fix flaky auth test
+#      T-0031  Rewrite the deploy docs
 #    finish one, pause one, or raise the limit with --wip 4
 
-mm --pause T-0031          # notes preserved into details/T-0031.md
-mm --start T-0042          # takes slot 03
+mm --pause T-0031          # notes live in details/T-0031.md, untouched
+mm --start T-0042
 
 # during the work
 mm --note T-0042 "cache key was stale; see build log 4471"
+
+# a custom stage between Working and Done
+mm --move T-0042 --stage review
 
 # close it out
 mm --finish T-0042 --outcome shipped
@@ -1326,7 +1467,7 @@ mm --finish T-0042 --outcome shipped
 mm --report --group-by outcome
 
 # Friday afternoon, about the week that is ending
-mm --report --this-week --include-wip
+mm --report --this-week --include-wip --include-stage review
 
 # or change the default for this shell
 export MM_REPORT_PERIOD=this-week
@@ -1344,6 +1485,12 @@ mm --describe "Personal board: everything in flight, in one place."
 mm --tick --dry-run
 # -> would fire T-0043 (move to Ready), T-0044 (spawn T-0045, recurring)
 mm --tick
+
+# an old board found on this machine
+mm --check --dir ~/old-project/micro-manager
+# -> version 1; run --migrate to bring it to version 2
+mm --migrate --dir ~/old-project/micro-manager --dry-run
+mm --migrate --dir ~/old-project/micro-manager
 ```
 
 ---
@@ -1352,18 +1499,19 @@ mm --tick
 
 | Operation | Writes | Can break |
 |---|---|---|
-| `--init` | all | I10 (slot width/contiguity) |
-| `--add` | `backlog.md`, `details/` | I2 (`next_id`), I5 (blocked), I7, I8 |
-| `--edit` | item's file, `details/` | I7, **I9 (title drift)** |
-| `--remove` | `backlog.md` | **I9 (orphaned detail)**, I2 if `next_id` touched |
-| `--move` | `backlog.md` | I5 (blocked field on section change) |
-| `--start` | `backlog.md`, working file | **I1 (duplicate)**, I4, I10 |
-| `--pause` | working file, `backlog.md`, `details/` | **I1**, I4, I5 |
-| `--finish` | working file, `done.md`, `details/` | **I1**, I3, I4, I6 |
-| `--wip` | working files | **I10** |
+| `--init` | all | — |
+| `--add` | `board.md`, `details/` | I2 (`next_id`), I5 (`reason`), I7, I8 |
+| `--edit` | item's line, `details/` | I7, **I9 (title drift)** |
+| `--remove` | `board.md` | **I9 (orphaned detail)**, I2 if `next_id` touched |
+| `--move` | `board.md` | I5 (`reason` on stage change), I7 (`tickler` placement) |
+| `--start` | `board.md` | **I1 (duplicate)**, I7 (`started`) |
+| `--pause` | `board.md` | **I1** |
+| `--finish` | `board.md`, `done.md`, `details/` | **I1**, I3, I6 |
+| `--wip` | `board.md` frontmatter | — (checked invariant, not structural, format spec §5.1.3) |
 | `--describe` | `structure.md` | — |
-| `--tick` | `backlog.md` | I2 (a spawn bumps `next_id`) |
+| `--tick` | `board.md` | I2 (a spawn bumps `next_id`) |
 | `--archive` | `done.md`, `done-YYYY.md`, `details/`, `details-YYYY/` | I1, I2 (items leave the pool); **I9 (a detail file left behind in `details/`)** |
+| `--migrate` | every file the target step touches | none, by construction — every step validates against the target version before writing (§5.3.4) |
 | `--report`, `--list`, `--show`, `--check` | nothing | — |
 
 Bold entries are the ones where a partial write loses data rather than producing
@@ -1391,11 +1539,12 @@ Global modifiers, valid everywhere:
 Operation-specific modifiers:
 
 ```
---top --end --position --before --after --section
---prio --tag --untag --set --unset --title --blocked --reason
---created --started --done --outcome --reason --closing-note
+--top --end --position --before --after --stage
+--prio --tag --untag --set --unset --title --reason
+--created --started --done --outcome --closing-note
 --detail --detail-text --detail-file --no-edit --with-detail
---slot --project --slots --slot-width --prefix --description
+--tickler --tickler-dest --include-stage
+--project --wip-limit --prefix --description --to
 --period --week --last-week --this-week --since --until --group-by
 --include-wip --include-backlog --include-archives
 --state --limit --sort --all --keep-notes --discard-notes

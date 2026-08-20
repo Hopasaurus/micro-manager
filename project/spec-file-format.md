@@ -1,9 +1,12 @@
 # micro-manager — data file format specification
 
-    Spec version: 1
-    Date:         2026-07-29
-    Status:       stable
-    Applies to:   backlog.md, working.NN.md, done.md, details/<ID>.md
+    Spec version: 2
+    Date:         2026-08-20
+    Status:       draft
+    Applies to:   board.md, done.md, details/<ID>.md
+    Supersedes:   version 1 (backlog.md + working.NN.md); see Appendix C for
+                  the shape that superseded, and spec-tools.md §5.3 for the
+                  migration mechanism
 
 This document specifies the on-disk formats a micro-manager directory uses. It
 is the normative reference for anyone writing a parser, a generator, or a second
@@ -27,8 +30,7 @@ A **micro-manager directory** contains:
 
 | Path | Required | Specified in |
 |---|---|---|
-| `backlog.md` | yes | §5.1 |
-| `working.NN.md` | yes, one or more | §5.2 |
+| `board.md` | yes | §5.1 |
 | `done.md` | yes | §5.3 |
 | `details/<ID>.md` | no | §5.4 |
 | `details/_*.md` | no | §5.4.1 |
@@ -42,14 +44,24 @@ outside this specification and MUST be ignored by conforming readers.
 The two archive entries are specified but **not validated**: §5.6 says what
 they hold and how they are written, and no invariant of §7 reads them.
 
+A directory at spec version 1 — `backlog.md` plus one or more `working.NN.md`
+files — is a valid, readable board under the *previous* version of this
+document, not this one. §9 states what a version-2 reader owes a version-1
+directory; Appendix C summarizes the version-1 shape for migration authors;
+`spec-tools.md` §5.3 specifies the migration mechanism itself.
+
 ## 2. Terminology
 
 **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** carry their
 RFC 2119 meanings.
 
 - **Item** — one unit of tracked work, identified by an ID.
-- **Working file** — a `working.NN.md` file; one WIP slot.
-- **WIP limit** — the number of working files in a directory.
+- **Stage** — the value of an item's `stage:` field: where it sits on the
+  board (§5.1). A directory declares its own set of stages and their order
+  (§5.1.1); `someday`, `ready`, `blocked`, and `working` are the default
+  set, not a closed vocabulary.
+- **WIP limit** — an optional per-stage cap declared in a `wip.<slug>`
+  frontmatter key (§5.1.3); absent means that stage is uncapped.
 - **Item line** — the single-line serialization of an item (§4.2).
 - **Frontmatter** — the YAML-ish header block at the top of every file (§4.1).
 - **Reader** — software that parses these files.
@@ -86,9 +98,9 @@ SHOULD be stripped by writers.
 | `TAG` | one or more of `A-Z a-z 0-9 . _ -` | `ci`, `infra-2` |
 | `TAGLIST` | one or more `TAG`, comma-separated, no spaces | `infra,ci` |
 | `SLUG` | one to sixteen ASCII characters: a lowercase letter, then lowercase letters, digits or hyphens | `py`, `python-impl` |
+| `STAGE` | a `SLUG` that is also a member of the directory's declared `stages` (§5.1.1) | `ready`, `review` |
 | `LINKLIST` | one or more `SLUG` `:` `ID`, comma-separated, no spaces, where `ID` takes the generic form shared by every declared grammar — `[A-Z]{1,4}-[0-9]{1,15}` (§3.3.2, §6) | `py:T-0012,go:T-0003` |
 | `DETAILPATH` | `details/` + `ID` + `.md` | `details/T-0042.md` |
-| `SLOT` | one or more ASCII digits, zero-padded to the directory's width | `01`, `003` |
 | `NULL` | the literal four characters `null` | `null` |
 
 `ID` values are zero-padded to the directory's width. `T-42` is invalid;
@@ -98,7 +110,7 @@ SHOULD be stripped by writers.
 
 **Every date, time and timestamp anywhere in a micro-manager directory MUST be
 ISO 8601, in the extended format, with the separators shown above.** This is
-normative for the four files of §5, and for every adjacent file a tool writes
+normative for the files of §5, and for every adjacent file a tool writes
 into the directory — themes, configuration, lists (`spec-gui.md` §8–§10) — and
 for every value a tool emits over an API.
 
@@ -126,7 +138,7 @@ Specifically:
    leap-second value `60`, no week-with-weekday form (`2026-W30-3`).
 
 `TIME` and `TIMESTAMP` are defined here for the whole system but are **not used
-by the four files of §5**. Those are deliberately date-granular: an item's
+by the files of §5**. Those are deliberately date-granular: an item's
 `created`, `started` and `done` are dates, and §5.3 groups by month, so nothing
 in the data model needs a clock. A tool MUST NOT introduce a time-of-day field
 into these files without a spec revision — see §10 for what that granularity
@@ -142,7 +154,7 @@ shape without ever consulting a clock (§10.1).
 
 The default grammar is the prefix `T` and width 4 (§3.3); every directory that
 declares nothing else uses it. A directory MAY declare its own grammar with two
-optional keys in `backlog.md` frontmatter (§5.1):
+optional keys in `board.md` frontmatter (§5.1):
 
 | Key | Value | Default |
 |---|---|---|
@@ -177,8 +189,9 @@ Rules:
    Width `W` caps the counter space at `10^W − 1` items for W ≤ 15,
    generalizing the default's 9999-item cap.
 6. **Additive, not a version bump.** Directories without the keys behave
-   byte-identically to spec version 1; `version: 1` is unchanged. A reader of
-   the current spec MUST accept a default-grammar directory exactly as before.
+   byte-identically to a directory that never declares them; the directory's
+   format version is unchanged by declaring them. A reader of the current
+   spec MUST accept a default-grammar directory exactly as before.
 
 ## 4. Common structures
 
@@ -221,7 +234,7 @@ Writers SHOULD emit keys in the order given in each file's schema.
 An item line serializes one item on exactly one line:
 
 ```
-- [ ] [T-0042] Fix the deploy script | prio:high | tags:infra,ci | created:2026-07-29
+- [ ] [T-0042] Fix the deploy script | stage:ready | prio:high | tags:infra,ci | created:2026-07-29
 ```
 
 Grammar (regex terminals, `SP` = one space `U+0020`):
@@ -265,26 +278,39 @@ is not reliably detected.
 A line beginning with `## ` opens a section; the section name is the rest of the
 line, trimmed. Sections are flat — a section runs until the next `## ` line or
 end of file. `# ` (level 1) headings are titles and carry no meaning. Headings
-below level 2 are not used in the three item files.
+below level 2 are not used in either item file.
+
+This mechanism serves `done.md`'s month groups (§5.3). `board.md` does not use
+section headings — `stage:` (§5.1.6, §6) is the sole source of truth for where
+an item sits — and any `## ` line found there is ordinary non-item content,
+not a section (§5.1.6).
 
 ## 5. File schemas
 
-### 5.1 `backlog.md`
+### 5.1 `board.md`
 
-Holds every item not yet started.
+Holds every item that is not yet done — every declared stage except the
+terminal state, which is `done.md` (§5.3). By default that means `someday`,
+`ready`, `blocked`, and `working`; a directory MAY declare additional stages
+(§5.1.1).
 
 **Frontmatter**
 
 | Key | Value | Required |
 |---|---|---|
-| `doc` | `backlog` | yes |
-| `version` | spec version, currently `1` | yes |
+| `doc` | `board` | yes |
+| `version` | spec version, currently `2` | yes |
 | `project` | human name of what this directory tracks | yes |
 | `next_id` | `ID` — the ID to assign to the next new item | yes |
 | `id_prefix` | one to four uppercase letters — the ID prefix (§3.3.2); absent means `T` | no |
 | `id_width` | one to fifteen ASCII digits — the ID digit width (§3.3.2); absent means `4` | no |
 | `board` | `SLUG` — the board's link identity for cross-board `refs` (§5.1, §6); absent means the directory is not a link target | no |
 | `updated` | `DATE` | no |
+| `stages` | comma-separated `STAGE` list, order-significant (§5.1.1); absent means `someday,ready,blocked,working` | no |
+| `stage_labels` | comma-separated `slug:Label` pairs (§5.1.2); absent means every label is derived from its slug | no |
+| `wip.<slug>` | a positive integer WIP cap for stage `<slug>` (§5.1.3); zero or more keys | no |
+| `tickler_stages` | comma-separated `SOURCE->DEST` pairs (§5.1.4); absent means `someday->ready` | no |
+| `needs_reason` | comma-separated `STAGE` list (§5.1.5); absent means `blocked` | no |
 
 `project` MUST be non-empty and MUST NOT be `NULL`. It is otherwise free text on
 a single line: no length limit, no character restrictions beyond §4.1's parsing
@@ -319,139 +345,154 @@ directory (a findable edit: the slug appears only in this frontmatter and in
 MAY declare the same slug, and a reader that finds two MUST refuse to resolve
 a link to it rather than guess (§10).
 
-**Body**
+The `board` frontmatter key and the `board.md` filename name unrelated
+concepts that happen to share a word: the key is a link-identity slug (above);
+the filename is simply what this file is called. A directory MAY declare
+`board: foo` inside `board.md`, with no relationship between the two implied.
 
-Exactly three sections MUST be present, with these names, in this order:
+#### 5.1.1 `stages`: the set and its order
 
-```
-## Ready
-## Blocked
-## Someday
-```
+`stages` is a comma-separated, order-significant list of `STAGE` values — a
+`SLUG` (§3.3) naming one stage. Order is column order, left to right, for any
+front end that renders stages as columns (`spec-gui.md` §5.5, `spec-tui.md`
+§5.1).
 
-Any other `## ` heading is an error. A section MAY be empty but MUST NOT be
-removed; readers MAY assume all three exist.
+The list defines the directory's **entire** stage vocabulary: every `stage:`
+value on an item line (§6), every key in `wip.<slug>` (§5.1.3), every
+`SOURCE`/`DEST` in `tickler_stages` (§5.1.4), every value in `needs_reason`
+(§5.1.5), and every key in `stage_labels` (§5.1.2) MUST be a member of
+`stages` — I7 checks this (§7, §5.1.7). A board cannot cap, schedule, route,
+label, or place an item in a stage it hasn't declared.
 
-Every item line in this file MUST have box `" "` (open). Item lines MUST appear
-inside one of the three sections — never before the first heading.
+Absent, `stages` defaults to `someday,ready,blocked,working` — reproducing
+version 1's four sections/states, in the same order, for a directory that
+never customizes it.
 
-- `## Ready` — the order of items is **significant**; earlier means higher
-  priority within equal `prio`. Items here MUST NOT carry `blocked`.
-- `## Blocked` — every item MUST carry a `blocked` field.
-- `## Someday` — order is not significant. Items MUST NOT carry `blocked`.
-  This is the only section an item carrying `tickler` (§6) MAY sit in, and a
-  `tickler` item MUST also carry `created` — a never-fired recurring schedule
-  anchors its first fire on `created`, and without the anchor a fresh
-  `mon@08:00` written on a Tuesday would be judged overdue against the epoch
-  and fire for the Monday that already passed.
+No stage is structurally distinguished from any other by this key. What made
+`working` special in version 1 is now config: its WIP cap is a `wip.working`
+key like any other stage's (§5.1.3), not a physical file count. One thing
+about `working` stays hardcoded rather than becoming configurable: `started`
+is required whenever `stage:working` (§7, folded in from version 1's I4) —
+that marks *when work began*, which is what `working` means, not a policy a
+board sets.
+
+#### 5.1.2 `stage_labels`: display name, decoupled from the stored slug
+
+`stage_labels` is a comma-separated list of `slug:Label` pairs, each split on
+its *first* `:` (the same rule §4.1 uses one level up, for frontmatter itself)
+— so a label MAY contain a colon, but not a comma. Only stages worth
+overriding need an entry; it is sparse, not a full enumeration.
+
+A slug with no entry gets a label derived mechanically: title-case, hyphens
+become spaces (`code-review` → `Code Review`). This is what makes the key
+optional: a directory that never sets it, or sets it for only one stage,
+still gets a sensible label for every other stage.
+
+`stage:` values are never rendered verbatim by a conforming front end;
+`stage_labels` — or its absence, and the derivation rule above — is what a
+person actually sees. Renaming a column is therefore a frontmatter edit that
+touches zero item lines.
+
+#### 5.1.3 `wip.<slug>`: per-stage WIP caps
+
+A `wip.<slug>` key sets an integer cap on how many items may sit in stage
+`<slug>` at once. `<slug>` MUST be a member of `stages` (§5.1.1). A stage
+with no `wip.<slug>` key is **uncapped** — including `working`: version 1's
+structural one-WIP-slot-per-file guarantee does not carry forward as a
+default; a directory that wants a cap sets it explicitly, `wip.working: N`.
+
+The cap is a **checked** invariant, not the physical impossibility version 1
+achieved by having no free working file to write into (§10). A mutation that
+would exceed a declared cap is refused before it is written; `--check`
+(`spec-tools.md` §5.1.12) reports a directory that somehow has more anyway
+(§10 note 7).
+
+#### 5.1.4 `tickler_stages` and `tickler_dest`: where a schedule lives and where a fire lands
+
+`tickler_stages` is a comma-separated list of `SOURCE->DEST` pairs — `SOURCE`
+is a stage a `tickler:` field is legal in and that `--tick` scans; `DEST` is
+where that stage's fires land by default. Both MUST be members of `stages`.
+A `SOURCE` MUST NOT repeat (one destination per source — the same "repeated
+key is an error" shape §4.2 rule 6 already applies within one item line).
+Once the key is present, every entry MUST be a complete `SOURCE->DEST` pair;
+a bare slug with no arrow is invalid. Absent, `tickler_stages` defaults to
+the single pair `someday->ready`, reproducing version 1's behavior exactly.
+
+`tickler` (§6) is valid only on an item whose current stage is a `SOURCE`
+named in `tickler_stages` — generalizing version 1's "MUST sit in
+`## Someday`" (I7). `created` remains a required companion whenever
+`tickler` is present (§6), unchanged and unrelated to which stage carries it.
+
+`tickler_dest` (§6) is an item-line field, a `STAGE` value, valid only where
+`tickler` is valid. When present it overrides that one item's destination —
+for both a one-shot move and a recurring spawn alike, since it is the item
+being routed either way, not a property of the schedule's shape. When absent,
+the item uses its current stage's `tickler_stages` entry.
+
+#### 5.1.5 `needs_reason` and `reason`
+
+`needs_reason` is a comma-separated `STAGE` list naming which stages require
+the `reason` field (§6) on every item that sits in them. Absent, it defaults
+to `blocked` alone, reproducing version 1's I5 for a directory that never
+customizes it.
+
+`reason` (renamed from version 1's `blocked`, §6, §10) is valid on **any**
+stage — required where `needs_reason` lists the item's current stage,
+optional everywhere else. It behaves like `prio` or `tags`: legal anywhere,
+sometimes required, and — unlike version 1's `blocked`, and unlike `tickler`
+(§5.1.4) — it is NOT dropped automatically when an item leaves a
+`needs_reason` stage. It has the same shape as `tickled` (§6): kept as
+historical once it is no longer load-bearing.
+
+#### 5.1.6 Body: item lines, no sections
+
+`board.md`'s body is a flat list of item lines (§4.2). Version 1's three
+fixed `## Ready`/`## Blocked`/`## Someday` sections (§4.3) do not carry
+forward; `stage:` (§6) is the sole source of truth for where an item sits. A
+writer MAY still group items physically by stage for a human reading the raw
+file, but SHOULD keep `## ` headings out of it entirely — §4.3's heading
+mechanism is retained for `done.md`'s month groups (§5.3), not reused here,
+and any `## ` line found in `board.md` is ordinary non-item content.
+
+Every item line in this file MUST have box `" "` (open) and MUST carry a
+`stage:` field whose value is a member of `stages` (§5.1.1). Order within a
+stage is the file's own order; a writer appends a newly-started or
+newly-moved item to the end of its stage's run.
 
 Non-item content (prose, comments, blank lines) MAY appear anywhere and MUST be
 ignored by readers.
 
 Git conflict markers are the one reserved exception, and the rule applies to
-every data file in the directory — `backlog.md`, `working.NN.md`, `done.md`,
-and `details/` — not just to this one. A line whose first non-blank characters
-are exactly `<<<<<<<`, `=======`, or `>>>>>>>` (the three shapes git writes
-into a file whose merge conflicted) is invalid, and a conforming reader MUST
-refuse it loudly — report the file and line — never ignore it (§4.1, §8). A
+every data file in the directory — `board.md`, `done.md`, and `details/` —
+not just to this one. A line whose first non-blank characters are exactly
+`<<<<<<<`, `=======`, or `>>>>>>>` (the three shapes git writes into a file
+whose merge conflicted) is invalid, and a conforming reader MUST refuse it
+loudly — report the file and line — never ignore it (§4.1, §8). A
 half-resolved merge must never be indistinguishable from valid prose. Ordinary
 prose that merely contains `<` or `>` is unaffected.
 
-### 5.2 `working.NN.md`
+#### 5.1.7 Referential integrity
 
-Each working file holds zero or one in-progress item. Unlike the other two
-files, the item is carried in the **frontmatter**, not as an item line.
+Every stage slug named outside of `stages` itself — in an item line's
+`stage:`, in a `wip.<slug>` key, in a `tickler_stages` entry, in
+`needs_reason`, or in `stage_labels` — MUST be a member of `stages`. A board
+can't cap, schedule, route, label, or place an item in a stage it hasn't
+declared. This is I7's `stage:` rule (§7), stated once here because five
+different keys share it rather than repeating it five times.
 
-#### 5.2.1 The working file set and the WIP limit
+### 5.2 (retired) — `working.NN.md`
 
-A directory MUST contain at least one file named `working.` + `SLOT` + `.md`.
+Version 1 held in-progress items in per-slot `working.NN.md` files, one item
+per file, carried in frontmatter rather than as an item line. **Version 2
+folds that state into `board.md` via `stage:working` (§5.1) and retires this
+file type entirely: a version-2 directory MUST NOT contain a `working.NN.md`
+file.**
 
-**The number of working files in a directory is that directory's WIP limit.**
-The limit is structural, not declared: no key anywhere states it, and no
-enforcement step is required, because each file holds at most one item and an
-item can only be started into a free file. A reader computes the limit by
-counting files and the current WIP by counting files with `status: working`.
-
-Constraints on the set:
-
-1. Slot numbers MUST be the contiguous sequence 1..N, where N is the number of
-   working files. No gaps, no duplicates, and numbering starts at 1 — `00` is
-   not a valid slot.
-2. Every slot number in one directory MUST use **the same number of digits**.
-   Two digits is the RECOMMENDED width (`working.01.md`), but any width is
-   valid provided it is uniform: `working.1.md`..`working.3.md` conforms, and
-   so does `working.001.md`..`working.012.md`. Mixing widths within a directory
-   MUST be rejected — `working.1.md` and `working.01.md` name the same slot.
-3. Widths do not have to match between directories. Width is a per-directory
-   property, discovered by reading the filenames, never declared.
-4. A file named exactly `working.md` is NOT a working file. It is the pre-slot
-   name from an earlier revision of this format; a checker SHOULD report it as
-   requiring migration to `working.01.md` rather than silently ignoring it.
-5. A file matching `working.*.md` whose middle segment is not all digits is an
-   error, not an ignorable file.
-
-Slots are interchangeable. A writer MAY use any idle slot and SHOULD prefer the
-lowest-numbered one. Nothing depends on which slot an item occupies, and an item
-MAY be moved between slots freely.
-
-Changing the limit is creating or deleting a file. A working file being deleted
-MUST be idle and MUST be the highest-numbered one, or constraint 1 breaks.
-
-#### 5.2.2 Frontmatter and body
-
-**Frontmatter**
-
-| Key | Value when `status: working` | Value when `status: idle` |
-|---|---|---|
-| `doc` | `working` | `working` |
-| `version` | `1` | `1` |
-| `status` | `working` | `idle` |
-| `id` | `ID` — required | `NULL` |
-| `title` | the item's title — required | `NULL` |
-| `started` | `DATE` — required | `NULL` |
-| `prio` | `high` / `med` / `low`, or `NULL` | `NULL` |
-| `tags` | `TAGLIST` or `NULL` | `NULL` |
-| `refs` | `LINKLIST` or `NULL` | `NULL` |
-| `detail` | `DETAILPATH` or `NULL` | `NULL` |
-| `created` | `DATE` or `NULL` | `NULL` |
-
-`status` MUST be exactly `working` or `idle`.
-
-When `status: working`, `id`, `title`, and `started` MUST be non-`NULL`. `title`
-is required because an item in progress with no title cannot be returned to the
-backlog intact; `started` is required because entering this file is the event
-that defines it. Every other field MAY be `NULL`.
-
-When `status: idle`, every item field — `id`, `title`, `prio`, `tags`, `detail`,
-`created`, `started` — MUST be `NULL`.
-
-Every value in this frontmatter uses the **same lexical form as the
-corresponding item-line field** (§6). `tags` is a `TAGLIST` here exactly as it
-is on an item line — `tags: infra,ci`, not a YAML flow sequence. Consequently
-moving an item between files is a copy of each value, never a conversion, and
-one validator covers both representations.
-
-`NULL` in this frontmatter is equivalent to the field being absent from an item
-line. A writer serializing this item to `backlog.md` or `done.md` MUST omit
-every key whose value is `NULL`, and a writer filling this frontmatter from an
-item line MUST write `NULL` for every field the line omits.
-
-**Body**
-
-Four sections, in this order, all REQUIRED even when empty:
-
-```
-## Task
-## Plan
-## Notes
-## Blockers
-```
-
-`## Plan` contains subtask checkboxes — `- [ ]` and `- [x]` lines with no ID.
-
-> **Critical parsing rule.** Lines matching `^- \[` in a working file are
-> subtasks, NOT item lines, and MUST NOT be parsed as items. Subtasks are
-> unstructured by design: no ID, no fields, discarded when the item closes.
+This section number is intentionally left retired rather than reused or
+removed, so that every cross-reference to a numbered section elsewhere in
+this document set stays valid across the version boundary. See Appendix C
+for the version-1 shape this replaces, and `spec-tools.md` §5.3 for the
+migration mechanism.
 
 ### 5.3 `done.md`
 
@@ -508,9 +549,20 @@ Unconstrained. Any Markdown. `structure.md` suggests `## Context`,
 `## Requirements`, `## Open questions`, and `## References`, but no heading is
 required and readers MUST NOT depend on any.
 
+**One exception: `## Plan`, when present, is normative subtask-checkbox
+syntax**, not free-form prose. Lines matching `^- \[` under a `## Plan`
+heading in a detail file are subtasks — no ID, no fields, unstructured
+content inside the checkbox — and MUST NOT be parsed as item lines, the same
+"critical parsing rule" version 1 stated for a working file's `## Plan`
+(§5.2, retired). This is where that content lives now: `spec-tools.md`'s
+`--note` and `--subtask`/`--subtask-done` write here directly, creating the
+file on first use if it doesn't exist — a detail file is no longer purely
+optional the moment an item is first noted or subtasked. Every other heading
+in a detail file stays exactly as unconstrained as before.
+
 A detail file's lifetime is independent of its item's location: the item line
-moves between `backlog.md`, a working file, and `done.md` while the detail file
-stays at a fixed path. Detail files are never deleted on completion.
+moves between stages within `board.md`, and to `done.md`, while the detail
+file stays at a fixed path. Detail files are never deleted on completion.
 
 The one path out of `details/` is archiving. When an item's month group leaves
 `done.md`, its detail file leaves with it, to `details-YYYY/` (§5.6) — moved,
@@ -601,15 +653,17 @@ accept it, and a writer moving an item between files MUST preserve it verbatim
 
 | Key | Value | Required | Valid in | Notes |
 |---|---|---|---|---|
+| `stage` | `STAGE` | **yes** in `board.md` | board | Where the item sits (§5.1.1). MUST be a member of the directory's declared `stages`. `done.md` items carry no `stage` — they've left the board entirely. |
 | `prio` | `high` / `med` / `low` | no | all | Absent means `med`. |
-| `tags` | `TAGLIST` | no | all | No spaces. Identical form in working-file frontmatter. |
+| `tags` | `TAGLIST` | no | all | No spaces. |
 | `refs` | `LINKLIST` | no | all | Cross-board references, §6. Never validated for resolution (§9). |
 | `created` | `DATE` | no | all | When the item was written down. |
-| `started` | `DATE` | no | working, done | Set on entering a working file; survives a pause. |
+| `started` | `DATE` | no | board, done | Required whenever `stage:working`; survives a later stage change. |
 | `done` | `DATE` | **yes** in `done.md` | done | |
 | `outcome` | `shipped` / `cancelled` / `obsolete` | **yes** in `done.md` | done | |
-| `blocked` | free text, no `|` | **yes** in `## Blocked` | backlog | Forbidden in `## Ready` and `## Someday`. |
-| `tickler` | `SCHEDULE` | no | `## Someday` only | Fires when the schedule's next instant arrives — a bare date is one-shot (the item moves to Ready); a weekday or monthday spec recurs, making the item a prototype that spawns a new Ready item on each fire. Placement and the `created` requirement: §5.1. |
+| `reason` | free text, no `|` | **yes** where the item's `stage` is listed in `needs_reason` (§5.1.5) | all | Renamed from version 1's `blocked` (§10). Valid on any stage; required only where `needs_reason` lists it — unlike version 1, NOT forbidden elsewhere. |
+| `tickler` | `SCHEDULE` | no | a `SOURCE` stage named in `tickler_stages` (§5.1.4) only | Fires when the schedule's next instant arrives — a bare date is one-shot; a weekday or monthday spec recurs, making the item a prototype that spawns a new item on each fire. Placement, the `created` requirement, and where a fire lands: §5.1.4. |
+| `tickler_dest` | `STAGE` | no | same stages as `tickler` | Overrides that item's default fire destination from `tickler_stages` (§5.1.4), for both a one-shot move and a recurring spawn. |
 | `tickled` | `DATE` | no | all | Date the item's `tickler` last fired. Audit trail; harmless after a manual move. |
 | `detail` | `DETAILPATH` | no | all | MUST equal `details/<this item's ID>.md`. In an archived file it is `details-YYYY/<ID>.md` instead (§5.6); archived files are not validated. |
 
@@ -627,7 +681,7 @@ ambiguous link never invalidates a directory.
 Writers SHOULD emit fields in this order. Readers MUST NOT require it.
 
 ```
-prio, tags, refs, detail, created, started, blocked, tickler, tickled, done, outcome, <unregistered...>
+stage, prio, tags, refs, detail, created, started, reason, tickler, tickler_dest, tickled, done, outcome, <unregistered...>
 ```
 
 ## 7. Cross-file constraints
@@ -635,39 +689,46 @@ prio, tags, refs, detail, created, started, blocked, tickler, tickled, done, out
 These hold across the directory as a whole. The reference checker verifies all
 ten; the identifiers match the numbering in `structure.md`.
 
-- **I1 — One home per ID.** Every ID appears in exactly one of `backlog.md`,
-  one working file (frontmatter `id`), or `done.md` — across *all* working
-  files, so the same item cannot occupy two slots. An item is moved, never
-  copied.
+- **I1 — One home per ID.** Every ID appears in exactly one of `board.md` or
+  `done.md`. An item is moved, never copied.
   Consequence: closing an item is a deletion from one file and an insertion into
   another, and cancelled work must be written to `done.md` rather than deleted,
   or its ID vanishes from the directory.
 - **I2 — ID ceiling.** Every ID in the directory is numerically less than
-  `backlog.md`'s `next_id`. `next_id` increases monotonically and is never
+  `board.md`'s `next_id`. `next_id` increases monotonically and is never
   decremented, so IDs are never reused. All IDs — including `next_id` — use
   the directory's declared grammar (§3.3.2), and the comparison is over the
   digit portion at the declared width.
-- **I3 — Box matches file.** `backlog.md` contains only `- [ ]` item lines;
+- **I3 — Box matches file.** `board.md` contains only `- [ ]` item lines;
   `done.md` contains only `- [x]` item lines.
-- **I4 — Working coherence.** *Every* working file has `status: working` with a
-  valid, unique, non-`NULL` `id`, a non-`NULL` `title`, and a `started` date; or
-  `status: idle` with every item field `NULL`. Applied per file.
-- **I5 — Blocked items state why.** Every item under `## Blocked` carries
-  `blocked`; no item elsewhere in `backlog.md` does.
+- **I4 — retired.** Version 1's "working coherence" (per-working-file
+  frontmatter consistency) has no target left to constrain now that
+  `working.NN.md` is retired (§5.2). Its live content — `started` required
+  whenever `stage:working` — folds into I7. This identifier is not reused.
+- **I5 — Reason required where declared.** Every item whose `stage` is a
+  member of `needs_reason` (§5.1.5; default `blocked`) carries `reason`.
+  Unlike version 1's `blocked`, `reason` is not forbidden on a stage outside
+  `needs_reason` — it MAY be present there too, simply not required (§5.1.5).
 - **I6 — Done items are dated and filed.** Every item in `done.md` carries
   `done` and `outcome`, and sits under a month heading matching its `done` date.
 - **I7 — Well-formed values.** Dates are valid ISO 8601 calendar dates per
   §3.3.1 — the lexical form AND a real day of a real month; `prio`, `outcome`, and
   `tags` values are drawn from their vocabularies; no field value contains `|`;
   no key is repeated within an item line. `prio`, `tags`, `created`, and
-  `started` are validated identically wherever they appear — item line or
-  working-file frontmatter — since §5.2 gives them the same lexical form in both.
-  A `tickler` value is checked for shape only — it MUST match the `SCHEDULE`
-  grammar of §3.3 and MUST NOT be evaluated: no clock enters the format, and a
-  schedule can never make a directory invalid because a clock disagrees (§10.1).
-  An item carrying `tickler` MUST sit in `## Someday` and MUST also carry
-  `created` (§5.1); `tickled` is a valid `DATE` wherever it appears.
-  `backlog.md` frontmatter carries a non-empty `project` (§5.1).
+  `started` are validated identically wherever they appear. A `tickler` value
+  is checked for shape only — it MUST match the `SCHEDULE` grammar of §3.3 and
+  MUST NOT be evaluated: no clock enters the format, and a schedule can never
+  make a directory invalid because a clock disagrees (§10.1). `tickled` is a
+  valid `DATE` wherever it appears. `board.md` frontmatter carries a
+  non-empty `project` (§5.1).
+  Additionally: every item line in `board.md` carries a `stage:` value that is
+  a member of the directory's declared `stages` (§5.1.1); `started` is
+  required whenever `stage:working` (folded in from version 1's I4);
+  `tickler` is valid only on an item whose stage is a `SOURCE` named in
+  `tickler_stages`, and MUST also carry `created` (§5.1.4); `tickler_dest`,
+  where present, MUST be a member of `stages`; every slug named in
+  `wip.<slug>`, `tickler_stages`, `needs_reason`, or `stage_labels` MUST be a
+  member of `stages` (§5.1.7).
 - **I8 — Detail references resolve.** Every `detail` value equals
   `details/<ID>.md` for the ID that carries it, and that file exists.
 - **I9 — Detail files are claimed exactly once.** Every file in `details/` not
@@ -675,32 +736,41 @@ ten; the identifiers match the numbering in `structure.md`.
   and `title` match that item's ID and title exactly.
   I8 and I9 name the live files and only those: `done-YYYY.md` is not read and
   `details-YYYY/` is not `details/`, so an archive is outside both (§5.6).
-- **I10 — The working file set is well formed.** At least one working file
-  exists; slot numbers are the contiguous sequence 1..N; every slot number uses
-  the same digit width; no file is named `working.md` (§5.2.1).
+- **I10 — retired.** Version 1's working-file-set well-formedness (slot
+  contiguity, uniform width, at least one file) has no target left to
+  constrain now that `working.NN.md` is retired (§5.2). This identifier is
+  not reused.
+
+I4 and I10 are retired, not renumbered away: every other document in this
+set that names an invariant by number (`data-invariant="I9"`, "an I9 orphan,"
+and so on) stays correct across the version boundary without an edit.
 
 ## 8. Conformance
 
 **A conforming reader** implements §3 and §4, recognizes every schema in §5,
 tolerates unregistered fields and unknown frontmatter keys, never treats a
-`- [` line in a working file as an item, and refuses git conflict-marker lines
-in every data file rather than ignoring them (§5.1).
+`- [` line inside a detail file's `## Plan` section as an item, and refuses
+git conflict-marker lines in every data file rather than ignoring them
+(§5.1.6).
 
-**A conforming writer** additionally emits the required frontmatter keys and
-sections for each file, maintains `next_id`, preserves unregistered fields when
-moving an item, and produces output that satisfies §7.
+**A conforming writer** additionally emits the required frontmatter keys for
+each file, maintains `next_id`, preserves unregistered fields when moving an
+item, and produces output that satisfies §7.
 
-**A conforming checker** verifies I1–I10 and reports each violation with a
+**A conforming checker** verifies the invariants of §7 (I1, I2, I3, I5, I6,
+I7, I8, I9 — I4 and I10 are retired, §7) and reports each violation with a
 `path:line: message` location. It exits non-zero when any violation is found.
 
-Byte-for-byte round-tripping is NOT required. A writer MAY normalize field order,
-whitespace, and section spacing. It MUST NOT drop fields, reorder `## Ready`, or
-renumber IDs.
+Byte-for-byte round-tripping is NOT required. A writer MAY normalize field
+order and whitespace. It MUST NOT drop fields, reorder items within a
+stage's own run, or renumber IDs.
 
 ## 9. Extensibility and versioning
 
-`version: 1` in each file's frontmatter is the format version, not a content
-revision. Bump it only for an incompatible format change.
+`version: 2` in `board.md`'s and `done.md`'s frontmatter is the format
+version, not a content revision. Bump it only for an incompatible format
+change — this document's own transition from version 1 is the first such
+change, described in Appendix C.
 
 Forward compatibility rules:
 
@@ -708,11 +778,12 @@ Forward compatibility rules:
   writers preserve them across moves. This is the intended extension point — a
   new field needs no spec change to start being used.
 - Unknown frontmatter keys are **valid** and MUST be ignored, not rejected.
-- Unknown `## ` headings are an **error** in `backlog.md` and `done.md`. Section
-  vocabulary is closed in both files.
-- The WIP limit is expressed only as a file count. A future revision MUST NOT
-  add a `wip_limit` key without also deciding which of the two wins; extensions
-  MUST NOT introduce one.
+- Unknown `## ` headings are an **error** in `done.md` only. `board.md` does
+  not use section headings at all (§5.1.6); any `## ` line there is ordinary
+  ignorable content, not a candidate for a closed vocabulary.
+- **A per-stage WIP cap is expressed only as `wip.<slug>` frontmatter
+  (§5.1.3).** A future revision MUST NOT add a competing cap mechanism
+  without deciding which wins; extensions MUST NOT introduce one.
 - **Links are advisory, never load-bearing.** A `refs` value (§6) is checked
   for shape and nothing else: a per-directory validator cannot see other
   directories, so whether a link's target exists is never validated here, and
@@ -720,18 +791,25 @@ Forward compatibility rules:
   `detail` reference does. Resolution is the business of a tool with a
   tree-wide view (the GUI, discovery, a future sweep), and that tool MUST
   refuse to resolve an ambiguous slug rather than guess (§5.1).
-- Reserved for future use, MUST NOT be redefined by extensions: `id`, `status`,
-  `next_id`, `doc`, `version`, `id_prefix`, `id_width`, `board`.
+- Reserved for future use, MUST NOT be redefined by extensions: `id`,
+  `status`, `next_id`, `doc`, `version`, `id_prefix`, `id_width`, `board`,
+  `stage`, `stages`, `stage_labels`, `tickler_stages`, `needs_reason`, and
+  the `wip.` key prefix. `status` is retired alongside `working.NN.md` (§5.2)
+  but stays reserved rather than becoming available for reuse.
 
 A reader encountering `version` greater than the version it implements SHOULD
-report a version mismatch rather than parse the file speculatively.
+report a version mismatch rather than parse the file speculatively. A reader
+encountering `version` *less* than the version it implements — a version-1
+directory read by a version-2-or-later implementation — MUST NOT silently
+treat it as the current version; see Appendix C and `spec-tools.md` §5.3 for
+what it owes that directory instead.
 
 ## 10. Known limitations
 
 Documented deliberately; a second implementation is not expected to fix them
 without a spec revision.
 
-1. **Timestamps are date-granular.** The four files of §5 record dates, never
+1. **Timestamps are date-granular.** The files of §5 record dates, never
    times (§3.3.1). Two items finished on the same day have no recorded order
    beyond their position in the month group, and cycle time is measured in whole
    days. This is deliberate — a clock in a hand-edited file is a field people get
@@ -756,27 +834,32 @@ without a spec revision.
    values) will be misread. This is why `tags` is a `TAGLIST` rather than a YAML
    flow sequence: a flat-map parser cannot read `[infra, ci]` as a list, so the
    list form would be an unvalidated string pretending to be structured data.
-4. **Ordering is a convention, not a constraint.** Nothing verifies that
-   `## Ready` is in priority order, that month groups in `done.md` descend, or
-   that items within a group descend.
+4. **Ordering is a convention, not a constraint.** Nothing verifies that a
+   stage's items are in priority order, that month groups in `done.md`
+   descend, or that items within a group descend.
 5. **Archives are unvalidated, and archived IDs leave the pool.** Once a month
    group is moved out of `done.md` (§5.6), its items are invisible to the
    checker: I1 no longer notices an ID that exists both in the archive and in
-   `backlog.md`, and I2 no longer counts one against `next_id`. Their detail
+   `board.md`, and I2 no longer counts one against `next_id`. Their detail
    files do not become I9 orphans, because §5.6 moves them to `details-YYYY/`
    and out of I8 and I9's reach — but that is the same invisibility, not an
    exemption from it: nothing checks that an archived line and its archived
    detail file still agree, or that the file is there at all. Archiving trades
    checking for size, and the trade stays safe only while `next_id` keeps
    rising (I2, §5.6 rule 5), the one rule that still spans both halves.
-6. **A subtask cannot be validated.** Because `- [` lines in a working file are
-   unstructured by design (§5.2), a malformed one is indistinguishable from
-   prose.
-7. **The WIP limit cannot be exceeded, only mis-set.** Because the limit is the
-   file count, no state can violate it — starting a fourth item with three slots
-   is impossible rather than invalid. The trade-off is that raising the limit is
-   as cheap as `cp`, so nothing records that it was raised or why. `done.md`
-   shows what was finished, never how many slots were open at the time.
+6. **A subtask cannot be validated.** Because `- [` lines inside a detail
+   file's `## Plan` section are unstructured by design (§5.4), a malformed
+   one is indistinguishable from prose.
+7. **A per-stage WIP cap can be violated, not just mis-set.** Version 1's
+   limit could only ever be mis-set, never exceeded — it was a file count, and
+   starting a fourth item with three slots was structurally impossible
+   (§5.1.3). Version 2's `wip.<slug>` cap is a **checked** invariant instead:
+   a hand edit, a force-merge, or a bug can leave more items in a capped
+   stage than its cap allows, and nothing about the file format itself
+   prevents writing that directly. `--check` reports it; nothing stops the
+   file from existing in that state first. This is the cost of a cap that can
+   apply to any declared stage rather than only to one physically-limited
+   file set (§5.1.3).
 8. **`project` is unconstrained.** Being free text, it cannot be validated
    beyond non-emptiness. Nothing detects a `project` that no longer describes
    what the directory holds, and nothing prevents two directories claiming the
@@ -813,9 +896,18 @@ SCHEDULE        ^([0-9]{4}-[0-9]{2}-[0-9]{2}|(first|second|third|fourth|last)-(m
                                              (the DATE alternative must be a real calendar date, per the DATE note)
 TAGLIST         ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$
 SLUG            ^[a-z][a-z0-9-]{0,15}$
+STAGE           ^[a-z][a-z0-9-]{0,15}$       (same pattern as SLUG; membership
+                                             in the directory's declared
+                                             `stages` is not expressible as a
+                                             regex — see the DATE note below)
+STAGES          ^STAGE(,STAGE)*$
+STAGE_LABELS    ^STAGE:[^,]+(,STAGE:[^,]+)*$
+TICKLER_STAGES  ^STAGE->STAGE(,STAGE->STAGE)*$
+NEEDS_REASON    ^STAGE(,STAGE)*$
+WIP key         ^wip\.STAGE$                 (a frontmatter KEY pattern, not
+                                             a value)
 LINKLIST        ^[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15}(,[a-z][a-z0-9-]{0,15}:[A-Z]{1,4}-[0-9]{1,15})*$
 DETAILPATH      ^details/T-[0-9]{4}\.md$
-working file    ^working\.[0-9]+\.md$        (uniform width per directory)
 archive file    ^done-[0-9]{4}\.md$          (informative; never validated)
 archive detail  ^details-[0-9]{4}/T-[0-9]{4}\.md$
                                              (informative; never validated)
@@ -824,6 +916,9 @@ outcome         ^(shipped|cancelled|obsolete)$
 frontmatter end ^---$
 section heading ^##SP
 ```
+
+Appendix C carries the version-1 `working file` filename pattern — a version-2
+reader has no reason to recognize it except while migrating one.
 
 Implementations targeting awk variants without interval-expression support
 should expand the width term (`{4}` for the default, `{W}` for a declared
@@ -885,23 +980,36 @@ deep tree cheap to walk.
 ### The emptiness test
 
 A name match alone is not enough to make a directory a board. A directory whose
-name matches but that contains **neither `backlog.md` nor `done.md`** is NOT a
-micro-manager directory, and discovery MUST skip it silently: it is not listed,
-not counted, and not checked.
+name matches but that contains **none of `board.md`, `backlog.md`, or
+`done.md`** is NOT a micro-manager directory, and discovery MUST skip it
+silently: it is not listed, not counted, and not checked.
 
-One probe, two files, and the rule is stated as *neither* rather than *either*
+`backlog.md` stays part of the probe alongside `board.md` even though it is
+version 1's filename: discovery has to find a version-1 directory too, or a
+person can never be offered the migration that turns it into one (§9,
+Appendix C, `spec-tools.md` §5.3). A directory found only by `backlog.md`
+is a version-1 board; one found by `board.md` is version 2; a directory
+should never have both (that is the sibling-collision case below, not a
+version transition), and a checker that finds both SHOULD say so rather than
+picking one silently.
+
+The probe, and the rule stated as *none present* rather than *some missing*,
 on purpose:
 
-- **Neither present** — nothing here was ever a board. A source repository
+- **None present** — nothing here was ever a board. A source repository
   called `micro-manager`, a skill package, an empty directory someone made by
   hand: reporting these as broken todo directories is noise in exactly the
   place a person is scanning for real problems, and the noise is permanent
   because nobody will ever "fix" a source tree into a board.
-- **One present** — a board that has lost a file. This is a REAL failure, and
-  the most alarming kind: something deleted half a project. It MUST still be
-  discovered and MUST still be reported. A rule that skipped it would make a
-  half-deleted board disappear from the checker at the exact moment it needs
-  attention.
+- **`done.md` alone, or `board.md`/`backlog.md` alone** — a board that has
+  lost a file. This is a REAL failure, and the most alarming kind: something
+  deleted half a project. It MUST still be discovered and MUST still be
+  reported. A rule that skipped it would make a half-deleted board disappear
+  from the checker at the exact moment it needs attention.
+- **Both `board.md` and `backlog.md` present** — not a lost file but a stuck
+  migration or a hand-mistake; report it the same way a sibling-name collision
+  is reported (below), since it is the same shape of ambiguity: two candidate
+  identities for one directory.
 
 **The skip applies to DISCOVERY, never to a directory the user named.** A path
 given explicitly — `--dir`, `MM_DIR`, an argument to a checker — that fails the
@@ -909,11 +1017,13 @@ test MUST be an error saying it is not a micro-manager directory. Silence there
 would report success for a command that did nothing, which is worse than the
 noise this rule removes.
 
-The two files are the right probe because they are the two a board cannot lack
-by design: `backlog.md` carries `project` and `next_id` (§5.1), and `done.md` is
-where every closed item lives (§5.3). Working files are deliberately NOT part of
-the test — a directory with `working.01.md` and neither of the other two is a
-wreck worth reporting, not an absence worth skipping.
+`board.md`/`backlog.md` and `done.md` are the right probe because they are
+the files a board cannot lack by design at either version: whichever of
+`board.md` or `backlog.md` applies carries `project` and `next_id` (§5.1),
+and `done.md` is where every closed item lives (§5.3), unchanged across the
+version boundary. Working files were never part of the test even in version
+1 — a directory with `working.01.md` and none of the others is a wreck worth
+reporting, not an absence worth skipping.
 
 Discovery implementations SHOULD additionally prune well-known directories that
 never contain projects (`.git`, `.claude`, `node_modules`, `vendor`, `target`,
@@ -956,3 +1066,49 @@ What the tools MUST do:
 The fix is the user's: keep one directory, move any items worth keeping into it
 by hand — they carry their own IDs, and two boards' IDs overlap, so a merge is
 a decision no tool can make.
+
+---
+
+## Appendix C: version 1 → version 2
+
+This document describes version 2. For version 1's full text, see this
+document's history at the commit immediately prior to this revision — this
+appendix is a compact reference for migration authors and version-1 readers,
+not a restatement.
+
+**What changed, in one paragraph.** `backlog.md` (three fixed
+`## Ready`/`## Blocked`/`## Someday` sections) and one-or-more
+`working.NN.md` files (one in-progress item each, carried in frontmatter)
+merge into a single `board.md`, where every item carries an explicit
+`stage:` field (§5.1). `blocked:` is renamed `reason:` and its placement
+restriction relaxes (§5.1.5). Five new `board.md` frontmatter keys —
+`stages`, `stage_labels`, `wip.<slug>`, `tickler_stages`, `needs_reason` —
+generalize what version 1 hardcoded to specific stage names (§5.1.1–§5.1.5).
+`done.md`, `details/<ID>.md` (plus one addition, §5.4), `structure.md`, and
+the archive files are unchanged.
+
+**Concordance, for a migration reader:**
+
+| Version 1 | Version 2 equivalent |
+|---|---|
+| `backlog.md`, `doc: backlog` | `board.md`, `doc: board` |
+| `## Ready` section | `stage:ready` |
+| `## Blocked` section, `blocked:` field | `stage:blocked`, `reason:` field |
+| `## Someday` section | `stage:someday` |
+| `working.NN.md`, `status: working` | a `stage:working` item line in `board.md` |
+| `working.NN.md`, `status: idle` | (no equivalent — the file does not exist) |
+| working file's `## Task`/`## Plan`/`## Notes`/`## Blockers` | `details/<ID>.md`, same headings (§5.4) |
+| WIP limit = working file count | `wip.working` frontmatter key (§5.1.3); absent = uncapped |
+| `tickler:` valid only in `## Someday` | valid in any `SOURCE` named in `tickler_stages` (§5.1.4) |
+| a fire always lands in `## Ready` | lands per `tickler_stages`'s `DEST`, or an item's own `tickler_dest` |
+| I4 (working coherence) | retired (§7); its live content folds into I7 |
+| I10 (working file set well-formed) | retired (§7) |
+| `working\.[0-9]+\.md` filename pattern | not part of version 2's grammar |
+
+**Migration.** `spec-tools.md` §5.3 specifies the general, versioned
+`--migrate` mechanism and this transition's specific step. A version-2
+reader encountering a version-1 directory MUST refuse mutating operations
+with a version-mismatch error naming both versions (§9) rather than
+misparsing it; `--migrate`, `--check`, and read-only operations MAY still
+work against a version-1 directory, at an implementation's discretion (§9,
+`spec-tools.md` §5.3).
