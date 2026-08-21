@@ -2,7 +2,7 @@
 doc: board
 version: 2
 project: micro-manager — Go implementation
-next_id: T-0240
+next_id: T-0241
 updated: 2026-08-21
 wip.working: 4
 ---
@@ -26,4 +26,4 @@ wip.working: 4
 - [ ] [T-0132] Library: expose per-file stamps for region-level change detection | stage:blocked | prio:med | tags:library,flicker-fix,phase-2 | detail:details/T-0132.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
 - [ ] [T-0133] Broker: publish per-column events from a per-file diff; detail-body edits fire nothing | stage:blocked | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0133.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
 - [ ] [T-0134] Per-column fragment routes and hx-triggers (gated on T-0131) | stage:blocked | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0134.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
-- [ ] [T-0239] Research effort to make column collapsing generic to all columns | stage:ready | prio:med | created:2026-08-21
+- [ ] [T-0240] Generalize column collapsing to every stage (spec-gui.md §5.5/§9.3) | stage:ready | prio:med | tags:columns,gui | detail:details/T-0240.md | created:2026-08-21
