@@ -29,6 +29,12 @@ type boardData struct {
 	// ignoring ui.board.doneLimit. The SSE refresh carries it forward so a
 	// backstop poll cannot silently collapse the column back to the limit.
 	DoneAll bool
+	// DefaultCollapsedStages is ui.board.collapsedStages (§9.3), comma-joined,
+	// carried into the DOM so the client can seed its own collapsed-state
+	// preference the first time it sees this project (no localStorage entry
+	// yet) without a second request. It is a SEED, not the live truth - once
+	// the client has its own preference, that always wins (T-0150).
+	DefaultCollapsedStages string
 }
 
 // columnData is one column. Testid is the contract name; Key is what a filter
@@ -44,9 +50,9 @@ type columnData struct {
 	IsSlot    bool
 	IsWorking bool
 	IsDone    bool
-	// Collapsed marks the someday column as collapsed (§5.5). It is a CLIENT
-	// preference - the server never persists it - so it is true only when the
-	// request carries the state (T-0150).
+	// Collapsed marks this column as collapsed (§5.5, any column). It is a
+	// CLIENT preference - the server never persists it - so it is true only
+	// when the request carries the state (T-0150, generalized in T-0240).
 	Collapsed bool
 	Count     int
 	// Total is the column's full item count, limited or not (§5.5). For every
@@ -213,11 +219,13 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		return s.buildBoardV2(c, dir, items, filters, resolver, doneAll), nil
 	}
 
+	collapsed := collapsedStages(c)
 	data := boardData{
-		WipUsed:  dir.WipUsed,
-		WipLimit: dir.WipLimit,
-		Filters:  filters,
-		DoneAll:  doneAll,
+		WipUsed:                dir.WipUsed,
+		WipLimit:               dir.WipLimit,
+		Filters:                filters,
+		DoneAll:                doneAll,
+		DefaultCollapsedStages: strings.Join(s.opts.Config.UI.Board.CollapsedStages, ","),
 	}
 
 	// The backlog columns (someday, ready, blocked), then working, then done:
@@ -229,13 +237,11 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		// spellings are converted here, at the one boundary between them.
 		key := sectionKey(section)
 		col := columnData{
-			Testid:  "board-column-" + key,
-			Key:     key,
-			Title:   string(section),
-			Section: key,
-		}
-		if key == "someday" {
-			col.Collapsed = somedayCollapsed(c)
+			Testid:    "board-column-" + key,
+			Key:       key,
+			Title:     string(section),
+			Section:   key,
+			Collapsed: collapsed[key],
 		}
 		for _, it := range items {
 			if it.State == mm.StateBacklog && it.Section == section {
@@ -251,6 +257,7 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		Key:       "working",
 		Title:     "Working",
 		IsWorking: true,
+		Collapsed: collapsed["working"],
 	}
 	for _, slot := range dir.Slots {
 		if slot.Item != nil {
@@ -264,7 +271,9 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 	working.Count = len(working.Items)
 	data.Columns = append(data.Columns, working)
 
-	data.Columns = append(data.Columns, s.doneColumn(items, dir, resolver, doneAll))
+	done := s.doneColumn(items, dir, resolver, doneAll)
+	done.Collapsed = collapsed["done"]
+	data.Columns = append(data.Columns, done)
 
 	total := 0
 	for _, col := range data.Columns {
@@ -280,11 +289,13 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 func (s *Server) buildBoardV2(c *echo.Context, dir mm.Directory, items []mm.Item, filters filterData,
 	resolver *refResolver, doneAll bool) boardData {
 	cfg := dir.StageCfg
+	collapsed := collapsedStages(c)
 	data := boardData{
-		WipUsed:  dir.StageUsed["working"],
-		WipLimit: cfg.WipLimits["working"],
-		Filters:  filters,
-		DoneAll:  doneAll,
+		WipUsed:                dir.StageUsed["working"],
+		WipLimit:               cfg.WipLimits["working"],
+		Filters:                filters,
+		DoneAll:                doneAll,
+		DefaultCollapsedStages: strings.Join(s.opts.Config.UI.Board.CollapsedStages, ","),
 	}
 
 	for _, stage := range cfg.Stages {
@@ -298,20 +309,14 @@ func (s *Server) buildBoardV2(c *echo.Context, dir mm.Directory, items []mm.Item
 			// matching --start's own hardcoded destination (board_ops.go).
 			IsWorking:   stage == "working",
 			NeedsReason: cfg.StageNeedsReason(stage),
+			// §5.5: every declared stage MAY collapse, not only Someday
+			// (T-0240 - client preference, not stage-name-specific).
+			Collapsed: collapsed[string(stage)],
 		}
 		if limit, capped := cfg.WipLimits[stage]; capped {
 			col.WipCapped = true
 			col.WipLimit = limit
 			col.WipUsed = dir.StageUsed[stage]
-		}
-		// §5.5: Someday carrying the collapse toggle by default is
-		// RECOMMENDED, not required of any specific stage by name any
-		// longer - this build offers it only there, matching version 1's
-		// behavior, since generalizing which stages get it to an arbitrary,
-		// unbounded set is a client-preference-persistence design of its
-		// own (T-0230's remaining GUI scope), not a rendering question.
-		if stage == "someday" {
-			col.Collapsed = somedayCollapsed(c)
 		}
 		for _, it := range items {
 			if it.State == mm.StateBoard && it.Stage == stage {
@@ -322,7 +327,9 @@ func (s *Server) buildBoardV2(c *echo.Context, dir mm.Directory, items []mm.Item
 		data.Columns = append(data.Columns, col)
 	}
 
-	data.Columns = append(data.Columns, s.doneColumn(items, dir, resolver, doneAll))
+	done := s.doneColumn(items, dir, resolver, doneAll)
+	done.Collapsed = collapsed["done"]
+	data.Columns = append(data.Columns, done)
 
 	total := 0
 	for _, col := range data.Columns {
@@ -354,14 +361,25 @@ func (s *Server) doneColumn(items []mm.Item, dir mm.Directory, resolver *refReso
 	return done
 }
 
-// somedayCollapsed reports the someday column's collapse state (§5.5).
+// collapsedStages reports which columns the client considers collapsed
+// (§5.5, any stage - generalized in T-0240 from a single Someday flag).
 //
 // The toggle is a client preference, kept in localStorage, so a render cannot
-// know it from the directory. The client sends it on every htmx request;
-// without it a board refresh would render the column expanded for a frame and
-// morph it back a beat later (T-0150).
-func somedayCollapsed(c *echo.Context) bool {
-	return strings.EqualFold(c.Request().Header.Get("X-Someday-Collapsed"), "true")
+// know it from the directory. The client sends its full set on every htmx
+// request as a comma-separated list; without it a board refresh would render
+// every column expanded for a frame and morph it back a beat later (T-0150).
+func collapsedStages(c *echo.Context) map[string]bool {
+	set := map[string]bool{}
+	raw := c.Request().Header.Get("X-Collapsed-Stages")
+	if raw == "" {
+		return set
+	}
+	for _, key := range strings.Split(raw, ",") {
+		if key = strings.TrimSpace(key); key != "" {
+			set[key] = true
+		}
+	}
+	return set
 }
 
 // sectionKey is the lowercase form the DOM contract uses (§5.1). The library

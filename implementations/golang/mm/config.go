@@ -159,8 +159,14 @@ type UIConfig struct {
 
 // BoardConfig is ui.board, project-scoped in practice (spec-gui.md §9.3).
 type BoardConfig struct {
-	ShowSomeday bool
-	DoneLimit   int
+	// CollapsedStages lists which columns render collapsed by default
+	// (§5.5, §9.3) - a server-side default only, consulted when a client
+	// has no stored preference of its own yet (T-0150's flicker fix keeps
+	// the live, per-request truth entirely client-side). Renamed and
+	// generalized from a single "someday" boolean (T-0240): any declared
+	// stage, or none, or several, can be named here.
+	CollapsedStages []string
+	DoneLimit       int
 }
 
 // ReportConfig is the report object. Period occupies the same precedence slot as
@@ -218,7 +224,7 @@ func DefaultConfig() Config {
 			DefaultView:     "board",
 			PollIntervalMs:  5000,
 			ConfirmRemove:   true,
-			Board:           BoardConfig{ShowSomeday: true, DoneLimit: 20},
+			Board:           BoardConfig{CollapsedStages: []string{"someday"}, DoneLimit: 20},
 		},
 		Report: ReportConfig{
 			Period:     "last-week",
@@ -536,7 +542,7 @@ func applyConfig(cfg *Config, f *ConfigFile) []ConfigWarning {
 	str("ui.defaultView", &cfg.UI.DefaultView, "board", "report", "check", "settings")
 	num("ui.pollIntervalMs", &cfg.UI.PollIntervalMs)
 	boolean("ui.confirmRemove", &cfg.UI.ConfirmRemove)
-	boolean("ui.board.showSomeday", &cfg.UI.Board.ShowSomeday)
+	strs("ui.board.collapsedStages", &cfg.UI.Board.CollapsedStages)
 	num("ui.board.doneLimit", &cfg.UI.Board.DoneLimit)
 
 	str("report.period", &cfg.Report.Period)

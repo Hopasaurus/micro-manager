@@ -332,6 +332,29 @@ func TestDefaultsMatchTheSpec(t *testing.T) {
 	if c.UI.PollIntervalMs != 5000 {
 		t.Errorf("ui.pollIntervalMs = %d, want the documented 5000", c.UI.PollIntervalMs)
 	}
+	if got := c.UI.Board.CollapsedStages; len(got) != 1 || got[0] != "someday" {
+		t.Errorf("ui.board.collapsedStages default = %v, want [\"someday\"] (§9.3)", got)
+	}
+}
+
+// §9.3: ui.board.collapsedStages replaced version 1's single showSomeday
+// boolean (T-0240) - a list of stage slugs, parsed the same way scan.roots
+// and scan.excludes already are.
+func TestBoardCollapsedStagesIsAStringList(t *testing.T) {
+	dir := t.TempDir()
+	proj := filepath.Join(dir, "project.json")
+	writeJSON(t, proj, `{
+	  "schemaVersion": 1,
+	  "ui": { "board": { "collapsedStages": ["someday", "review"] } }
+	}`)
+
+	cfg, warnings := MergeConfig(nil, loadConfig(t, proj, ScopeProject))
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+	if got := cfg.UI.Board.CollapsedStages; len(got) != 2 || got[0] != "someday" || got[1] != "review" {
+		t.Errorf("ui.board.collapsedStages = %v, want [someday review]", got)
+	}
 }
 
 func hasWarningFor(warnings []ConfigWarning, key string) bool {

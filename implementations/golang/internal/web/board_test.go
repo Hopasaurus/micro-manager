@@ -42,9 +42,11 @@ func TestBoardColumnsAndOrder(t *testing.T) {
 		t.Errorf("columns are\n  %v\nwant\n  %v", got, want)
 	}
 
-	// Every column carries its header, title, count and body; backlog and done carry -add.
+	// Every column carries its header, title, count, body and toggle (§5.5,
+	// T-0240: the toggle is offered on every column, not only Someday);
+	// backlog and done carry -add.
 	for _, col := range want {
-		suffixes := []string{"-header", "-title", "-count", "-body"}
+		suffixes := []string{"-header", "-title", "-count", "-body", "-toggle"}
 		if col != "board-column-working" {
 			suffixes = append(suffixes, "-add")
 		}
@@ -57,51 +59,50 @@ func TestBoardColumnsAndOrder(t *testing.T) {
 			t.Errorf("board-column-working-add MUST NOT exist (§4, D10)")
 		}
 	}
-
-	if !hasTestid(body, "board-column-someday-toggle") {
-		t.Errorf("board-column-someday-toggle is missing")
-	}
 }
 
-// §5.5: the someday collapse is a client preference, sent on every htmx
-// request. A refresh must render the column ALREADY collapsed (T-0150):
-// collapsing it after the swap is what lets a full refresh expand the column
-// for a frame and jump it back.
-func TestSomedayCollapseRenderedFromHeader(t *testing.T) {
+// §5.5: a column's collapse state is a client preference, sent on every htmx
+// request as a comma-separated list (T-0240, generalized from a single
+// Someday flag). A refresh must render every named column ALREADY collapsed
+// (T-0150): collapsing it after the swap is what lets a full refresh expand
+// the column for a frame and jump it back.
+func TestColumnCollapseRenderedFromHeader(t *testing.T) {
 	ts, id := boardServer(t, "clean-multi-slot")
 	target := "/p/" + id + "/board?fragment=1"
 
-	// Without the header the column renders expanded, per the canonical §5.5.
+	// Without the header every column renders expanded, per the canonical §5.5.
 	body := ts.get(target).Body
-	if got := attrOf(t, testid(t, body, "board-column-someday"), "data-collapsed"); got != "false" {
-		t.Errorf("someday data-collapsed = %q without the header, want false", got)
-	}
-	if got := somedayToggle(t, body); got != "&gt;" {
-		t.Errorf("expanded toggle is %q, want &gt;", got)
-	}
-
-	// With the header the fragment is born collapsed, so a swap never expands it.
-	body = ts.get(target, "X-Someday-Collapsed", "true").Body
-	if got := attrOf(t, testid(t, body, "board-column-someday"), "data-collapsed"); got != "true" {
-		t.Errorf("someday data-collapsed = %q with the header, want true", got)
-	}
-	if got := somedayToggle(t, body); got != "v" {
-		t.Errorf("collapsed toggle is %q, want v", got)
+	for _, key := range []string{"someday", "ready"} {
+		if got := attrOf(t, testid(t, body, "board-column-"+key), "data-collapsed"); got != "false" {
+			t.Errorf("%s data-collapsed = %q without the header, want false", key, got)
+		}
+		if got := columnToggle(t, body, key); got != "&gt;" {
+			t.Errorf("%s expanded toggle is %q, want &gt;", key, got)
+		}
 	}
 
-	// The collapse is the someday column's alone: a header must not leak
-	// onto the other columns.
-	if got := attrOf(t, testid(t, body, "board-column-ready"), "data-collapsed"); got != "" {
-		t.Errorf("ready column carries data-collapsed=%q", got)
+	// With the header, exactly the named columns are born collapsed, so a
+	// swap never expands them - and the rest are unaffected.
+	body = ts.get(target, "X-Collapsed-Stages", "someday,ready").Body
+	for _, key := range []string{"someday", "ready"} {
+		if got := attrOf(t, testid(t, body, "board-column-"+key), "data-collapsed"); got != "true" {
+			t.Errorf("%s data-collapsed = %q with the header, want true", key, got)
+		}
+		if got := columnToggle(t, body, key); got != "v" {
+			t.Errorf("%s collapsed toggle is %q, want v", key, got)
+		}
+	}
+	if got := attrOf(t, testid(t, body, "board-column-blocked"), "data-collapsed"); got != "false" {
+		t.Errorf("blocked data-collapsed = %q, a header naming other columns must not leak onto it", got)
 	}
 }
 
-// somedayToggle extracts the toggle's visible text from a board fragment.
-func somedayToggle(t *testing.T, body string) string {
+// columnToggle extracts one column's toggle visible text from a board fragment.
+func columnToggle(t *testing.T, body, key string) string {
 	t.Helper()
-	m := regexp.MustCompile(`<button[^>]*data-testid="board-column-someday-toggle"[^>]*>([^<]*)</button>`).FindStringSubmatch(body)
+	m := regexp.MustCompile(`<button[^>]*data-testid="board-column-` + key + `-toggle"[^>]*>([^<]*)</button>`).FindStringSubmatch(body)
 	if m == nil {
-		t.Fatalf("no board-column-someday-toggle button in\n%s", body)
+		t.Fatalf("no board-column-%s-toggle button in\n%s", key, body)
 	}
 	return m[1]
 }

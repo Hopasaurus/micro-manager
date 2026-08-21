@@ -699,6 +699,89 @@ test('an expanded column still takes its index from the pointer', (t) => {
   assert.equal(someday.getAttribute('data-drop-index'), '0');
 });
 
+/* ----------------------------------- generic collapse toggle (T-0240) ----------------------------------- */
+
+// Two toggle-bearing columns, the shape every column carries once collapsing
+// generalized past Someday: board-column-<key>-toggle, and data-collapsed
+// present (and "false") on every column, not only Someday.
+const TOGGLE_HTML = `
+<div data-testid="app" data-project-id="toggle-project" hx-ext="sse,morph">
+  <section data-testid="board" class="mm-board" data-default-collapsed-stages="">
+    <section data-testid="board-column-someday" class="mm-column" data-collapsed="false">
+      <header data-testid="board-column-someday-header" class="mm-column__header">
+        <button data-testid="board-column-someday-toggle" class="mm-column__toggle"
+                type="button" aria-label="Toggle Someday column">&gt;</button>
+      </header>
+      <div data-testid="board-column-someday-body" class="mm-column__body" data-column="someday"></div>
+    </section>
+    <section data-testid="board-column-ready" class="mm-column" data-collapsed="false">
+      <header data-testid="board-column-ready-header" class="mm-column__header">
+        <button data-testid="board-column-ready-toggle" class="mm-column__toggle"
+                type="button" aria-label="Toggle Ready column">&gt;</button>
+      </header>
+      <div data-testid="board-column-ready-body" class="mm-column__body" data-column="ready"></div>
+    </section>
+  </section>
+</div>
+`;
+
+test('clicking a column toggle collapses it and stores the preference generically', (t) => {
+  const { win } = load(t, TOGGLE_HTML);
+  const toggle = byTestid(win, 'board-column-ready-toggle');
+  const col = byTestid(win, 'board-column-ready');
+
+  click(win, toggle);
+
+  assert.equal(col.getAttribute('data-collapsed'), 'true');
+  assert.equal(toggle.textContent, 'v');
+  assert.equal(
+    win.localStorage.getItem('mm:collapsed-stages:toggle-project'),
+    'ready',
+    'the ready column, not someday, is what got stored',
+  );
+
+  // Clicking again expands it and drops it from the stored set.
+  click(win, toggle);
+  assert.equal(col.getAttribute('data-collapsed'), 'false');
+  assert.equal(toggle.textContent, '>');
+  assert.equal(win.localStorage.getItem('mm:collapsed-stages:toggle-project'), '');
+});
+
+test('collapsing two columns stores both, comma-separated', (t) => {
+  const { win } = load(t, TOGGLE_HTML);
+  click(win, byTestid(win, 'board-column-someday-toggle'));
+  click(win, byTestid(win, 'board-column-ready-toggle'));
+
+  const stored = win.localStorage.getItem('mm:collapsed-stages:toggle-project').split(',');
+  assert.deepEqual(stored.sort(), ['ready', 'someday']);
+});
+
+test('the collapsed set is sent as one comma-separated request header', (t) => {
+  const { win } = load(t, TOGGLE_HTML);
+  click(win, byTestid(win, 'board-column-ready-toggle'));
+
+  const headers = {};
+  win.document.body.dispatchEvent(new win.CustomEvent('htmx:configRequest', {
+    bubbles: true, detail: { headers },
+  }));
+  assert.equal(headers['X-Collapsed-Stages'], 'ready');
+});
+
+test('a fresh project with no stored preference seeds from the server default', (t) => {
+  const html = TOGGLE_HTML
+    .replace('data-default-collapsed-stages=""', 'data-default-collapsed-stages="someday"')
+    .replace('data-project-id="toggle-project"', 'data-project-id="fresh-project"');
+  const { win } = load(t, html);
+
+  win.document.dispatchEvent(new win.Event('DOMContentLoaded', { bubbles: true }));
+
+  const someday = byTestid(win, 'board-column-someday');
+  assert.equal(someday.getAttribute('data-collapsed'), 'true', 'seeded collapsed from the default');
+  assert.equal(byTestid(win, 'board-column-someday-toggle').textContent, 'v');
+  // Ready has no entry in the default, so it stays expanded.
+  assert.equal(byTestid(win, 'board-column-ready').getAttribute('data-collapsed'), 'false');
+});
+
 test('dragging into done prompts the finish dialog', (t) => {
   const { win, htmx } = load(t);
   stubLayout(win);

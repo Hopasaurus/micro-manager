@@ -748,46 +748,84 @@
     }
   });
 
-  /* Collapsible Someday column (§5.5), a client preference in localStorage,
-     sent with every htmx request (T-0150) so a refresh is born collapsed. */
-  function somedayCollapsed() {
+  /* Collapsible columns (§5.5, generalized in T-0240 from a single Someday
+     flag): a client preference in localStorage, sent with every htmx request
+     as a comma-separated list (T-0150) so a refresh is born in the right
+     state. */
+  function collapsedStorageKey() {
+    const project = root()?.getAttribute('data-project-id');
+    return project ? `mm:collapsed-stages:${project}` : null;
+  }
+
+  function collapsedStageSet() {
     try {
-      const project = root()?.getAttribute('data-project-id');
-      return project && localStorage.getItem(`mm:someday-collapsed:${project}`) === 'true';
-    } catch (_) { return false; }
+      const key = collapsedStorageKey();
+      if (!key) return new Set();
+      let stored = localStorage.getItem(key);
+      if (stored === null) {
+        /* No preference recorded for this project yet - not the same as
+           having recorded "none collapsed" - so seed from the server's
+           default (ui.board.collapsedStages), carried on the board root. */
+        const board = document.querySelector('[data-testid="board"]');
+        stored = board?.getAttribute('data-default-collapsed-stages') || '';
+      }
+      return new Set(stored.split(',').map((s) => s.trim()).filter(Boolean));
+    } catch (_) { return new Set(); }
+  }
+
+  function saveCollapsedStageSet(set) {
+    try {
+      const key = collapsedStorageKey();
+      if (key) localStorage.setItem(key, Array.from(set).join(','));
+    } catch (_) {}
   }
 
   document.body.addEventListener('htmx:configRequest', (event) => {
     const headers = event.detail && event.detail.headers;
-    if (headers) headers['X-Someday-Collapsed'] = somedayCollapsed() ? 'true' : 'false';
+    if (headers) headers['X-Collapsed-Stages'] = Array.from(collapsedStageSet()).join(',');
   });
 
-  function restoreSomedayState() {
-    const col = document.querySelector('[data-testid="board-column-someday"]');
-    const toggle = document.querySelector('[data-testid="board-column-someday-toggle"]');
-    if (!col || !toggle || !somedayCollapsed()) return;
-    col.setAttribute('data-collapsed', 'true');
-    toggle.textContent = 'v';
+  /* A column's key is read back out of its own testid (board-column-<key>,
+     board-column-<key>-toggle) rather than a new data-* attribute, since the
+     testid already carries it exactly (board.go's Testid field). */
+  function columnKeyFromTestid(testid, suffix) {
+    if (!testid || !testid.startsWith('board-column-')) return null;
+    let key = testid.slice('board-column-'.length);
+    if (suffix && key.endsWith(suffix)) key = key.slice(0, -suffix.length);
+    return key || null;
+  }
+
+  function restoreCollapsedState() {
+    const set = collapsedStageSet();
+    if (set.size === 0) return;
+    document.querySelectorAll('.mm-column').forEach((col) => {
+      const key = columnKeyFromTestid(col.getAttribute('data-testid'), '');
+      if (!key || !set.has(key)) return;
+      col.setAttribute('data-collapsed', 'true');
+      const toggle = col.querySelector('.mm-column__toggle');
+      if (toggle) toggle.textContent = 'v';
+    });
   }
 
   document.body.addEventListener('click', (e) => {
-    const toggle = e.target.closest('[data-testid="board-column-someday-toggle"]');
+    const toggle = e.target.closest('.mm-column__toggle');
     if (!toggle) return;
-    const col = document.querySelector('[data-testid="board-column-someday"]');
-    if (!col) return;
+    const key = columnKeyFromTestid(toggle.getAttribute('data-testid'), '-toggle');
+    const col = toggle.closest('.mm-column');
+    if (!key || !col) return;
     const isCollapsed = col.getAttribute('data-collapsed') === 'true';
     const nextState = !isCollapsed;
     col.setAttribute('data-collapsed', nextState ? 'true' : 'false');
     toggle.textContent = nextState ? 'v' : '>';
-    try {
-      const project = root()?.getAttribute('data-project-id');
-      if (project) localStorage.setItem(`mm:someday-collapsed:${project}`, nextState ? 'true' : 'false');
-    } catch (_) {}
+    const set = collapsedStageSet();
+    if (nextState) set.add(key);
+    else set.delete(key);
+    saveCollapsedStageSet(set);
   });
 
   /* afterSwap, not afterSettle - before paint (T-0150). */
-  document.body.addEventListener('htmx:afterSwap', restoreSomedayState);
-  document.addEventListener('DOMContentLoaded', restoreSomedayState);
+  document.body.addEventListener('htmx:afterSwap', restoreCollapsedState);
+  document.addEventListener('DOMContentLoaded', restoreCollapsedState);
 
   /* --------------------------------------------------- SSE-down polling */
 

@@ -227,7 +227,7 @@ func patternInstances(projectID string) map[string][]string {
 		"dialog-<name>":                 {"dialog-confirm-remove", "dialog-block", "dialog-finish", "dialog-wip-limit", "dialog-import-theme"},
 		"project-card-<projectId>":      {"project-card-" + projectID, "project-card-name", "project-card-path", "project-card-wip", "project-card-favorite-toggle"},
 		"board-column-<slug>":           column("", false),
-		"board-column-<slug>-toggle":    {"board-column-someday-toggle"}, // only someday carries one
+		"board-column-<slug>-toggle":    column("-toggle", false), // every column carries one (T-0240)
 		"board-column-<slug>-header":    column("-header", false),
 		"board-column-<slug>-title":     column("-title", false),
 		"board-column-<slug>-count":     column("-count", false),

@@ -15,6 +15,7 @@
 {{define "board" -}}
 <section data-testid="board" class="mm-board" data-state="{{if .Data.Empty}}empty{{else}}ready{{end}}"
          data-wip-used="{{.Data.WipUsed}}" data-wip-limit="{{.Data.WipLimit}}"
+         data-default-collapsed-stages="{{.Data.DefaultCollapsedStages}}"
          aria-live="polite"
          {{with .App.Project}}
          hx-get="/p/{{.ID}}/board?fragment=1{{if $.Data.DoneAll}}&done=all{{end}}" hx-ext="morph"
@@ -39,16 +40,17 @@
               the default stage names, since both read the same token. */}}
          {{if $c.Stage}}data-stage="{{$c.Stage}}" data-needs-reason="{{yesno $c.NeedsReason}}"
          style="border-top: var(--mm-border-width-thick) solid var(--mm-color-state-{{$c.Stage}}, var(--mm-color-accent-base));"{{end}}
-         {{if eq $c.Key "someday"}}data-collapsed="{{if $c.Collapsed}}true{{else}}false{{end}}"{{end}}
+         data-collapsed="{{if $c.Collapsed}}true{{else}}false{{end}}"
          data-count="{{$c.Count}}"
          {{if $c.IsDone}}data-total="{{$c.Total}}"{{end}}
          {{if $c.WipCapped}}data-wip-used="{{$c.WipUsed}}" data-wip-limit="{{$c.WipLimit}}"{{end}}
          role="list" aria-label="{{$c.Title}}">
   <header data-testid="{{$c.Testid}}-header" class="mm-column__header">
-    {{if eq $c.Key "someday"}}
-    <button data-testid="board-column-someday-toggle" class="mm-column__toggle"
-            type="button" aria-label="Toggle Someday column">{{if $c.Collapsed}}v{{else}}&gt;{{end}}</button>
-    {{end}}
+    {{/* §5.5: every column MAY offer the toggle, not only Someday (T-0240) -
+         this build offers it on all of them, keyed by the column's own Key
+         rather than a literal stage name. */}}
+    <button data-testid="{{$c.Testid}}-toggle" class="mm-column__toggle"
+            type="button" aria-label="Toggle {{$c.Title}} column">{{if $c.Collapsed}}v{{else}}&gt;{{end}}</button>
     <h2 data-testid="{{$c.Testid}}-title" class="mm-column__title">{{$c.Title}}</h2>
     <span data-testid="{{$c.Testid}}-count" class="mm-column__count">{{if and $c.IsDone (gt $c.Total $c.Count)}}{{$c.Count}} of {{$c.Total}}{{else}}{{$c.Count}}{{end}}</span>
     {{if not $c.IsWorking}}
