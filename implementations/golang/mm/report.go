@@ -42,8 +42,18 @@ func ParseGroupBy(s string) (GroupBy, error) {
 type ReportOptions struct {
 	GroupBy GroupBy
 
-	// IncludeWip appends what is in the working slots, marked in progress.
+	// IncludeWip appends what is in the working slots, marked in progress
+	// (version 1). On a version-2 directory it is kept as a shorthand for
+	// IncludeStages containing "working" (spec-tools.md §5.1.11) rather than
+	// retired now that the general form exists, so existing scripts and
+	// muscle memory keep working.
 	IncludeWip bool
+
+	// IncludeStages appends what currently sits on each named stage, marked
+	// with that stage — version 2 only; repeatable, one stage per entry. A
+	// version-1 directory refuses a non-empty list, since it has no stages:
+	// declaration to validate against.
+	IncludeStages []Stage
 
 	// IncludeBacklog appends the top of ## Ready as "next".
 	IncludeBacklog bool
@@ -67,6 +77,16 @@ type ReportGroup struct {
 	Items []Item
 }
 
+// ReportStageGroup is one --include-stage's items (version 2 only,
+// spec-tools.md §5.1.11): what currently sits on Stage, in file order.
+// Populated even when empty, so a caller can tell "asked for and empty" apart
+// from "never asked" — Markdown rendering drops an empty group instead.
+type ReportStageGroup struct {
+	Stage Stage
+	Label string
+	Items []Item
+}
+
 // Report is what one directory did in a period.
 type Report struct {
 	Period  Period
@@ -80,6 +100,12 @@ type Report struct {
 
 	Wip  []Item
 	Next []Item
+
+	// StageIncluded holds one group per requested --include-stage (version 2
+	// only), in the order requested, deduplicated; IncludeWip's shorthand
+	// contributes a leading "working" group when not already named
+	// explicitly.
+	StageIncluded []ReportStageGroup
 
 	// Warnings are conditions that make the report incomplete but not wrong -
 	// most importantly a period that predates what done.md still holds.
@@ -164,6 +190,36 @@ func (s *Store) Report(p Period, opts ReportOptions) (Report, error) {
 				}
 			}
 		}
+	}
+
+	if m.isV2() {
+		stages := make([]Stage, 0, len(opts.IncludeStages)+1)
+		seen := map[Stage]bool{}
+		if opts.IncludeWip && !seen["working"] {
+			stages = append(stages, "working")
+			seen["working"] = true
+		}
+		for _, stage := range opts.IncludeStages {
+			if seen[stage] {
+				continue
+			}
+			seen[stage] = true
+			stages = append(stages, stage)
+		}
+		for _, stage := range stages {
+			if _, err := ParseStage(string(stage), m.board.stageCfg.Stages); err != nil {
+				return Report{}, err
+			}
+			group := ReportStageGroup{Stage: stage, Label: m.board.stageCfg.Label(stage)}
+			for _, it := range m.board.StageItems(stage) {
+				group.Items = append(group.Items, *it)
+			}
+			rep.StageIncluded = append(rep.StageIncluded, group)
+		}
+	} else if len(opts.IncludeStages) > 0 {
+		return Report{}, fmt.Errorf(
+			"%w: --include-stage is a version-2 concept (this directory is version 1)",
+			ErrInvalidArgument)
 	}
 
 	// The warning is about work the report could not see. Once the archives have
@@ -367,6 +423,21 @@ func (r Report) Markdown() string {
 		b.WriteString("\n## In progress\n\n")
 		for _, item := range r.Wip {
 			fmt.Fprintf(&b, "- %s %s (slot %d)\n", item.ID, item.Title, item.Slot)
+		}
+	}
+	// Empty groups are dropped, same reasoning as groupItems: a report that
+	// lists "review: none" every week trains the reader to skip it.
+	for _, g := range r.StageIncluded {
+		if len(g.Items) == 0 {
+			continue
+		}
+		label := g.Label
+		if label == "" {
+			label = string(g.Stage)
+		}
+		fmt.Fprintf(&b, "\n## %s\n\n", label)
+		for _, item := range g.Items {
+			fmt.Fprintf(&b, "- %s %s\n", item.ID, item.Title)
 		}
 	}
 	if len(r.Next) > 0 {

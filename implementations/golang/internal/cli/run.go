@@ -954,8 +954,13 @@ func runReport(env Env, in *Invocation, s *mm.Store) error {
 	if err != nil {
 		return err
 	}
+	stages := make([]mm.Stage, 0, len(in.IncludeStages))
+	for _, s := range in.IncludeStages {
+		stages = append(stages, mm.Stage(s))
+	}
 	opts := mm.ReportOptions{
 		IncludeWip:      in.Bool("include-wip"),
+		IncludeStages:   stages,
 		IncludeBacklog:  in.Bool("include-backlog"),
 		IncludeArchives: in.Bool("include-archives"),
 	}

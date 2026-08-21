@@ -223,6 +223,93 @@ func TestReportIncludeWipAndBacklog(t *testing.T) {
 	}
 }
 
+// --include-stage (spec-tools.md §5.1.11): version 2 only, repeatable, marks
+// each group with its stage; --include-wip is a shorthand for
+// --include-stage working, deduplicated against an explicit one.
+func TestReportIncludeStageV2(t *testing.T) {
+	_, s := v2Dir(t)
+	p, err := ParsePeriod("all", Date{2026, 8, 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rep, err := s.Report(p, ReportOptions{IncludeStages: []Stage{"review"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.StageIncluded) != 1 || rep.StageIncluded[0].Stage != "review" {
+		t.Fatalf("stageIncluded = %+v", rep.StageIncluded)
+	}
+	if got := reportIDs(rep.StageIncluded[0].Items); !sameIDs(got, []ID{"T-0007"}) {
+		t.Errorf("review = %v", got)
+	}
+	if rep.StageIncluded[0].Label != "Review" {
+		t.Errorf("label = %q, want the derived title case", rep.StageIncluded[0].Label)
+	}
+
+	rep, err = s.Report(p, ReportOptions{
+		IncludeWip:    true,
+		IncludeStages: []Stage{"working", "review"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.StageIncluded) != 2 {
+		t.Fatalf("include-wip's working must dedupe against an explicit --include-stage working: %+v", rep.StageIncluded)
+	}
+	if rep.StageIncluded[0].Stage != "working" || rep.StageIncluded[1].Stage != "review" {
+		t.Errorf("order = %v, want working (from include-wip) then review", rep.StageIncluded)
+	}
+	if got := reportIDs(rep.StageIncluded[0].Items); !sameIDs(got, []ID{"T-0006"}) {
+		t.Errorf("working = %v", got)
+	}
+
+	if _, err := s.Report(p, ReportOptions{IncludeStages: []Stage{"nope"}}); !errors.Is(err, ErrInvalidArgument) {
+		t.Errorf("want ErrInvalidArgument for an undeclared stage, got %v", err)
+	}
+}
+
+// --include-stage is a version-2 concept; a version-1 directory has no
+// stages: declaration to validate a slug against, so it refuses rather than
+// silently returning nothing.
+func TestReportIncludeStageRefusedOnV1(t *testing.T) {
+	s := reportDir(t)
+	p, err := ParsePeriod("all", Date{2026, 7, 29})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Report(p, ReportOptions{IncludeStages: []Stage{"ready"}}); !errors.Is(err, ErrInvalidArgument) {
+		t.Errorf("want ErrInvalidArgument on a version-1 directory, got %v", err)
+	}
+}
+
+// Markdown drops an empty stage group instead of printing "qa: none" - same
+// reasoning as groupItems' empty-outcome-group rule.
+func TestReportMarkdownDropsEmptyStageGroups(t *testing.T) {
+	dir, s := v2Dir(t)
+	board := strings.Replace(v2Board,
+		"stages: someday,ready,blocked,working,review",
+		"stages: someday,ready,blocked,working,review,qa", 1)
+	if err := os.WriteFile(filepath.Join(dir, "board.md"), []byte(board), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := ParsePeriod("all", Date{2026, 8, 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rep, err := s.Report(p, ReportOptions{IncludeStages: []Stage{"qa"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.StageIncluded) != 1 || len(rep.StageIncluded[0].Items) != 0 {
+		t.Fatalf("stageIncluded = %+v, want one empty qa group", rep.StageIncluded)
+	}
+	if strings.Contains(rep.Markdown(), "Qa") {
+		t.Errorf("an empty stage group must not render at all:\n%s", rep.Markdown())
+	}
+}
+
 // A period reaching past what done.md holds returns nothing and looks exactly
 // like a quiet week. It must say so instead.
 func TestReportWarnsAboutArchivedPeriods(t *testing.T) {

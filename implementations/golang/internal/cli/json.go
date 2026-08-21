@@ -519,6 +519,17 @@ func toJSONReport(rep mm.Report) any {
 	if len(rep.Wip) > 0 {
 		out["wip"] = toJSONItems(rep.Wip)
 	}
+	if len(rep.StageIncluded) > 0 {
+		groups := make([]map[string]any, 0, len(rep.StageIncluded))
+		for _, g := range rep.StageIncluded {
+			groups = append(groups, map[string]any{
+				"stage": string(g.Stage),
+				"label": g.Label,
+				"items": toJSONItems(g.Items),
+			})
+		}
+		out["stageIncluded"] = groups
+	}
 	if len(rep.Next) > 0 {
 		out["next"] = toJSONItems(rep.Next)
 	}

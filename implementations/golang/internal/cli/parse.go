@@ -117,13 +117,14 @@ type Invocation struct {
 	Seen   map[string]bool
 
 	// Accumulating switches (§3.3 rule 5).
-	Tags     []string
-	Untags   []string
-	Sets     []string
-	Unsets   []string
-	Fields   []string
-	Rest     []string // positional values after --
-	Booleans map[string]bool
+	Tags          []string
+	Untags        []string
+	Sets          []string
+	Unsets        []string
+	Fields        []string
+	IncludeStages []string
+	Rest          []string // positional values after --
+	Booleans      map[string]bool
 }
 
 // Has reports whether a modifier was given at all, which is not the same as its
@@ -154,7 +155,7 @@ var valueModifiers = map[string]bool{
 // modifiers that accumulate rather than replace.
 var accumulating = map[string]bool{
 	"tag": true, "untag": true, "set": true, "unset": true,
-	"field": true,
+	"field": true, "include-stage": true,
 }
 
 // boolean modifiers.
@@ -258,6 +259,8 @@ func Parse(args []string) (*Invocation, error) {
 				in.Unsets = append(in.Unsets, v)
 			case "field":
 				in.Fields = append(in.Fields, v)
+			case "include-stage":
+				in.IncludeStages = append(in.IncludeStages, v)
 			}
 
 		case valueModifiers[name]:

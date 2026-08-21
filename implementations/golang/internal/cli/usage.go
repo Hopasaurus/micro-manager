@@ -232,7 +232,7 @@ how work is abandoned without deleting it.
 `,
 	OpReport: `mm --report [--period TOKEN | --last-week | --this-week | --week YYYY-Www
                  | --since DATE [--until DATE]]
-                [--group-by outcome|tag|day|none]
+                [--group-by outcome|tag|day|none] [--include-stage SLUG]...
                 [--include-wip] [--include-backlog] [--include-archives]
 
 Periods: last-week (default), this-week, YYYY-Www, last-N-days, YYYY-MM,
@@ -240,6 +240,13 @@ last-month, this-month, today, yesterday, all.
 
 The default is last-week rather than this-week because a report over a closed
 period is reproducible and one over an open period is not.
+
+  --include-stage SLUG      append what currently sits on SLUG, marked with
+                            it; repeatable, one stage per occurrence
+                            (version 2 only)
+  --include-wip             a shorthand for --include-stage working on a
+                            version-2 directory; version 1's working slots
+                            otherwise
 `,
 	OpCheck: `mm --check [--all]
 

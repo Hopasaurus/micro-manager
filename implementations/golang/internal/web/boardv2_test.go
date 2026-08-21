@@ -223,6 +223,20 @@ func TestItemMutationV2PauseToStage(t *testing.T) {
 	}
 }
 
+// A bare /new (no ?stage=) must default the stage selector to "ready" when
+// the directory declares one, matching AddRequest's own empty-Stage default
+// (op_add.go's buildNewItemV2) - not the directory's first declared stage,
+// which clean-v2-full (like DefaultStageConfig) orders as someday first.
+// Defaulting to Stages[0] would silently default the form to Someday instead.
+func TestBoardV2NewItemPanelDefaultsToReady(t *testing.T) {
+	ts, id := boardServer(t, "clean-v2-full")
+	body := ts.get("/p/" + id + "/new").expectStatus(http.StatusOK).Body
+
+	if !strings.Contains(body, `<option value="ready" selected>`) {
+		t.Errorf("the new panel should default its stage selector to ready:\n%s", body)
+	}
+}
+
 // hasEnabledAction reports whether an item's action button for op is present
 // and not disabled.
 func hasEnabledAction(body, id, op string) bool {

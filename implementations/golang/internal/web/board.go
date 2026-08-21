@@ -422,11 +422,19 @@ func validNewStage(dir mm.Directory, value string) (string, bool) {
 }
 
 // defaultNewStage is what the new-item panel's selector defaults to absent a
-// valid ?stage= (§5.6): version 1's Ready, or version 2's first declared
-// stage — the only default that needs no meaning invented for a directory
-// that may not even have a stage named "ready".
+// valid ?stage= (§5.6): version 1's Ready, or version 2's own "ready" when the
+// directory declares one — matching AddRequest's own empty-Stage default
+// (buildNewItemV2, spec-tools.md §5.1.2), so the form's visible default and an
+// omitted --add --stage land the same place. DefaultStageConfig orders
+// someday first, so falling back to the first declared stage unconditionally
+// would default a stock v2 board's new-item form to Someday instead — the
+// first declared stage is a fallback only for the rarer directory that has no
+// "ready" stage at all, not the common case.
 func defaultNewStage(dir mm.Directory) string {
 	if dir.Version == 2 {
+		if dir.StageCfg.IsStage("ready") {
+			return "ready"
+		}
 		if len(dir.StageCfg.Stages) > 0 {
 			return string(dir.StageCfg.Stages[0])
 		}
