@@ -27,7 +27,7 @@ const (
 
 // Version is the tool version, and the format spec version it implements.
 const (
-	Version           = "0.1.0"
+	Version           = "0.2.0"
 	FormatSpecVersion = "1"
 )
 
