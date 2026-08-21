@@ -51,6 +51,21 @@
       <span>Include work in progress</span>
     </label>
 
+    {{/* report-include-stage (§5.7, §5.1.11): version 2 only - a version-1
+         directory has no stages: declaration to offer, so the control is
+         omitted rather than rendered with nothing to choose from. */}}
+    {{if $d.Controls.StageOptions}}
+    <label class="mm-field">
+      <span>Include stages</span>
+      <select data-testid="report-include-stage" name="include-stage" multiple>
+        {{range $d.Controls.StageOptions}}
+        {{$slug := .Slug}}
+        <option value="{{$slug}}" {{if includes $d.Controls.IncludeStages $slug}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </label>
+    {{end}}
+
     <button data-testid="report-apply" class="mm-button mm-button--primary" type="submit">Apply</button>
   </form>
 
@@ -93,6 +108,24 @@
       </div>
       {{end}}
     </section>
+    {{end}}
+
+    {{/* --include-stage's groups (§5.1.11): version 2 only, one section per
+         requested stage that actually has something on it - an empty one is
+         dropped, same reasoning as the CLI's Markdown rendering. */}}
+    {{range $d.StageIncluded}}
+    {{$stage := .Stage}}
+    {{if .Items}}
+    <section data-testid="report-group-stage-{{$stage}}" class="mm-report__group" data-count="{{len .Items}}">
+      <h2 class="mm-report__group-title">{{.Label}}</h2>
+      {{range .Items}}
+      <div data-testid="report-item-{{.ID}}" class="mm-report__item" data-item-state="board" data-stage="{{$stage}}">
+        <span class="mm-report__item-id">{{.ID}}</span>
+        <span class="mm-report__item-title">{{.Title}}</span>
+      </div>
+      {{end}}
+    </section>
+    {{end}}
     {{end}}
   </div>
 

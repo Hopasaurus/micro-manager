@@ -155,6 +155,138 @@ func TestSaveProjectSettingsWipLimit(t *testing.T) {
 	}
 }
 
+// settings-wip generalizes to one settings-wip-row-<slug>/
+// settings-wip-limit-<slug> pair per declared stage (§5.9), replacing
+// version 1's single settings-wip-limit.
+func TestProjectSettingsViewV2WipRows(t *testing.T) {
+	ts, id := boardServer(t, "clean-v2-full")
+	body := ts.get("/p/" + id + "/settings").expectStatus(http.StatusOK).Body
+
+	if hasTestid(body, "settings-wip-limit") {
+		t.Error("a version-2 project must not carry the retired single settings-wip-limit")
+	}
+	for _, stage := range []string{"someday", "ready", "blocked", "working", "review"} {
+		if !hasTestid(body, "settings-wip-row-"+stage) || !hasTestid(body, "settings-wip-limit-"+stage) {
+			t.Errorf("missing settings-wip-row/-limit for %s:\n%s", stage, body)
+		}
+	}
+
+	// working: 2 is capped; review carries no wip.<slug> key at all, so its
+	// input must render empty rather than "0" (§5.1.3's absent-means-
+	// unlimited spelling).
+	working := testid(t, body, "settings-wip-limit-working")
+	if attrOf(t, working, "value") != "2" {
+		t.Errorf("settings-wip-limit-working value = %q, want 2", attrOf(t, working, "value"))
+	}
+	review := testid(t, body, "settings-wip-limit-review")
+	if attrOf(t, review, "value") != "" {
+		t.Errorf("settings-wip-limit-review value = %q, want empty (uncapped)", attrOf(t, review, "value"))
+	}
+}
+
+func TestSaveProjectSettingsWipLimitV2(t *testing.T) {
+	ts, id := boardServer(t, "clean-v2-full")
+
+	// Setting review's cap.
+	ts.form(http.MethodPost, "/p/"+id+"/settings", url.Values{"wip-review": {"3"}}).
+		expectStatus(http.StatusOK)
+	store, err := mm.Open(ts.Dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := store.Directory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir.StageCfg.WipLimits["review"] != 3 {
+		t.Errorf("review's wip limit = %v, want 3", dir.StageCfg.WipLimits["review"])
+	}
+
+	// An empty submission clears working's existing cap (uncapped), per §5.9:
+	// "an empty input on save removes that stage's cap".
+	ts.form(http.MethodPost, "/p/"+id+"/settings", url.Values{"wip-working": {""}}).
+		expectStatus(http.StatusOK)
+	store, _ = mm.Open(ts.Dirs[0])
+	dir, _ = store.Directory()
+	if _, capped := dir.StageCfg.WipLimits["working"]; capped {
+		t.Errorf("working should be uncapped after an empty submission, got %v", dir.StageCfg.WipLimits)
+	}
+}
+
+// Lowering a stage's cap below its current usage refuses rather than
+// silently writing an invalid directory.
+func TestSaveProjectSettingsWipLimitV2RejectsBelowUsage(t *testing.T) {
+	ts, id := boardServer(t, "clean-v2-full")
+
+	// working already holds T-0003; starting T-0001 (on ready) brings it to
+	// 2, exactly clean-v2-full's declared wip.working cap.
+	store, err := mm.Open(ts.Dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := store.Start("T-0001", mm.StartRequest{}, mm.Date{Year: 2026, Month: 7, Day: 30}); err != nil {
+		t.Fatal(err)
+	}
+
+	bad := ts.form(http.MethodPost, "/p/"+id+"/settings", url.Values{"wip-working": {"1"}})
+	if bad.Status == http.StatusOK {
+		t.Error("lowering working's cap below its current usage (2) should be refused")
+	}
+}
+
+// settings-migrate (§5.9): present, hidden removed, only for a directory
+// below the current format version - unrelated to T-0236's VersionMismatch
+// enforcement, this is a plain read of the directory's own Version field.
+func TestSettingsMigrateVisibility(t *testing.T) {
+	v1ts, v1id := boardServer(t, "clean-full")
+	v1body := v1ts.get("/p/" + v1id + "/settings").expectStatus(http.StatusOK).Body
+	migrate := testid(t, v1body, "settings-migrate")
+	if attrOf(t, migrate, "hidden") == "hidden" {
+		t.Error("settings-migrate must not be hidden on a version-1 directory")
+	}
+
+	v2ts, v2id := boardServer(t, "clean-v2-full")
+	v2body := v2ts.get("/p/" + v2id + "/settings").expectStatus(http.StatusOK).Body
+	if !strings.Contains(v2body, `data-testid="settings-migrate"`) {
+		t.Error("settings-migrate must still be present (just hidden) on a version-2 directory")
+	}
+	v2migrate := testid(t, v2body, "settings-migrate")
+	if !strings.Contains(v2migrate, "hidden") {
+		t.Errorf("settings-migrate should be hidden on a version-2 directory: %s", v2migrate)
+	}
+}
+
+// settings-migrate-run calls the version-chain migration (spec-tools.md
+// §5.3.4) and re-renders: every testid and config key changes shape the
+// moment it lands.
+func TestSaveProjectSettingsMigrateRuns(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+
+	got := ts.form(http.MethodPost, "/p/"+id+"/settings", url.Values{"action": {"migrate"}})
+	got.expectStatus(http.StatusOK)
+
+	store, err := mm.Open(ts.Dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := store.Directory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir.Version != 2 {
+		t.Fatalf("directory version = %d, want 2 after migrating", dir.Version)
+	}
+
+	// The re-rendered response reflects the NEW state: settings-migrate is
+	// now hidden, and the per-stage WIP rows have replaced the single limit.
+	if !strings.Contains(got.Body, `data-testid="settings-migrate" data-version="1" hidden`) {
+		t.Errorf("settings-migrate should now be hidden:\n%s", got.Body)
+	}
+	if hasTestid(got.Body, "settings-wip-limit") {
+		t.Error("the re-rendered page must not carry the retired single settings-wip-limit")
+	}
+}
+
 // The project settings page highlights the PROJECT's chosen theme, not the
 // system config's. The two used to be conflated, so selecting a theme for the
 // project pointed the select at whatever the system had (T-0137).

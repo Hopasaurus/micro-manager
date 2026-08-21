@@ -253,6 +253,9 @@ func patternInstances(projectID string) map[string][]string {
 		"settings-scan-root-<n>":        {"settings-scan-root-0"},
 		"settings-scan-root-<n>-remove": {"settings-scan-root-0-remove"},
 		"projects-root-<n>":             {"projects-root-0"},
+		// clean-v2-full declares stages: someday,ready,blocked,working,review.
+		"settings-wip-row-<slug>":   {"settings-wip-row-someday", "settings-wip-row-ready", "settings-wip-row-blocked", "settings-wip-row-working", "settings-wip-row-review"},
+		"settings-wip-limit-<slug>": {"settings-wip-limit-someday", "settings-wip-limit-ready", "settings-wip-limit-blocked", "settings-wip-limit-working", "settings-wip-limit-review"},
 	}
 }
 
@@ -277,6 +280,14 @@ func TestAuditTestids(t *testing.T) {
 	// source, so its item panel carries the Wake-up group and the select.
 	v2ts, v2id := boardServer(t, "clean-v2-full")
 	all += "\n" + v2ts.get("/p/"+v2id+"/item/T-0005").expectStatus(200).Body
+
+	// report-include-stage is likewise version 2 only (§5.7, §5.1.11).
+	all += "\n" + v2ts.get("/p/"+v2id+"/report?period=all").expectStatus(200).Body
+
+	// settings-wip-row-<slug>/settings-wip-limit-<slug> are version 2 only
+	// (§5.9); clean-full's settings page (below) only ever exercises version
+	// 1's single settings-wip-limit.
+	all += "\n" + v2ts.get("/p/"+v2id+"/settings").expectStatus(200).Body
 
 	instances := patternInstances(id)
 

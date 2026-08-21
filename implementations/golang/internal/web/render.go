@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"net/http"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -343,6 +344,12 @@ func templateFuncs() template.FuncMap {
 		},
 		"join": strings.Join,
 		"path": path.Join,
+		// includes reports whether a string list carries a value - a
+		// <select multiple>'s options each check their own membership in
+		// what the query string carried (report-include-stage, §5.7).
+		"includes": func(list []string, v string) bool {
+			return slices.Contains(list, v)
+		},
 		// navItem builds one nav link's data. The href points at /projects when
 		// no project is open, because §5.1 forbids dropping a required testid
 		// conditionally: nav-board exists on every route whether or not there is

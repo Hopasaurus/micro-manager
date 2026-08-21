@@ -121,13 +121,34 @@
     {{end}}
 
     {{if not $isSystem}}
-    {{/* WIP section (project scope) */}}
+    {{/* WIP section (project scope): version 2's per-stage rows, or version
+         1's single directory-wide limit. */}}
     <section data-testid="settings-wip" class="mm-settings__section">
       <h2>Work In Progress Limit</h2>
+      {{if $d.Wip.Version2}}
+      {{range $d.Wip.Rows}}
+      <div data-testid="settings-wip-row-{{.Slug}}" class="mm-field">
+        <span>{{.Label}}</span>
+        <input data-testid="settings-wip-limit-{{.Slug}}" name="wip-{{.Slug}}" type="number" min="1" value="{{.Limit}}">
+      </div>
+      {{end}}
+      {{else}}
       <div class="mm-field">
         <label for="wip-limit">WIP Limit</label>
         <input data-testid="settings-wip-limit" id="wip-limit" name="wipLimit" type="number" min="1" value="{{$d.Wip.Limit}}">
       </div>
+      {{end}}
+    </section>
+
+    {{/* §5.9: present, hidden removed, only for a directory below the
+         current format version. settings-migrate-run submits the SAME form
+         with action=migrate, so a re-render always follows a successful
+         migration - every testid and config key here changes shape the
+         moment it lands. */}}
+    <section data-testid="settings-migrate" data-version="1" {{if not $d.NeedsMigration}}hidden{{end}}>
+      <p>This board is on an older format version.</p>
+      <button data-testid="settings-migrate-run" class="mm-button mm-button--primary"
+              type="submit" name="action" value="migrate">Migrate</button>
     </section>
     {{end}}
 

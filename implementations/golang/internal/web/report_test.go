@@ -49,6 +49,49 @@ func TestReportView(t *testing.T) {
 	}
 }
 
+// report-include-stage (§5.7, §5.1.11): version 2 only. A version-1
+// directory has no stages: declaration to offer, so the control is omitted
+// rather than rendered with nothing to choose from.
+func TestReportViewV2IncludeStageAbsentOnV1(t *testing.T) {
+	ts, id := reportServer(t, "clean-full")
+	body := ts.get("/p/" + id + "/report?period=all").expectStatus(http.StatusOK).Body
+	if hasTestid(body, "report-include-stage") {
+		t.Error("a version-1 directory must not carry report-include-stage")
+	}
+}
+
+func TestReportViewV2IncludeStage(t *testing.T) {
+	ts, id := reportServer(t, "clean-v2-full")
+	body := ts.get("/p/" + id + "/report?period=all").expectStatus(http.StatusOK).Body
+
+	if !hasTestid(body, "report-include-stage") {
+		t.Fatalf("a version-2 directory should carry report-include-stage:\n%s", body)
+	}
+	for _, opt := range []string{"someday", "ready", "blocked", "working", "review"} {
+		if !strings.Contains(body, `value="`+opt+`"`) {
+			t.Errorf("report-include-stage is missing the %q option:\n%s", opt, testid(t, body, "report-include-stage"))
+		}
+	}
+
+	got := ts.get("/p/" + id + "/report?period=all&include-stage=review").expectStatus(http.StatusOK).Body
+	if !hasTestid(got, "report-group-stage-review") {
+		t.Errorf("include-stage=review should render its own group:\n%s", got)
+	}
+	if !hasTestid(got, "report-item-T-0009") {
+		t.Error("T-0009 (on review) should be in the group")
+	}
+	if !strings.Contains(got, `value="review" selected`) {
+		t.Errorf("review should be selected in the control:\n%s", got)
+	}
+
+	// An undeclared stage refuses cleanly rather than crashing or silently
+	// returning nothing.
+	bad := ts.get("/p/" + id + "/report?period=all&include-stage=not-a-stage")
+	if bad.Status == http.StatusOK {
+		t.Error("an undeclared stage should not succeed")
+	}
+}
+
 // §5.7: data-period-source MUST be one of switch, config or default, mirroring
 // the precedence of spec-tools.md §5.1.11. The resolved period must be visible.
 func TestReportPeriodPrecedence(t *testing.T) {

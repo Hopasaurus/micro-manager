@@ -30,6 +30,11 @@ type reportData struct {
 	Next     []itemData
 	Warnings []string
 
+	// StageIncluded holds one group per --include-stage (version 2 only,
+	// spec-tools.md §5.1.11) - report-include-stage's selected slugs, each
+	// with its own label and current items, parallel to Wip's "In progress".
+	StageIncluded []reportStageGroupData
+
 	// Markdown is what report-copy puts on the clipboard: the library's
 	// rendering, identical to the CLI's (§5.7).
 	Markdown string
@@ -52,15 +57,28 @@ type reportItemData struct {
 	Tags    []string
 }
 
+// reportStageGroupData is one --include-stage group.
+type reportStageGroupData struct {
+	Stage string
+	Label string
+	Items []itemData
+}
+
 // reportControls is the form state, so a reload of the URI reproduces it.
 type reportControls struct {
-	Period     string
-	Since      string
-	Until      string
-	GroupBy    string
-	IncludeWip bool
-	Periods    []string
-	GroupBys   []string
+	Period        string
+	Since         string
+	Until         string
+	GroupBy       string
+	IncludeWip    bool
+	IncludeStages []string
+	Periods       []string
+	GroupBys      []string
+
+	// StageOptions lists the directory's declared stages, for
+	// report-include-stage's options — empty on a version-1 directory, which
+	// has none, so the control itself is omitted rather than rendered empty.
+	StageOptions []stageOption
 }
 
 // report serves /p/:projectId/report.
@@ -84,18 +102,30 @@ func (s *Server) report(c *echo.Context) error {
 
 // buildReport resolves the period and asks the library for the items.
 func (s *Server) buildReport(c *echo.Context, store *mm.Store) (reportData, error) {
+	dir, err := store.Directory()
+	if err != nil {
+		return reportData{}, err
+	}
+
 	q := c.Request().URL.Query()
 	controls := reportControls{
-		Period:     q.Get("period"),
-		Since:      q.Get("since"),
-		Until:      q.Get("until"),
-		GroupBy:    q.Get("group-by"),
-		IncludeWip: q.Get("include-wip") == "true" || q.Get("include-wip") == "on",
+		Period:  q.Get("period"),
+		Since:   q.Get("since"),
+		Until:   q.Get("until"),
+		GroupBy: q.Get("group-by"),
+		// A <select multiple> submits one value per selection under the
+		// same name, or none at all when nothing is picked - url.Values'
+		// map form is the repeated values directly, no further parsing.
+		IncludeWip:    q.Get("include-wip") == "true" || q.Get("include-wip") == "on",
+		IncludeStages: q["include-stage"],
 		Periods: []string{
 			"last-week", "this-week", "last-7-days", "last-30-days",
 			"this-month", "last-month", "all",
 		},
 		GroupBys: []string{"none", "outcome", "tag", "day"},
+	}
+	if dir.Version == 2 {
+		controls.StageOptions = stageOptionsFor(dir)
 	}
 
 	period, err := s.resolvePeriod(store, controls)
@@ -112,10 +142,15 @@ func (s *Server) buildReport(c *echo.Context, store *mm.Store) (reportData, erro
 	}
 
 	includeWip := controls.IncludeWip || (q.Get("include-wip") == "" && s.opts.Config.Report.IncludeWip)
+	stages := make([]mm.Stage, 0, len(controls.IncludeStages))
+	for _, slug := range controls.IncludeStages {
+		stages = append(stages, mm.Stage(slug))
+	}
 
 	rep, err := store.Report(period, mm.ReportOptions{
 		GroupBy:        groupBy,
 		IncludeWip:     includeWip,
+		IncludeStages:  stages,
 		IncludeBacklog: q.Get("include-backlog") == "true",
 	})
 	if err != nil {
@@ -144,13 +179,16 @@ func (s *Server) buildReport(c *echo.Context, store *mm.Store) (reportData, erro
 		data.Groups = append(data.Groups, reportGroup("done", rep.Done))
 	}
 
-	dir, err := store.Directory()
-	if err != nil {
-		return reportData{}, err
-	}
 	resolver := s.registry.newRefResolver()
 	for _, it := range rep.Wip {
 		data.Wip = append(data.Wip, s.itemView(it, dir, len(data.Wip)+1, resolver))
+	}
+	for _, g := range rep.StageIncluded {
+		sg := reportStageGroupData{Stage: string(g.Stage), Label: g.Label}
+		for _, it := range g.Items {
+			sg.Items = append(sg.Items, s.itemView(it, dir, len(sg.Items)+1, resolver))
+		}
+		data.StageIncluded = append(data.StageIncluded, sg)
 	}
 	for _, it := range rep.Next {
 		data.Next = append(data.Next, s.itemView(it, dir, len(data.Next)+1, resolver))

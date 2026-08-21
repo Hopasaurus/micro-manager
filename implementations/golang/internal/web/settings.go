@@ -24,6 +24,12 @@ type settingsData struct {
 	Scan      scanSettingsData
 	Tickler   ticklerSettingsData
 	Wip       wipSettingsData
+
+	// NeedsMigration gates settings-migrate's hidden attribute (§5.9):
+	// project scope only, true for a directory below the current format
+	// version. Unrelated to T-0236's VersionMismatch enforcement - this is a
+	// plain read of the directory's own already-known Version field.
+	NeedsMigration bool
 }
 
 type themeSettingsData struct {
@@ -61,8 +67,24 @@ type rootSettingsData struct {
 	Missing bool
 }
 
+// wipSettingsData is the project-scope WIP section (§5.9): version 1's
+// single directory-wide limit, or version 2's per-stage rows.
 type wipSettingsData struct {
-	Limit int
+	Version2 bool
+	Limit    int // version 1
+
+	// Rows is one entry per declared stage (version 2), in stages: order.
+	Rows []wipStageRow
+}
+
+// wipStageRow is one settings-wip-row-<slug>. Limit is a string, not an int,
+// so an uncapped stage renders an EMPTY input rather than "0" - the same
+// "absent means unlimited" spelling wip.<slug> itself uses
+// (spec-file-format.md §5.1.3).
+type wipStageRow struct {
+	Slug  string
+	Label string
+	Limit string
 }
 
 // ticklerSettingsData is the system-scope Tickler section (T-0207). It is an
@@ -246,11 +268,35 @@ func (s *Server) saveSettingsProject(c *echo.Context) error {
 
 	form := c.Request().FormValue
 
-	if action := form("action"); action == "clear_theme" {
+	switch action := form("action"); action {
+	case "clear_theme":
 		themePath := mm.ProjectThemePath(dir.Path)
 		_ = os.Remove(themePath)
-	} else {
-		if val := form("wipLimit"); val != "" {
+	case "migrate":
+		// settings-migrate-run (§5.9): the version chain migration
+		// (spec-tools.md §5.3.4), not op_migrate.go's older unversioned
+		// repair - To:0 means "to the latest version this build implements".
+		if _, err := store.MigrateVersion(mm.MigrateVersionRequest{DryRun: false}, s.today()); err != nil {
+			return err
+		}
+	default:
+		if dir.Version == 2 {
+			for _, stage := range dir.StageCfg.Stages {
+				val := strings.TrimSpace(form("wip-" + string(stage)))
+				n := 0
+				if val != "" {
+					parsed, err := strconv.Atoi(val)
+					if err != nil || parsed < 0 {
+						return fmt.Errorf("%w: the WIP limit for %s must be a non-negative number, got %q",
+							mm.ErrInvalidArgument, stage, val)
+					}
+					n = parsed
+				}
+				if _, _, err := store.SetStageWipLimit(stage, n, false); err != nil {
+					return err
+				}
+			}
+		} else if val := form("wipLimit"); val != "" {
 			if limit, err := strconv.Atoi(val); err == nil && limit >= 1 {
 				if _, _, err := store.SetWipLimit(limit, false); err != nil {
 					return err
@@ -331,11 +377,21 @@ func (s *Server) buildProjectSettings(store *mm.Store) (settingsData, error) {
 	}
 
 	data := settingsData{
-		Scope:     "project",
-		ProjectID: dir.ProjectID,
-		Wip: wipSettingsData{
-			Limit: dir.WipLimit,
-		},
+		Scope:          "project",
+		ProjectID:      dir.ProjectID,
+		NeedsMigration: dir.Version < 2,
+	}
+	if dir.Version == 2 {
+		data.Wip.Version2 = true
+		for _, stage := range dir.StageCfg.Stages {
+			row := wipStageRow{Slug: string(stage), Label: dir.StageCfg.Label(stage)}
+			if limit, capped := dir.StageCfg.WipLimits[stage]; capped {
+				row.Limit = strconv.Itoa(limit)
+			}
+			data.Wip.Rows = append(data.Wip.Rows, row)
+		}
+	} else {
+		data.Wip.Limit = dir.WipLimit
 	}
 
 	data.Theme = s.buildThemeSettings(projectThemeID, dir.Path, projectThemeID)
