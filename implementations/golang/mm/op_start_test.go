@@ -89,7 +89,7 @@ func readFile(t *testing.T, dir, name string) string {
 func TestStartCopiesEveryFieldIntoTheSlot(t *testing.T) {
 	dir, s := startDir(t)
 
-	it, res, err := s.Start("T-0001", StartRequest{}, today)
+	it, res, err := testStartV1(s, "T-0001", StartRequest{}, today)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -156,10 +156,10 @@ func TestStartCopiesEveryFieldIntoTheSlot(t *testing.T) {
 func TestStartUsesLowestIdleSlot(t *testing.T) {
 	dir, s := startDir(t)
 
-	if _, _, err := s.Start("T-0001", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Start("T-0002", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0002", StartRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 	if got := readFile(t, dir, "working.01.md"); !strings.Contains(got, "id: T-0001") {
@@ -173,7 +173,7 @@ func TestStartUsesLowestIdleSlot(t *testing.T) {
 func TestStartExplicitSlot(t *testing.T) {
 	dir, s := startDir(t)
 
-	if _, _, err := s.Start("T-0001", StartRequest{Slot: 2}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{Slot: 2}, today); err != nil {
 		t.Fatalf("start into slot 2: %v", err)
 	}
 	if got := readFile(t, dir, "working.02.md"); !strings.Contains(got, "id: T-0001") {
@@ -185,11 +185,11 @@ func TestStartExplicitSlot(t *testing.T) {
 
 	// Occupied, and nonexistent, are both guard failures rather than conflicts:
 	// the caller asked for something specific and did not get it.
-	_, _, err := s.Start("T-0002", StartRequest{Slot: 2}, today)
+	_, _, err := testStartV1(s, "T-0002", StartRequest{Slot: 2}, today)
 	if !errors.Is(err, ErrPreconditionFailed) {
 		t.Errorf("occupied slot: want ErrPreconditionFailed, got %v", err)
 	}
-	_, _, err = s.Start("T-0002", StartRequest{Slot: 7}, today)
+	_, _, err = testStartV1(s, "T-0002", StartRequest{Slot: 7}, today)
 	if !errors.Is(err, ErrPreconditionFailed) {
 		t.Errorf("missing slot: want ErrPreconditionFailed, got %v", err)
 	}
@@ -200,15 +200,15 @@ func TestStartExplicitSlot(t *testing.T) {
 func TestStartAtTheWipLimit(t *testing.T) {
 	dir, s := startDir(t)
 
-	if _, _, err := s.Start("T-0001", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Start("T-0002", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0002", StartRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 	beforeBacklog := readFile(t, dir, "backlog.md")
 
-	_, _, err := s.Start("T-0003", StartRequest{}, today)
+	_, _, err := testStartV1(s, "T-0003", StartRequest{}, today)
 	if !errors.Is(err, ErrWipLimitReached) {
 		t.Fatalf("want ErrWipLimitReached, got %v", err)
 	}
@@ -242,7 +242,7 @@ func TestStartAtTheWipLimit(t *testing.T) {
 func TestStartFromBlockedMovesTheReasonToBlockers(t *testing.T) {
 	dir, s := startDir(t)
 
-	it, _, err := s.Start("T-0003", StartRequest{}, today)
+	it, _, err := testStartV1(s, "T-0003", StartRequest{}, today)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -264,16 +264,16 @@ func TestStartFromBlockedMovesTheReasonToBlockers(t *testing.T) {
 func TestStartConflicts(t *testing.T) {
 	_, s := startDir(t)
 
-	if _, _, err := s.Start("T-0001", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Start("T-0001", StartRequest{}, today); !errors.Is(err, ErrConflict) {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{}, today); !errors.Is(err, ErrConflict) {
 		t.Errorf("already working: want ErrConflict, got %v", err)
 	}
-	if _, _, err := s.Start("T-0009", StartRequest{}, today); !errors.Is(err, ErrConflict) {
+	if _, _, err := testStartV1(s, "T-0009", StartRequest{}, today); !errors.Is(err, ErrConflict) {
 		t.Errorf("done item: want ErrConflict, got %v", err)
 	}
-	if _, _, err := s.Start("T-0099", StartRequest{}, today); !errors.Is(err, ErrNotFound) {
+	if _, _, err := testStartV1(s, "T-0099", StartRequest{}, today); !errors.Is(err, ErrNotFound) {
 		t.Errorf("unknown id: want ErrNotFound, got %v", err)
 	}
 }
@@ -282,7 +282,7 @@ func TestStartConflicts(t *testing.T) {
 // dropping it would destroy the field this path exists to preserve.
 func TestStartRefusesAReservedExtraField(t *testing.T) {
 	_, s := startDir(t)
-	_, _, err := s.Start("T-0004", StartRequest{}, today)
+	_, _, err := testStartV1(s, "T-0004", StartRequest{}, today)
 	if !errors.Is(err, ErrInvalidArgument) {
 		t.Errorf("want ErrInvalidArgument, got %v", err)
 	}
@@ -293,7 +293,7 @@ func TestStartDryRun(t *testing.T) {
 	before := readFile(t, dir, "backlog.md")
 	beforeSlot := readFile(t, dir, "working.01.md")
 
-	_, res, err := s.Start("T-0001", StartRequest{DryRun: true}, today)
+	_, res, err := testStartV1(s, "T-0001", StartRequest{DryRun: true}, today)
 	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}

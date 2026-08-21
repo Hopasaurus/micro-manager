@@ -13,7 +13,7 @@ import (
 func pauseDir(t *testing.T, id ID, notes string) (string, *Store) {
 	t.Helper()
 	dir, s := startDir(t)
-	if _, _, err := s.Start(id, StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, id, StartRequest{}, today); err != nil {
 		t.Fatalf("start: %v", err)
 	}
 	if notes != "" {
@@ -34,7 +34,7 @@ func pauseDir(t *testing.T, id ID, notes string) (string, *Store) {
 func TestPauseReturnsTheItemToTheTopOfReady(t *testing.T) {
 	dir, s := pauseDir(t, "T-0001", "")
 
-	it, _, err := s.Pause("T-0001", PauseRequest{}, today)
+	it, _, err := testPauseV1(s, "T-0001", PauseRequest{}, today)
 	if err != nil {
 		t.Fatalf("pause: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestPauseReturnsTheItemToTheTopOfReady(t *testing.T) {
 func TestPauseResetsTheSlotCompletely(t *testing.T) {
 	dir, s := pauseDir(t, "T-0001", "some notes")
 
-	if _, _, err := s.Pause("T-0001", PauseRequest{}, today); err != nil {
+	if _, _, err := testPauseV1(s, "T-0001", PauseRequest{}, today); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
 	got := readFile(t, dir, "working.01.md")
@@ -105,7 +105,7 @@ func TestPauseResetsTheSlotCompletely(t *testing.T) {
 	}
 
 	// And the proof: the slot is usable again.
-	if _, _, err := s.Start("T-0002", StartRequest{Slot: 1}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0002", StartRequest{Slot: 1}, today); err != nil {
 		t.Errorf("slot not reusable after pause: %v", err)
 	}
 	if vs, _ := s.Validate(); len(vs) != 0 {
@@ -116,7 +116,7 @@ func TestPauseResetsTheSlotCompletely(t *testing.T) {
 func TestPausePreservesNotesIntoAnExistingDetailFile(t *testing.T) {
 	dir, s := pauseDir(t, "T-0001", "the cache key is wrong")
 
-	if _, _, err := s.Pause("T-0001", PauseRequest{}, today); err != nil {
+	if _, _, err := testPauseV1(s, "T-0001", PauseRequest{}, today); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
 	detail := readFile(t, dir, "details/T-0001.md")
@@ -136,7 +136,7 @@ func TestPausePreservesNotesIntoAnExistingDetailFile(t *testing.T) {
 func TestPauseCreatesADetailFileForNotes(t *testing.T) {
 	dir, s := pauseDir(t, "T-0002", "half done, see the branch")
 
-	it, res, err := s.Pause("T-0002", PauseRequest{}, today)
+	it, res, err := testPauseV1(s, "T-0002", PauseRequest{}, today)
 	if err != nil {
 		t.Fatalf("pause: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestPauseCreatesADetailFileForNotes(t *testing.T) {
 func TestPauseDiscardNotes(t *testing.T) {
 	dir, s := pauseDir(t, "T-0002", "throwaway")
 
-	if _, _, err := s.Pause("T-0002", PauseRequest{DiscardNotes: true}, today); err != nil {
+	if _, _, err := testPauseV1(s, "T-0002", PauseRequest{DiscardNotes: true}, today); err != nil {
 		t.Fatalf("pause: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "details/T-0002.md")); !os.IsNotExist(err) {
@@ -185,7 +185,7 @@ func TestPauseDiscardNotes(t *testing.T) {
 func TestPauseDestinations(t *testing.T) {
 	// End appends instead of the default top.
 	dir, s := pauseDir(t, "T-0001", "")
-	if _, _, err := s.Pause("T-0001", PauseRequest{End: true}, today); err != nil {
+	if _, _, err := testPauseV1(s, "T-0001", PauseRequest{End: true}, today); err != nil {
 		t.Fatalf("pause --end: %v", err)
 	}
 	ready, _ := s.List(Filter{Section: SectionReady})
@@ -197,7 +197,7 @@ func TestPauseDestinations(t *testing.T) {
 
 	// Into Someday.
 	_, s2 := pauseDir(t, "T-0001", "")
-	if _, _, err := s2.Pause("T-0001", PauseRequest{Section: SectionSomeday}, today); err != nil {
+	if _, _, err := testPauseV1(s2, "T-0001", PauseRequest{Section: SectionSomeday}, today); err != nil {
 		t.Fatalf("pause --section someday: %v", err)
 	}
 	someday, _ := s2.List(Filter{Section: SectionSomeday})
@@ -207,10 +207,10 @@ func TestPauseDestinations(t *testing.T) {
 
 	// Into Blocked, which I5 says needs a reason.
 	_, s3 := pauseDir(t, "T-0001", "")
-	if _, _, err := s3.Pause("T-0001", PauseRequest{Section: SectionBlocked}, today); !errors.Is(err, ErrInvalidArgument) {
+	if _, _, err := testPauseV1(s3, "T-0001", PauseRequest{Section: SectionBlocked}, today); !errors.Is(err, ErrInvalidArgument) {
 		t.Errorf("blocked without a reason: want ErrInvalidArgument, got %v", err)
 	}
-	it, _, err := s3.Pause("T-0001", PauseRequest{Section: SectionBlocked, Blocked: "waiting on ops"}, today)
+	it, _, err := testPauseV1(s3, "T-0001", PauseRequest{Section: SectionBlocked, Blocked: "waiting on ops"}, today)
 	if err != nil {
 		t.Fatalf("pause into blocked: %v", err)
 	}
@@ -225,13 +225,13 @@ func TestPauseDestinations(t *testing.T) {
 func TestPauseConflicts(t *testing.T) {
 	_, s := startDir(t)
 
-	if _, _, err := s.Pause("T-0001", PauseRequest{}, today); !errors.Is(err, ErrConflict) {
+	if _, _, err := testPauseV1(s, "T-0001", PauseRequest{}, today); !errors.Is(err, ErrConflict) {
 		t.Errorf("backlog item: want ErrConflict, got %v", err)
 	}
-	if _, _, err := s.Pause("T-0009", PauseRequest{}, today); !errors.Is(err, ErrConflict) {
+	if _, _, err := testPauseV1(s, "T-0009", PauseRequest{}, today); !errors.Is(err, ErrConflict) {
 		t.Errorf("done item: want ErrConflict, got %v", err)
 	}
-	if _, _, err := s.Pause("T-0099", PauseRequest{}, today); !errors.Is(err, ErrNotFound) {
+	if _, _, err := testPauseV1(s, "T-0099", PauseRequest{}, today); !errors.Is(err, ErrNotFound) {
 		t.Errorf("unknown id: want ErrNotFound, got %v", err)
 	}
 }
@@ -240,7 +240,7 @@ func TestPauseDryRun(t *testing.T) {
 	dir, s := pauseDir(t, "T-0002", "notes that must not be written yet")
 	before := readFile(t, dir, "working.01.md")
 
-	if _, _, err := s.Pause("T-0002", PauseRequest{DryRun: true}, today); err != nil {
+	if _, _, err := testPauseV1(s, "T-0002", PauseRequest{DryRun: true}, today); err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
 	if readFile(t, dir, "working.01.md") != before {
@@ -257,10 +257,10 @@ func TestStartPauseRoundTrip(t *testing.T) {
 	dir, s := startDir(t)
 	before := readFile(t, dir, "backlog.md")
 
-	if _, _, err := s.Start("T-0001", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Pause("T-0001", PauseRequest{}, today); err != nil {
+	if _, _, err := testPauseV1(s, "T-0001", PauseRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 	it, err := s.Get("T-0001")

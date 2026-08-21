@@ -81,6 +81,18 @@ func (s *Store) Move(id ID, req MoveRequest, today Date) (Item, TxResult, error)
 		}
 		return s.moveV2(t, id, req, today)
 	}
+	return zero, TxResult{}, refuseIfV1(t.model)
+}
+
+// moveV1 is version 1's Move: the same logic that ran inline in Store.Move
+// before the VersionMismatch guard (spec-tools.md §5.3.4, T-0236).
+// Deliberately NOT itself guarded, so a test can call it directly against a
+// v1 fixture to keep exercising v1 mutation correctness - which --check and
+// --migrate still depend on - even though the public Move no longer reaches
+// this code for a v1 directory.
+func (s *Store) moveV1(t *tx, it *Item, req MoveRequest, today Date) (Item, TxResult, error) {
+	var zero Item
+	id := it.ID
 	if it.State != StateBacklog {
 		return zero, TxResult{}, fmt.Errorf(
 			"%w: %s is %s, and only backlog items can be moved; use --start, --pause or --finish",

@@ -50,6 +50,20 @@ func latestVersion() int {
 	return v
 }
 
+// refuseIfV1 is the VersionMismatch guard every mutating operation opens
+// with (spec-tools.md §5.3.4's longevity policy): a directory below the
+// current format version refuses, naming both versions and pointing at
+// --migrate. Read operations (List, Show, Validate, Status, Search, Report,
+// Ticklers) and MigrateVersion itself are exempt and never call this - the
+// policy is explicit that those MUST keep working against an older version.
+func refuseIfV1(m *dirModel) error {
+	if m.isV2() {
+		return nil
+	}
+	return fmt.Errorf("%w: this directory is version 1, not version %d; run --migrate first",
+		ErrVersionMismatch, latestVersion())
+}
+
 // stepFrom finds the registered step whose From matches, or nil.
 func stepFrom(from int) *MigrationStep {
 	for i := range migrationChain {

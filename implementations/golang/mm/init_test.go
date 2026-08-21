@@ -62,10 +62,10 @@ func TestInitCreatesAValidDirectory(t *testing.T) {
 	}
 
 	// And the directory is immediately usable.
-	if _, _, err := s.Add(AddRequest{Title: "First real item"}, today); err != nil {
+	if _, _, err := testAddV1(s, AddRequest{Title: "First real item"}, today); err != nil {
 		t.Errorf("add into a fresh directory: %v", err)
 	}
-	if _, _, err := s.Start("T-0001", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{}, today); err != nil {
 		t.Errorf("start in a fresh directory: %v", err)
 	}
 	if vs, _ := s.Validate(); len(vs) != 0 {
@@ -101,13 +101,13 @@ func TestInitDeclaredGrammar(t *testing.T) {
 	}
 
 	// The directory is immediately usable in its declared grammar.
-	if _, _, err := s.Add(AddRequest{Title: "First custom item"}, today); err != nil {
+	if _, _, err := testAddV1(s, AddRequest{Title: "First custom item"}, today); err != nil {
 		t.Errorf("add: %v", err)
 	}
-	if _, _, err := s.Add(AddRequest{Title: "Second"}, today); err != nil {
+	if _, _, err := testAddV1(s, AddRequest{Title: "Second"}, today); err != nil {
 		t.Errorf("add: %v", err)
 	}
-	if _, _, err := s.Start("X-001", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "X-001", StartRequest{}, today); err != nil {
 		t.Errorf("start X-001: %v", err)
 	}
 	if vs, _ := s.Validate(); len(vs) != 0 {

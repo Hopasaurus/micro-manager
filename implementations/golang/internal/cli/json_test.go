@@ -47,7 +47,7 @@ type envelopeJSON struct {
 // envelope. This is the whole contract: a caller never has to tell a JSON error
 // object from crash text.
 func TestJSONEnvelopeForEveryOperation(t *testing.T) {
-	r, _ := newProject(t, "--slots", "2")
+	r, _ := v2Project(t, "--slots", "2")
 	r.run("--add", "First", "--prio", "high", "--tag", "infra")
 	r.run("--add", "Second")
 
@@ -66,7 +66,7 @@ func TestJSONEnvelopeForEveryOperation(t *testing.T) {
 		{"finish", []string{"--finish", "T-0002"}, true},
 		// Legal: --remove works from done.md as well as from the backlog.
 		{"remove", []string{"--remove", "T-0002", "--force"}, true},
-		{"wip", []string{"--wip", "3"}, true},
+		{"wip", []string{"--wip", "3", "--stage", "working"}, true},
 		{"report", []string{"--report", "--period", "all"}, true},
 		{"find", []string{"--find"}, true},
 		{"check", []string{"--check"}, true},
@@ -123,7 +123,7 @@ func TestJSONEnvelopeSurvivesAParseError(t *testing.T) {
 }
 
 func TestJSONResultShapes(t *testing.T) {
-	r, _ := newProject(t)
+	r, _ := v2Project(t)
 
 	// --add returns the item, with its assigned ID and its unregistered fields.
 	got := r.run("--add", "Fix it", "--prio", "high", "--tag", "infra", "--tag", "ci", "--json")
@@ -184,18 +184,20 @@ func TestJSONResultShapes(t *testing.T) {
 	if err := json.Unmarshal(e.Result, &st); err != nil {
 		t.Fatalf("status result: %v", err)
 	}
-	if st.Wip.Limit != 1 || st.Wip.Used != 0 {
+	// Version 2 has no slots at all, and wip stays 0/0 at the top level -
+	// per-stage caps are their own "stages" array, not this test's concern.
+	if st.Wip.Limit != 0 || st.Wip.Used != 0 {
 		t.Errorf("wip = %+v", st.Wip)
 	}
-	if len(st.Slots) != 1 || st.Slots[0].File != "working.01.md" || st.Slots[0].Occupied {
-		t.Errorf("slots = %+v", st.Slots)
+	if len(st.Slots) != 0 {
+		t.Errorf("slots = %+v, want none on a version-2 directory", st.Slots)
 	}
 	if st.Next == nil || st.Next.ID != "T-0001" {
 		t.Errorf("next = %+v, want T-0001 (the top of ## Ready)", st.Next)
 	}
 
 	// --search reports each hit's field and navigable file:line.
-	r.run("--add", "Deploy the script", "--section", "ready")
+	r.run("--add", "Deploy the script", "--stage", "ready")
 	e = decode(t, r.run("--search", "deploy", "--json"))
 	var hits []struct {
 		Field string
@@ -208,7 +210,7 @@ func TestJSONResultShapes(t *testing.T) {
 	if err := json.Unmarshal(e.Result, &hits); err != nil {
 		t.Fatalf("search result: %v", err)
 	}
-	if len(hits) != 1 || hits[0].Field != "title" || hits[0].At.File != "backlog.md" {
+	if len(hits) != 1 || hits[0].Field != "title" || hits[0].At.File != "board.md" {
 		t.Errorf("hits = %+v", hits)
 	}
 }
@@ -254,7 +256,7 @@ func TestJSONCheckReportsViolationsAsResults(t *testing.T) {
 
 // Warnings belong in the envelope, not spliced into the object stream.
 func TestJSONWarnings(t *testing.T) {
-	r, _ := newProject(t)
+	r, _ := v2Project(t)
 	r.run("--add", "With a detail file", "--detail-text", "body")
 
 	got := r.run("--remove", "T-0001", "--force", "--json")

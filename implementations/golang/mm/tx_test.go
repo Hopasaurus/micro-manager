@@ -24,7 +24,7 @@ func TestAddAppendsToBottomByDefault(t *testing.T) {
 	dir := newDir(t, nil)
 	s := mustOpen(t, dir)
 
-	it, res, err := s.Add(AddRequest{Title: "Fix the deploy script", Prio: PrioHigh,
+	it, res, err := testAddV1(s, AddRequest{Title: "Fix the deploy script", Prio: PrioHigh,
 		Tags: []string{"infra", "ci"}}, today)
 	if err != nil {
 		t.Fatalf("add: %v", err)
@@ -61,7 +61,7 @@ func TestAddAppendsToBottomByDefault(t *testing.T) {
 
 func TestAddTop(t *testing.T) {
 	s := mustOpen(t, newDir(t, nil))
-	if _, _, err := s.Add(AddRequest{Title: "Rotate the leaked token", Top: true}, today); err != nil {
+	if _, _, err := testAddV1(s, AddRequest{Title: "Rotate the leaked token", Top: true}, today); err != nil {
 		t.Fatal(err)
 	}
 	items, _ := s.List(Filter{Section: SectionReady})
@@ -73,11 +73,11 @@ func TestAddTop(t *testing.T) {
 func TestAddIntoSections(t *testing.T) {
 	s := mustOpen(t, newDir(t, nil))
 
-	if _, _, err := s.Add(AddRequest{Title: "Someday thing", Section: SectionSomeday}, today); err != nil {
+	if _, _, err := testAddV1(s, AddRequest{Title: "Someday thing", Section: SectionSomeday}, today); err != nil {
 		t.Fatal(err)
 	}
 	// A blocked reason implies the section.
-	it, _, err := s.Add(AddRequest{Title: "Waiting thing", Blocked: "on a decision"}, today)
+	it, _, err := testAddV1(s, AddRequest{Title: "Waiting thing", Blocked: "on a decision"}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestAddValidation(t *testing.T) {
 		{"unknown section", AddRequest{Title: "x", Section: "Later"}, "unknown section"},
 	}
 	for _, c := range cases {
-		_, _, err := s.Add(c.req, today)
+		_, _, err := testAddV1(s, c.req, today)
 		if err == nil {
 			t.Errorf("%s: should fail", c.name)
 			continue
@@ -129,7 +129,7 @@ func TestAddValidation(t *testing.T) {
 func TestAddPreservesUnregisteredFields(t *testing.T) {
 	dir := newDir(t, nil)
 	s := mustOpen(t, dir)
-	_, _, err := s.Add(AddRequest{Title: "With extras",
+	_, _, err := testAddV1(s, AddRequest{Title: "With extras",
 		Extra: []Field{{"owner", "dlh"}, {"estimate", "3d"}}}, today)
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +147,7 @@ func TestAddPreservesUnregisteredFields(t *testing.T) {
 func TestAddWithDetailFile(t *testing.T) {
 	dir := newDir(t, nil)
 	s := mustOpen(t, dir)
-	it, res, err := s.Add(AddRequest{Title: "Needs explaining",
+	it, res, err := testAddV1(s, AddRequest{Title: "Needs explaining",
 		DetailBody: "## Context\n\nA long story."}, today)
 	if err != nil {
 		t.Fatalf("add: %v", err)
@@ -177,7 +177,7 @@ func TestAddDryRun(t *testing.T) {
 	s := mustOpen(t, dir)
 	before := readDirFile(t, dir, "backlog.md")
 
-	it, res, err := s.Add(AddRequest{Title: "Not really", DryRun: true}, today)
+	it, res, err := testAddV1(s, AddRequest{Title: "Not really", DryRun: true}, today)
 	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestTransactionAllowsPreExistingViolations(t *testing.T) {
 	if vs, _ := s.Validate(); len(vs) == 0 {
 		t.Fatal("fixture should start broken")
 	}
-	if _, _, err := s.Add(AddRequest{Title: "Unrelated work"}, today); err != nil {
+	if _, _, err := testAddV1(s, AddRequest{Title: "Unrelated work"}, today); err != nil {
 		t.Fatalf("a pre-existing violation must not block an unrelated add: %v", err)
 	}
 	if _, err := s.Get("T-0011"); err != nil {
@@ -233,7 +233,7 @@ func TestTransactionRejectsIntroducedViolation(t *testing.T) {
 	}
 	before = readDirFile(t, dir, "backlog.md")
 
-	_, _, err := s.Add(AddRequest{Title: "Would collide"}, today)
+	_, _, err := testAddV1(s, AddRequest{Title: "Would collide"}, today)
 	if err == nil {
 		t.Fatal("an add that duplicates an existing ID must be rejected")
 	}
@@ -319,7 +319,7 @@ func TestTransactionNoOpWritesNothing(t *testing.T) {
 func TestAddUpdatesTheUpdatedField(t *testing.T) {
 	dir := newDir(t, nil)
 	s := mustOpen(t, dir)
-	if _, _, err := s.Add(AddRequest{Title: "x"}, Date{2026, 8, 1}); err != nil {
+	if _, _, err := testAddV1(s, AddRequest{Title: "x"}, Date{2026, 8, 1}); err != nil {
 		t.Fatal(err)
 	}
 	if out := readDirFile(t, dir, "backlog.md"); !strings.Contains(out, "updated: 2026-08-01") {

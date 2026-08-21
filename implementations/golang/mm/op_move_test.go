@@ -78,7 +78,7 @@ func TestMoveWithinSection(t *testing.T) {
 	}
 	for _, c := range cases {
 		_, s := moveDir(t)
-		if _, _, err := s.Move(c.id, c.req, today); err != nil {
+		if _, _, err := testMoveV1(s, c.id, c.req, today); err != nil {
 			t.Errorf("%s: %v", c.name, err)
 			continue
 		}
@@ -94,7 +94,7 @@ func TestMoveWithinSection(t *testing.T) {
 func TestMoveBetweenSections(t *testing.T) {
 	// Ready -> Someday, appended by default.
 	dir, s := moveDir(t)
-	it, _, err := s.Move("T-0002", MoveRequest{Section: SectionSomeday}, today)
+	it, _, err := testMoveV1(s, "T-0002", MoveRequest{Section: SectionSomeday}, today)
 	if err != nil {
 		t.Fatalf("move: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestMoveBetweenSections(t *testing.T) {
 
 	// A selector is interpreted in the DESTINATION section.
 	_, s = moveDir(t)
-	if _, _, err := s.Move("T-0002", MoveRequest{Section: SectionSomeday, Top: true}, today); err != nil {
+	if _, _, err := testMoveV1(s, "T-0002", MoveRequest{Section: SectionSomeday, Top: true}, today); err != nil {
 		t.Fatal(err)
 	}
 	someday, _ = s.List(Filter{Section: SectionSomeday})
@@ -131,7 +131,7 @@ func TestMoveBetweenSections(t *testing.T) {
 // I5 ties blocked: to the section, so a section change has to carry it.
 func TestMoveIntoBlockedNeedsAReason(t *testing.T) {
 	_, s := moveDir(t)
-	_, _, err := s.Move("T-0001", MoveRequest{Section: SectionBlocked}, today)
+	_, _, err := testMoveV1(s, "T-0001", MoveRequest{Section: SectionBlocked}, today)
 	if !errors.Is(err, ErrInvalidArgument) {
 		t.Fatalf("want ErrInvalidArgument, got %v", err)
 	}
@@ -140,7 +140,7 @@ func TestMoveIntoBlockedNeedsAReason(t *testing.T) {
 	}
 
 	dir, s := moveDir(t)
-	it, _, err := s.Move("T-0001",
+	it, _, err := testMoveV1(s, "T-0001",
 		MoveRequest{Section: SectionBlocked, Blocked: "waiting on review"}, today)
 	if err != nil {
 		t.Fatalf("move with a reason: %v", err)
@@ -159,7 +159,7 @@ func TestMoveIntoBlockedNeedsAReason(t *testing.T) {
 // Moving out of Blocked drops the reason, or I5 fails the other way.
 func TestMoveOutOfBlockedDropsTheReason(t *testing.T) {
 	dir, s := moveDir(t)
-	it, _, err := s.Move("T-0005", MoveRequest{Section: SectionReady, Top: true}, today)
+	it, _, err := testMoveV1(s, "T-0005", MoveRequest{Section: SectionReady, Top: true}, today)
 	if err != nil {
 		t.Fatalf("move: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestMoveOutOfBlockedDropsTheReason(t *testing.T) {
 
 	// Supplying a reason for a non-Blocked destination is a mistake, not a hint.
 	_, s = moveDir(t)
-	if _, _, err := s.Move("T-0005",
+	if _, _, err := testMoveV1(s, "T-0005",
 		MoveRequest{Section: SectionReady, Top: true, Blocked: "why"}, today); !errors.Is(err, ErrInvalidArgument) {
 		t.Errorf("want ErrInvalidArgument, got %v", err)
 	}
@@ -191,7 +191,7 @@ func TestMovePositionOutOfRange(t *testing.T) {
 	dir, s := moveDir(t)
 	before := readDirFile(t, dir, "backlog.md")
 
-	_, _, err := s.Move("T-0001", MoveRequest{Position: 5}, today)
+	_, _, err := testMoveV1(s, "T-0001", MoveRequest{Position: 5}, today)
 	if !errors.Is(err, ErrInvalidArgument) {
 		t.Fatalf("want ErrInvalidArgument, got %v", err)
 	}
@@ -203,18 +203,18 @@ func TestMovePositionOutOfRange(t *testing.T) {
 	}
 
 	// Position 4 is the last slot and must be accepted.
-	if _, _, err := s.Move("T-0001", MoveRequest{Position: 4}, today); err != nil {
+	if _, _, err := testMoveV1(s, "T-0001", MoveRequest{Position: 4}, today); err != nil {
 		t.Errorf("position 4 of 4 should be valid: %v", err)
 	}
 
 	// Cross-section: one past the end appends.
 	_, s = moveDir(t)
-	if _, _, err := s.Move("T-0001",
+	if _, _, err := testMoveV1(s, "T-0001",
 		MoveRequest{Section: SectionSomeday, Position: 2}, today); err != nil {
 		t.Errorf("appending to a 1-item section should be valid: %v", err)
 	}
 	_, s = moveDir(t)
-	if _, _, err := s.Move("T-0001",
+	if _, _, err := testMoveV1(s, "T-0001",
 		MoveRequest{Section: SectionSomeday, Position: 3}, today); !errors.Is(err, ErrInvalidArgument) {
 		t.Errorf("two past the end should be refused, got %v", err)
 	}
@@ -237,7 +237,7 @@ func TestMoveSelectorValidation(t *testing.T) {
 		{"unknown section", "T-0001", MoveRequest{Section: "Later"}, ErrInvalidArgument},
 	}
 	for _, c := range cases {
-		if _, _, err := s.Move(c.id, c.req, today); !errors.Is(err, c.want) {
+		if _, _, err := testMoveV1(s, c.id, c.req, today); !errors.Is(err, c.want) {
 			t.Errorf("%s: want %v, got %v", c.name, c.want, err)
 		}
 	}
@@ -247,7 +247,7 @@ func TestMoveSelectorValidation(t *testing.T) {
 // mistake worth reporting rather than guessing at.
 func TestMoveRelativeToItemInAnotherSection(t *testing.T) {
 	_, s := moveDir(t)
-	_, _, err := s.Move("T-0001", MoveRequest{Before: "T-0006"}, today) // T-0006 is in Someday
+	_, _, err := testMoveV1(s, "T-0001", MoveRequest{Before: "T-0006"}, today) // T-0006 is in Someday
 	if !errors.Is(err, ErrInvalidArgument) {
 		t.Fatalf("want ErrInvalidArgument, got %v", err)
 	}
@@ -257,7 +257,7 @@ func TestMoveRelativeToItemInAnotherSection(t *testing.T) {
 
 	// With --section it becomes valid, because the destination changes.
 	_, s = moveDir(t)
-	if _, _, err := s.Move("T-0001",
+	if _, _, err := testMoveV1(s, "T-0001",
 		MoveRequest{Section: SectionSomeday, Before: "T-0006"}, today); err != nil {
 		t.Errorf("should be valid once the destination is Someday: %v", err)
 	}
@@ -277,7 +277,7 @@ func TestMoveRefusesNonBacklogItems(t *testing.T) {
 	s := mustOpen(t, dir)
 
 	for _, id := range []ID{"T-0007", "T-0010"} {
-		_, _, err := s.Move(id, MoveRequest{Top: true}, today)
+		_, _, err := testMoveV1(s, id, MoveRequest{Top: true}, today)
 		if err == nil {
 			t.Errorf("%s should not be movable", id)
 			continue
@@ -296,7 +296,7 @@ func TestMoveNoOp(t *testing.T) {
 	dir, s := moveDir(t)
 	before := readDirFile(t, dir, "backlog.md")
 
-	if _, res, err := s.Move("T-0001", MoveRequest{Top: true}, today); err != nil {
+	if _, res, err := testMoveV1(s, "T-0001", MoveRequest{Top: true}, today); err != nil {
 		t.Fatal(err)
 	} else if len(res.Files) != 0 {
 		t.Errorf("moving an item to where it already is should write nothing, got %v", res.Files)
@@ -310,7 +310,7 @@ func TestMoveDryRun(t *testing.T) {
 	dir, s := moveDir(t)
 	before := readDirFile(t, dir, "backlog.md")
 
-	it, res, err := s.Move("T-0004", MoveRequest{Top: true, DryRun: true}, today)
+	it, res, err := testMoveV1(s, "T-0004", MoveRequest{Top: true, DryRun: true}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +335,7 @@ func TestMovePreservesUnregisteredFields(t *testing.T) {
 		"done.md":    "---\ndoc: done\nversion: 1\n---\n\n# Done\n",
 	})
 	s := mustOpen(t, dir)
-	if _, _, err := s.Move("T-0001", MoveRequest{Section: SectionSomeday}, today); err != nil {
+	if _, _, err := testMoveV1(s, "T-0001", MoveRequest{Section: SectionSomeday}, today); err != nil {
 		t.Fatal(err)
 	}
 	if out := readDirFile(t, dir, "backlog.md"); !strings.Contains(out, "owner:dlh") {

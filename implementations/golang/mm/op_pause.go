@@ -50,6 +50,18 @@ func (s *Store) Pause(id ID, req PauseRequest, today Date) (Item, TxResult, erro
 	if t.model.isV2() {
 		return s.pauseV2(t, id, req, today)
 	}
+	return zero, TxResult{}, refuseIfV1(t.model)
+}
+
+// pauseV1 is version 1's Pause: the same logic that ran inline in
+// Store.Pause before the VersionMismatch guard (spec-tools.md §5.3.4,
+// T-0236). Deliberately NOT itself guarded, so a test can call it directly
+// against a v1 fixture to keep exercising v1 mutation correctness - which
+// --check and --migrate still depend on - even though the public Pause no
+// longer reaches this code for a v1 directory.
+func (s *Store) pauseV1(t *tx, it *Item, req PauseRequest, today Date) (Item, TxResult, error) {
+	var zero Item
+	id := it.ID
 	if it.State != StateWorking {
 		return zero, TxResult{}, fmt.Errorf(
 			"%w: %s is %s, not in a working slot; there is nothing to pause",

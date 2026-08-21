@@ -97,7 +97,7 @@ func nextEvents(t *testing.T, res *http.Response, want ...string) []string {
 }
 
 func TestSSEEventsOnMutation(t *testing.T) {
-	ts := newTestServerCfg(t, sseCfg(), "clean-full")
+	ts := newTestServerCfg(t, sseCfg(), "clean-v2-full")
 	id := projectIDOf(t, ts, ts.Dirs[0])
 
 	res := connectSSE(t, ts, id)

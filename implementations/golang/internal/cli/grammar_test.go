@@ -18,8 +18,11 @@ func TestInitDeclaresGrammar(t *testing.T) {
 	if got.Code != ExitOK {
 		t.Fatalf("init: %s", got)
 	}
+	if got := r.run("--migrate"); got.Code != ExitOK {
+		t.Fatalf("migrate: %s", got)
+	}
 	dir := filepath.Join(cwd, "micro-manager")
-	b, err := os.ReadFile(filepath.Join(dir, "backlog.md"))
+	b, err := os.ReadFile(filepath.Join(dir, "board.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,8 +91,8 @@ func TestInitDeclaresGrammar(t *testing.T) {
 }
 
 func TestDefaultInitWritesNoGrammar(t *testing.T) {
-	r, dir := newProject(t)
-	b, err := os.ReadFile(filepath.Join(dir, "backlog.md"))
+	r, dir := v2Project(t)
+	b, err := os.ReadFile(filepath.Join(dir, "board.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,6 +118,9 @@ func TestStatusNextSearchRenderDeclaredIDs(t *testing.T) {
 	r := runner{cwd: cwd}
 	if got := r.run("--init", "--project", "Custom", "--prefix", "MM", "--id-width", "3"); got.Code != ExitOK {
 		t.Fatalf("init: %s", got)
+	}
+	if got := r.run("--migrate"); got.Code != ExitOK {
+		t.Fatalf("migrate: %s", got)
 	}
 	if got := r.run("--add", "First custom item"); got.Code != ExitOK {
 		t.Fatalf("add: %s", got)
@@ -149,6 +155,9 @@ func TestDryRunShowsDeclaredShape(t *testing.T) {
 	r := runner{cwd: cwd}
 	if got := r.run("--init", "--project", "Custom", "--prefix", "X", "--id-width", "3"); got.Code != ExitOK {
 		t.Fatalf("init: %s", got)
+	}
+	if got := r.run("--migrate"); got.Code != ExitOK {
+		t.Fatalf("migrate: %s", got)
 	}
 	got := r.run("--add", "Drafted item", "--dry-run")
 	if got.Code != ExitOK {
@@ -197,6 +206,9 @@ func TestInitWarnsOnUnusualWidthNeverFails(t *testing.T) {
 	}
 	if !strings.Contains(got.Stderr, "warning") {
 		t.Errorf("expected a width warning on stderr, got:\n%s", got.Stderr)
+	}
+	if got := r.run("--migrate"); got.Code != ExitOK {
+		t.Fatalf("migrate: %s", got)
 	}
 	// The directory is still valid in its own grammar.
 	if got := r.run("--add", "Tiny item"); got.Code != ExitOK || !strings.Contains(got.Stdout, "T-01") {

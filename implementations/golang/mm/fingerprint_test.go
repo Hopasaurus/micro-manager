@@ -117,6 +117,27 @@ func TestFingerprintChangesWithEveryOwnedFile(t *testing.T) {
 	}
 }
 
+// board.md is version 2's counterpart to backlog.md - isOwnedFile only ever
+// checked for backlog.md, so a mutation to a v2 board never moved the
+// fingerprint at all (found live via internal/web/api's TestAPIFingerprint
+// while migrating it off a version-1 fixture for T-0236: an --add through
+// the JSON API wrote board.md but the polled fingerprint never changed,
+// which breaks the whole "does the client need to re-read" mechanism
+// spec-tools.md §2.4 describes for every v2 board).
+func TestFingerprintChangesWhenBoardEdited(t *testing.T) {
+	dir := copyFixture(t, "clean-v2-full")
+	before := fingerprintOf(t, dir)
+	p := filepath.Join(dir, "board.md")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	touch(t, p, string(data)+"\n")
+	if got := fingerprintOf(t, dir); got == before {
+		t.Error("editing board.md did not change the fingerprint")
+	}
+}
+
 // A same-size edit is the case a size-only check would miss.
 func TestFingerprintNoticesASameSizeEdit(t *testing.T) {
 	dir := copyFixture(t, "clean-minimal")

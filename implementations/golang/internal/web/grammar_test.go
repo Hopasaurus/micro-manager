@@ -39,7 +39,7 @@ func grammarServer(t *testing.T, fixture string) (*testServer, string) {
 // TestGrammarBoardRendersOwnIDs: the board renders X-003-style cards with the
 // ID verbatim in every place the DOM contract interpolates it.
 func TestGrammarBoardRendersOwnIDs(t *testing.T) {
-	ts, id := grammarServer(t, "clean-id-grammar")
+	ts, id := grammarServer(t, "clean-v2-id-grammar")
 	body := ts.get("/p/" + id + "/board").expectStatus(http.StatusOK).Body
 
 	for _, want := range []string{"item-X-001", "item-X-002", "item-X-003", "item-X-004"} {
@@ -70,7 +70,7 @@ func TestGrammarBoardRendersOwnIDs(t *testing.T) {
 
 // TestGrammarPanelAndDialogs: an item panel and every dialog open by X-ID.
 func TestGrammarPanelAndDialogs(t *testing.T) {
-	ts, id := grammarServer(t, "clean-id-grammar")
+	ts, id := grammarServer(t, "clean-v2-id-grammar")
 
 	panel := ts.get("/p/" + id + "/item/X-001").expectStatus(http.StatusOK).Body
 	if !hasTestid(panel, "item-panel") {
@@ -119,13 +119,13 @@ func TestGrammarPanelAndDialogs(t *testing.T) {
 // TestGrammarMutations: add/edit/start/finish/note/remove/move round trip on
 // X-IDs through the HTML routes, which is what a person using the GUI drives.
 func TestGrammarMutations(t *testing.T) {
-	ts, id := grammarServer(t, "clean-id-grammar")
+	ts, id := grammarServer(t, "clean-v2-id-grammar")
 
 	// Add: next_id is X-005, so the first new item is X-005.
 	r := ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
-		"title":   {"Grammar add"},
-		"section": {"ready"},
-		"prio":    {"med"},
+		"title": {"Grammar add"},
+		"stage": {"ready"},
+		"prio":  {"med"},
 	}, "HX-Request", "true").expectStatus(http.StatusOK)
 	if !strings.Contains(r.Body, "X-005 added") {
 		t.Errorf("the add toast should name X-005: %s", r.Body)
@@ -163,18 +163,18 @@ func TestGrammarMutations(t *testing.T) {
 		t.Errorf("the note toast should name X-002: %s", r.Body)
 	}
 
-	// Move repositions a backlog item; the reference must still be in the
-	// destination section, so this happens before X-001 leaves Ready.
+	// Move repositions a board item; the reference must still be on the
+	// destination stage, so this happens before X-001 leaves Ready.
 	r = ts.form(http.MethodPost, "/p/"+id+"/items/X-002/move", url.Values{
-		"section": {"ready"},
-		"after":   {"X-001"},
+		"stage": {"ready"},
+		"after": {"X-001"},
 	}, "HX-Request", "true").expectStatus(http.StatusOK)
 	if !strings.Contains(r.Body, "X-002 moved") {
 		t.Errorf("the move toast should name X-002: %s", r.Body)
 	}
 	it, err := store.Get("X-002")
-	if err != nil || it.Section != mm.SectionReady {
-		t.Errorf("after move, X-002 = %s, %v; want Ready", it.Section, err)
+	if err != nil || it.Stage != "ready" {
+		t.Errorf("after move, X-002 = %s, %v; want ready", it.Stage, err)
 	}
 
 	// Block needs a reason, and names the item in its toast (§7.2). X-003
@@ -186,8 +186,8 @@ func TestGrammarMutations(t *testing.T) {
 		t.Errorf("the block toast should name X-003: %s", r.Body)
 	}
 	it, err = store.Get("X-003")
-	if err != nil || it.Section != mm.SectionBlocked || it.Blocked != "waiting again" {
-		t.Errorf("after block, X-003 = %s %q, %v", it.Section, it.Blocked, err)
+	if err != nil || it.Stage != "blocked" || it.Reason != "waiting again" {
+		t.Errorf("after block, X-003 = %s %q, %v", it.Stage, it.Reason, err)
 	}
 
 	// Unblock returns it to Ready on top.
@@ -197,15 +197,16 @@ func TestGrammarMutations(t *testing.T) {
 		t.Errorf("the unblock toast should name X-003: %s", r.Body)
 	}
 
-	// Start: both slots were idle, so X-001 takes slot 01.
+	// Start: both working slots (wip.working: 2) were idle, so X-001 moves
+	// onto stage:working.
 	r = ts.form(http.MethodPost, "/p/"+id+"/items/X-001/start", url.Values{},
 		"HX-Request", "true").expectStatus(http.StatusOK)
 	if !strings.Contains(r.Body, "X-001 started") {
 		t.Errorf("the start toast should name X-001: %s", r.Body)
 	}
 	it, err = store.Get("X-001")
-	if err != nil || it.State != mm.StateWorking || it.Slot != 1 {
-		t.Errorf("after start, X-001 = %s slot %d, %v", it.State, it.Slot, err)
+	if err != nil || it.Stage != "working" {
+		t.Errorf("after start, X-001 = %s, %v; want working", it.Stage, err)
 	}
 
 	// Finish with an outcome.
@@ -240,7 +241,7 @@ func TestGrammarMutations(t *testing.T) {
 // TestGrammarSearch: the board's ?q= filter and the API search both match
 // X-IDs through the library's search, so the board and the CLI agree.
 func TestGrammarSearch(t *testing.T) {
-	ts, id := grammarServer(t, "clean-id-grammar")
+	ts, id := grammarServer(t, "clean-v2-id-grammar")
 
 	body := ts.get("/p/" + id + "/board?q=Queued").expectStatus(http.StatusOK).Body
 	if !hasTestid(body, "item-X-001") {
@@ -269,7 +270,7 @@ func TestGrammarSearch(t *testing.T) {
 // shape — wip and counts are grammar-independent, and nothing re-renders a
 // default prefix.
 func TestGrammarStatus(t *testing.T) {
-	ts, id := grammarServer(t, "clean-id-grammar")
+	ts, id := grammarServer(t, "clean-v2-id-grammar")
 	body := ts.get("/p/" + id + "/status").expectStatus(http.StatusOK).Body
 
 	wip := testid(t, body, "status-wip")
@@ -286,7 +287,7 @@ func TestGrammarStatus(t *testing.T) {
 
 // TestGrammarAPI: the JSON API's item paths and nextId speak X-IDs end to end.
 func TestGrammarAPI(t *testing.T) {
-	ts, id := grammarServer(t, "clean-id-grammar")
+	ts, id := grammarServer(t, "clean-v2-id-grammar")
 
 	// Project summary reports next_id in the declared grammar.
 	var sum struct {
@@ -350,9 +351,9 @@ func TestGrammarAPI(t *testing.T) {
 	}
 
 	// Move with before/after naming X-IDs, while X-001 is still in Ready (a
-	// move reference must be in the destination section).
+	// move reference must be on the destination stage).
 	ts.post("/api/v1/projects/"+id+"/items/X-002/move",
-		`{"section":"ready","after":"X-001"}`, apiHeaders()...).expectStatus(200)
+		`{"stage":"ready","after":"X-001"}`, apiHeaders()...).expectStatus(200)
 
 	// Edit, note, start, finish through the API, each addressing X-IDs.
 	ts.post("/api/v1/projects/"+id+"/items/X-001/start", `{}`, apiHeaders()...).expectStatus(200)
@@ -383,7 +384,7 @@ func TestGrammarAPI(t *testing.T) {
 // TestGrammarDetailRoundTrip: the detail endpoints address X-IDs, and a
 // detail attached through the panel form is readable and replaceable by ID.
 func TestGrammarDetailRoundTrip(t *testing.T) {
-	ts, id := grammarServer(t, "clean-id-grammar")
+	ts, id := grammarServer(t, "clean-v2-id-grammar")
 
 	// Attach a detail through the HTML edit form (item.go attaches when the
 	// form carries a body and the item has none).
@@ -422,7 +423,7 @@ func TestGrammarDetailRoundTrip(t *testing.T) {
 // stream exactly as on the default corpus — the stream carries names, not
 // content, so the grammar never appears in it and cannot break it.
 func TestGrammarSSE(t *testing.T) {
-	ts := newTestServerCfg(t, sseCfg(), "clean-id-grammar")
+	ts := newTestServerCfg(t, sseCfg(), "clean-v2-id-grammar")
 	id := projectIDOf(t, ts, ts.Dirs[0])
 
 	res := connectSSE(t, ts, id)
@@ -465,8 +466,16 @@ func TestGrammarAPIInit(t *testing.T) {
 	}
 
 	// The created directory opens and allocates in the declared grammar.
+	// --init (and this API route) still only creates version-1 directories
+	// (a known, deliberately-unaddressed question - see T-0230's own detail
+	// notes), and Store.Add now refuses one outright (T-0236); migrate first,
+	// as any real caller wanting to add through the library directly would
+	// have to.
 	store, err := mm.Open(path)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.MigrateVersion(mm.MigrateVersionRequest{}, mm.Date{Year: 2026, Month: 8, Day: 21}); err != nil {
 		t.Fatal(err)
 	}
 	it, _, err := store.Add(mm.AddRequest{Title: "Init add"}, mm.Date{})

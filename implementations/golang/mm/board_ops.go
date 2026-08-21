@@ -241,7 +241,7 @@ func allocNextV2(e *fileEdit, b *boardFile, g IDGrammar) (ID, error) {
 // Start
 // ---------------------------------------------------------------------------
 
-func (s *Store) startV2(t *tx, id ID, today Date) (Item, TxResult, error) {
+func (s *Store) startV2(t *tx, id ID, today Date, dryRun bool) (Item, TxResult, error) {
 	var zero Item
 	it := t.model.find(id)
 	if it.Stage == "working" {
@@ -270,7 +270,7 @@ func (s *Store) startV2(t *tx, id ID, today Date) (Item, TxResult, error) {
 	t.record(Change{Kind: ChangeMoved, ID: id, File: "board.md",
 		Before: before, After: RenderItemLine(it)})
 
-	res, err := t.commit(false)
+	res, err := t.commit(dryRun)
 	if err != nil {
 		return zero, res, err
 	}

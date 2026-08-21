@@ -10,7 +10,7 @@ import (
 // --finish already know to preserve them.
 func TestNoteGoesToTheWorkingSlot(t *testing.T) {
 	dir, s := startDir(t)
-	if _, _, err := s.Start("T-0001", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 
@@ -130,13 +130,13 @@ func TestNoteValidatesAndDryRuns(t *testing.T) {
 // same preservation path, so the two cannot drift apart.
 func TestNoteSurvivesPause(t *testing.T) {
 	dir, s := startDir(t)
-	if _, _, err := s.Start("T-0002", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0002", StartRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := s.Note("T-0002", NoteRequest{Text: "halfway through"}, today); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Pause("T-0002", PauseRequest{}, today); err != nil {
+	if _, _, err := testPauseV1(s, "T-0002", PauseRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(readFile(t, dir, "details/T-0002.md"), "halfway through") {

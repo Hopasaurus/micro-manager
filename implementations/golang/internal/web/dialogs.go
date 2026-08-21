@@ -43,8 +43,13 @@ func (s *Server) dialog(c *echo.Context) error {
 
 	v := s.newView(c, "", store)
 	v.Data = map[string]any{
-		"ItemID":    itemID,
-		"IsWorking": it.State == mm.StateWorking,
+		"ItemID": itemID,
+		// Version 1's "working" is StateWorking; version 2 has no separate
+		// state for it, only stage:working (T-0236 - found while migrating
+		// this route's own tests off a version-1 fixture: this check never
+		// matched a v2 working item, so dialog-block posted to /block
+		// instead of /pause for one, the wrong endpoint entirely).
+		"IsWorking": it.State == mm.StateWorking || it.Stage == "working",
 		// confirm-remove offers to delete the detail file along with the item,
 		// so it has to know whether there is one to offer (spec-tools.md
 		// §5.1.6). Empty for an item with no detail file, and the dialog then

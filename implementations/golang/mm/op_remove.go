@@ -50,6 +50,22 @@ func (s *Store) Remove(id ID, req RemoveRequest, today Date) (Removal, TxResult,
 	if it == nil {
 		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
+	if err := refuseIfV1(t.model); err != nil {
+		return zero, TxResult{}, err
+	}
+	return s.removeInternal(t, it, req, today)
+}
+
+// removeInternal is Remove's shared logic. Unlike Add/Start/Pause/Finish/
+// Move, Remove never had a separate v1/v2 code path to split, so there is
+// nothing to extract beyond factoring the VersionMismatch guard (§5.3.4,
+// T-0236) out of it. Deliberately NOT itself guarded, so a test can call it
+// directly against a v1 fixture to keep exercising v1 mutation correctness
+// - which --check and --migrate still depend on - even though the public
+// Remove no longer reaches this code for a v1 directory.
+func (s *Store) removeInternal(t *tx, it *Item, req RemoveRequest, today Date) (Removal, TxResult, error) {
+	var zero Removal
+	id := it.ID
 	if !req.Force {
 		return zero, TxResult{}, fmt.Errorf(
 			"%w: removing %s deletes it with no record; pass Force if that is really what you want, "+

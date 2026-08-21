@@ -13,7 +13,7 @@ func TestUpdateFields(t *testing.T) {
 	dir := newDir(t, nil)
 	s := mustOpen(t, dir)
 
-	it, res, err := s.Update("T-0001", UpdateRequest{
+	it, res, err := testUpdateV1(s, "T-0001", UpdateRequest{
 		Title: strp("Renamed"),
 		Prio:  priop(PrioHigh),
 	}, today)
@@ -47,7 +47,7 @@ func TestUpdateLeavesUnsetFieldsAlone(t *testing.T) {
 	s := mustOpen(t, dir)
 	before := readDirFile(t, dir, "backlog.md")
 
-	if _, _, err := s.Update("T-0001", UpdateRequest{Prio: priop(PrioLow)}, today); err != nil {
+	if _, _, err := testUpdateV1(s, "T-0001", UpdateRequest{Prio: priop(PrioLow)}, today); err != nil {
 		t.Fatal(err)
 	}
 	it, _ := s.Get("T-0001")
@@ -71,7 +71,7 @@ func TestUpdateTagOperations(t *testing.T) {
 	s := mustOpen(t, newDir(t, nil))
 
 	// Incremental add.
-	it, _, err := s.Update("T-0001", UpdateRequest{AddTags: []string{"infra", "ci"}}, today)
+	it, _, err := testUpdateV1(s, "T-0001", UpdateRequest{AddTags: []string{"infra", "ci"}}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestUpdateTagOperations(t *testing.T) {
 		t.Errorf("add: got %v", it.Tags)
 	}
 	// Adding a tag twice must not duplicate it.
-	it, _, err = s.Update("T-0001", UpdateRequest{AddTags: []string{"infra"}}, today)
+	it, _, err = testUpdateV1(s, "T-0001", UpdateRequest{AddTags: []string{"infra"}}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestUpdateTagOperations(t *testing.T) {
 		t.Errorf("re-add should be idempotent: %v", it.Tags)
 	}
 	// Incremental remove.
-	it, _, err = s.Update("T-0001", UpdateRequest{RemoveTags: []string{"example", "ci"}}, today)
+	it, _, err = testUpdateV1(s, "T-0001", UpdateRequest{RemoveTags: []string{"example", "ci"}}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestUpdateTagOperations(t *testing.T) {
 		t.Errorf("remove: got %v", it.Tags)
 	}
 	// Wholesale replace.
-	it, _, err = s.Update("T-0001", UpdateRequest{SetTags: true, Tags: []string{"a", "b"}}, today)
+	it, _, err = testUpdateV1(s, "T-0001", UpdateRequest{SetTags: true, Tags: []string{"a", "b"}}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestUpdateTagOperations(t *testing.T) {
 		t.Errorf("replace: got %v", it.Tags)
 	}
 	// Replace with empty clears the field entirely.
-	it, _, err = s.Update("T-0001", UpdateRequest{SetTags: true, Tags: nil}, today)
+	it, _, err = testUpdateV1(s, "T-0001", UpdateRequest{SetTags: true, Tags: nil}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestUpdateTagOperations(t *testing.T) {
 		t.Errorf("cleared tags should not render: %q", RenderItemLine(&it))
 	}
 	// The two forms are exclusive.
-	_, _, err = s.Update("T-0001", UpdateRequest{
+	_, _, err = testUpdateV1(s, "T-0001", UpdateRequest{
 		SetTags: true, Tags: []string{"a"}, AddTags: []string{"b"}}, today)
 	if !errors.Is(err, ErrInvalidArgument) {
 		t.Errorf("want ErrInvalidArgument, got %v", err)
@@ -124,7 +124,7 @@ func TestUpdateSetUnsetUnregisteredFields(t *testing.T) {
 	dir := newDir(t, nil)
 	s := mustOpen(t, dir)
 
-	if _, _, err := s.Update("T-0001", UpdateRequest{
+	if _, _, err := testUpdateV1(s, "T-0001", UpdateRequest{
 		Set: []Field{{"owner", "dlh"}, {"estimate", "3d"}}}, today); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestUpdateSetUnsetUnregisteredFields(t *testing.T) {
 	}
 
 	// Setting an existing unknown key updates it in place, preserving order.
-	if _, _, err := s.Update("T-0001", UpdateRequest{
+	if _, _, err := testUpdateV1(s, "T-0001", UpdateRequest{
 		Set: []Field{{"owner", "someone-else"}}}, today); err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestUpdateSetUnsetUnregisteredFields(t *testing.T) {
 		t.Errorf("in-place update changed field order:\n%s", out)
 	}
 
-	if _, _, err := s.Update("T-0001", UpdateRequest{Unset: []string{"owner"}}, today); err != nil {
+	if _, _, err := testUpdateV1(s, "T-0001", UpdateRequest{Unset: []string{"owner"}}, today); err != nil {
 		t.Fatal(err)
 	}
 	out = readDirFile(t, dir, "backlog.md")
@@ -160,7 +160,7 @@ func TestUpdatePreservesUnregisteredFieldsAcrossAnEdit(t *testing.T) {
 	dir := newDir(t, map[string]string{"backlog.md": src})
 	s := mustOpen(t, dir)
 
-	if _, _, err := s.Update("T-0001", UpdateRequest{Prio: priop(PrioLow)}, today); err != nil {
+	if _, _, err := testUpdateV1(s, "T-0001", UpdateRequest{Prio: priop(PrioLow)}, today); err != nil {
 		t.Fatal(err)
 	}
 	out := readDirFile(t, dir, "backlog.md")
@@ -186,7 +186,7 @@ func TestUpdateWorkingSlotItem(t *testing.T) {
 		t.Fatalf("fixture should start clean:\n%s", violationMessages(vs))
 	}
 
-	it, res, err := s.Update("T-0006", UpdateRequest{
+	it, res, err := testUpdateV1(s, "T-0006", UpdateRequest{
 		Prio: priop(PrioLow), AddTags: []string{"urgent"}}, today)
 	if err != nil {
 		t.Fatalf("update: %v", err)
@@ -217,7 +217,7 @@ func TestUpdateWorkingSlotItem(t *testing.T) {
 func TestUpdateDoneItem(t *testing.T) {
 	dir := newDir(t, nil)
 	s := mustOpen(t, dir)
-	if _, _, err := s.Update("T-0010", UpdateRequest{AddTags: []string{"shipped-late"}}, today); err != nil {
+	if _, _, err := testUpdateV1(s, "T-0010", UpdateRequest{AddTags: []string{"shipped-late"}}, today); err != nil {
 		t.Fatalf("editing a closed item should work: %v", err)
 	}
 	out := readDirFile(t, dir, "done.md")
@@ -245,7 +245,7 @@ func TestUpdateTitleSyncsDetailFile(t *testing.T) {
 		t.Fatalf("fixture should start clean:\n%s", violationMessages(vs))
 	}
 
-	_, res, err := s.Update("T-0001", UpdateRequest{Title: strp("Renamed properly")}, today)
+	_, res, err := testUpdateV1(s, "T-0001", UpdateRequest{Title: strp("Renamed properly")}, today)
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestUpdateValidation(t *testing.T) {
 		{"unset outcome on closed", "T-0010", UpdateRequest{Unset: []string{"outcome"}}, ErrConflict},
 	}
 	for _, c := range cases {
-		_, _, err := s.Update(c.id, c.req, today)
+		_, _, err := testUpdateV1(s, c.id, c.req, today)
 		if err == nil {
 			t.Errorf("%s: should fail", c.name)
 			continue
@@ -311,7 +311,7 @@ func TestUpdateCannotBreakDoneInvariants(t *testing.T) {
 	dir := newDir(t, nil)
 	s := mustOpen(t, dir)
 	before := readDirFile(t, dir, "done.md")
-	if _, _, err := s.Update("T-0010", UpdateRequest{Unset: []string{"outcome"}}, today); err == nil {
+	if _, _, err := testUpdateV1(s, "T-0010", UpdateRequest{Unset: []string{"outcome"}}, today); err == nil {
 		t.Fatal("should be refused")
 	}
 	if readDirFile(t, dir, "done.md") != before {
@@ -324,7 +324,7 @@ func TestUpdateDryRun(t *testing.T) {
 	s := mustOpen(t, dir)
 	before := readDirFile(t, dir, "backlog.md")
 
-	it, res, err := s.Update("T-0001", UpdateRequest{
+	it, res, err := testUpdateV1(s, "T-0001", UpdateRequest{
 		Title: strp("Would be renamed"), DryRun: true}, today)
 	if err != nil {
 		t.Fatal(err)
@@ -343,7 +343,7 @@ func TestUpdateNoOp(t *testing.T) {
 	s := mustOpen(t, dir)
 	before := readDirFile(t, dir, "backlog.md")
 
-	if _, res, err := s.Update("T-0001", UpdateRequest{Prio: priop(PrioMed)}, today); err != nil {
+	if _, res, err := testUpdateV1(s, "T-0001", UpdateRequest{Prio: priop(PrioMed)}, today); err != nil {
 		t.Fatal(err)
 	} else if len(res.Files) != 0 {
 		t.Errorf("a no-op should touch no files, got %v", res.Files)

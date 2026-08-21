@@ -323,6 +323,21 @@ func TestStartV2MovesToWorking(t *testing.T) {
 	}
 }
 
+// startV2 took no dryRun parameter at all and hardcoded a real commit -
+// found while migrating internal/cli's dry-run test suite off v1 fixtures
+// for T-0236, which caught mm --start --dry-run actually writing to disk on
+// a version-2 directory. spec-tools.md §3.4: a dry run MUST write nothing.
+func TestStartV2DryRunWritesNothing(t *testing.T) {
+	dir, s := v2Dir(t)
+	before := readFile(t, dir, "board.md")
+	if _, _, err := s.Start("T-0002", StartRequest{DryRun: true}, today); err != nil {
+		t.Fatalf("dry-run start: %v", err)
+	}
+	if got := readFile(t, dir, "board.md"); got != before {
+		t.Errorf("a dry run wrote to board.md:\nbefore:\n%s\nafter:\n%s", before, got)
+	}
+}
+
 func TestStartV2EnforcesWipLimit(t *testing.T) {
 	_, s := v2Dir(t)
 	// wip.working: 2, and T-0006 already occupies one slot.

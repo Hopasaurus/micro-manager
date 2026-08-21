@@ -66,6 +66,18 @@ func (s *Store) Finish(id ID, req FinishRequest, today Date) (Item, TxResult, er
 	if t.model.isV2() {
 		return s.finishV2(t, id, req, outcome, when, today)
 	}
+	return zero, TxResult{}, refuseIfV1(t.model)
+}
+
+// finishV1 is version 1's Finish: the same logic that ran inline in
+// Store.Finish before the VersionMismatch guard (spec-tools.md §5.3.4,
+// T-0236). Deliberately NOT itself guarded, so a test can call it directly
+// against a v1 fixture to keep exercising v1 mutation correctness - which
+// --check and --migrate still depend on - even though the public Finish no
+// longer reaches this code for a v1 directory.
+func (s *Store) finishV1(t *tx, it *Item, req FinishRequest, outcome Outcome, when Date, today Date) (Item, TxResult, error) {
+	var zero Item
+	id := it.ID
 
 	d, de, err := t.done()
 	if err != nil {

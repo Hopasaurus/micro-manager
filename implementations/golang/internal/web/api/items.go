@@ -20,7 +20,9 @@ import (
 type addItemRequest struct {
 	Title      string     `json:"title"`
 	Top        bool       `json:"top"`
-	Section    string     `json:"section"`
+	Section    string     `json:"section"` // version 1
+	Stage      string     `json:"stage"`   // version 2
+	Reason     string     `json:"reason"`  // version 2
 	Prio       string     `json:"prio"`
 	Tags       []string   `json:"tags"`
 	Blocked    string     `json:"blocked"`
@@ -47,6 +49,8 @@ func (s *Server) addItem(c *echo.Context) error {
 		Prio:       mm.Prio(req.Prio),
 		Tags:       req.Tags,
 		Blocked:    req.Blocked,
+		Stage:      mm.Stage(req.Stage),
+		Reason:     req.Reason,
 		DetailBody: req.DetailBody,
 		Extra:      req.Extra,
 		DryRun:     req.DryRun || dryRun(c),
@@ -278,6 +282,12 @@ func (s *Server) operate(c *echo.Context, op string) error {
 			req.Section = section
 			req.Blocked = str("reason")
 		}
+		// Version 2: unlike version 1's Blocked, pauseV2 does not accept a
+		// NEW reason at pause time - it only checks whether the item
+		// already carries one for a needs_reason destination.
+		if stage := str("stage"); stage != "" {
+			req.Stage = mm.Stage(stage)
+		}
 		req.End = boolv("end")
 		req.DiscardNotes = boolv("discardNotes")
 		it, res, err = store.Pause(id, req, today)
@@ -307,13 +317,19 @@ func (s *Server) operate(c *echo.Context, op string) error {
 		if strings.TrimSpace(reason) == "" {
 			return fmt.Errorf("%w: blocking %s needs a reason", mm.ErrInvalidArgument, id)
 		}
+		// Both version-1 and version-2 fields are set unconditionally:
+		// Store.Move dispatches on the directory's actual version and reads
+		// only the pair that applies (matching the CLI's --block and the
+		// GUI's block, T-0230/T-0236).
 		it, res, err = store.Move(id, mm.MoveRequest{
-			Section: mm.SectionBlocked, Blocked: reason, DryRun: dry,
+			Section: mm.SectionBlocked, Blocked: reason,
+			Stage: "blocked", Reason: reason,
+			DryRun: dry,
 		}, today)
 
 	case "unblock":
 		it, res, err = store.Move(id, mm.MoveRequest{
-			Section: mm.SectionReady, Top: true, DryRun: dry,
+			Section: mm.SectionReady, Stage: "ready", Top: true, DryRun: dry,
 		}, today)
 
 	case "move":
@@ -325,6 +341,10 @@ func (s *Server) operate(c *echo.Context, op string) error {
 			}
 			req.Section = section
 			req.Blocked = str("reason")
+		}
+		if stage := str("stage"); stage != "" {
+			req.Stage = mm.Stage(stage)
+			req.Reason = str("reason")
 		}
 		if n := intOf(body["position"]); n > 0 {
 			req.Position = n

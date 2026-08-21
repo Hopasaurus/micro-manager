@@ -100,7 +100,7 @@ func TestSomedayCardBadge(t *testing.T) {
 // A schedule that is already due — Next returns null — reads "due" and has no
 // data-next: the next tick fires it.
 func TestTicklerBadgeDue(t *testing.T) {
-	ts, id := pinnedServer(t, "clean-full")
+	ts, id := pinnedServer(t, "clean-v2-full")
 	ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
 		"title": {"Overdue"}, "stage": {"someday"}, "tickler-kind": {"one-time"},
 		"tickler-date": {"2026-07-01"},
@@ -185,7 +185,7 @@ func TestWakeUpGroupItemPanel(t *testing.T) {
 
 // The other shapes pre-fill back into their controls (§5.6 pre-fill).
 func TestWakeUpGroupPrefillShapes(t *testing.T) {
-	ts, id := pinnedServer(t, "clean-full")
+	ts, id := pinnedServer(t, "clean-v2-full")
 
 	add := func(title, tickler string) {
 		ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
@@ -236,7 +236,7 @@ func TestWakeUpGroupPrefillShapes(t *testing.T) {
 // Composition (§4.2): add and edit fold the controls into the tickler: field
 // in the same transaction, and kind never removes it.
 func TestWakeUpComposition(t *testing.T) {
-	ts, id := pinnedServer(t, "clean-full")
+	ts, id := pinnedServer(t, "clean-v2-full")
 
 	// weekly + time, on add.
 	res := ts.form(http.MethodPost, "/p/"+id+"/items", url.Values{
@@ -324,7 +324,7 @@ func TestWakeUpComposition(t *testing.T) {
 func TestTicklerServiceFiresHeldBoards(t *testing.T) {
 	cfg := mm.DefaultConfig()
 	cfg.Tickler.Interval = "1m"
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 	ts.registry.now = func() time.Time { return time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC) }
 
 	// A backdated one-shot (fires: overdue) and a recurring prototype whose
@@ -353,25 +353,33 @@ func TestTicklerServiceFiresHeldBoards(t *testing.T) {
 	ts.Server.tickHeld()
 
 	items, _ := store.List(mm.Filter{State: mm.StateAll})
-	var moved, spawned bool
+	var moved bool
 	for _, it := range items {
-		switch it.Title {
-		case "Backdated":
-			moved = it.State == mm.StateBacklog && it.Section == mm.SectionReady && it.Tickler == "" && it.Tickled == (mm.Date{Year: 2026, Month: 7, Day: 30})
-		case "Old recurring":
-			spawned = it.Tickled == (mm.Date{Year: 2026, Month: 7, Day: 30}) && it.Tickler != ""
+		if it.Title == "Backdated" {
+			moved = it.State == mm.StateBoard && it.Stage == "ready" && it.Tickler == "" && it.Tickled == (mm.Date{Year: 2026, Month: 7, Day: 30})
 		}
 	}
 	if !moved {
 		t.Error("the backdated one-shot did not fire into Ready")
 	}
-	if !spawned {
-		t.Error("the recurring prototype was not stamped tickled")
+
+	// The prototype itself, found by the ID recorded before the tick - the
+	// spawn it produces shares its title, so a title-only match (over the
+	// post-tick list) cannot tell prototype from spawn apart.
+	proto, err := store.Get(recurring)
+	if err != nil {
+		t.Fatal(err)
 	}
-	// The spawn itself is a fresh Ready item with its own ID.
+	if proto.Tickled != (mm.Date{Year: 2026, Month: 7, Day: 30}) || proto.Tickler == "" {
+		t.Errorf("the recurring prototype was not stamped tickled: %+v", proto)
+	}
+
+	// The spawn itself is a fresh Ready item with its own ID, sharing the
+	// prototype's title but none of its schedule.
 	var spawnCount int
 	for _, it := range items {
-		if it.Title == "Old recurring" && it.State == mm.StateBacklog && it.Section == mm.SectionReady {
+		if it.Title == "Old recurring" && it.ID != recurring &&
+			it.State == mm.StateBoard && it.Stage == "ready" {
 			spawnCount++
 		}
 	}
@@ -483,7 +491,7 @@ func (h *recordsHandler) eventsOf(msg string) []logEvent {
 // line is followed immediately by the fire.
 func TestTicklerLogsScheduled(t *testing.T) {
 	rec := &recordsHandler{}
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 	ts.registry.now = func() time.Time { return time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC) }
 	ts.Server.log = slog.New(rec)
 
@@ -680,7 +688,7 @@ func TestTicklerControllerApply(t *testing.T) {
 func TestTicklerSettingsAppliesLive(t *testing.T) {
 	rec := &recordsHandler{}
 	ts, id := func() (*testServer, string) {
-		ts := newTestServerWith(t, func(o *Options) { o.Logger = slog.New(rec) }, "clean-full")
+		ts := newTestServerWith(t, func(o *Options) { o.Logger = slog.New(rec) }, "clean-v2-full")
 		pid, err := mm.ProjectID(ts.Dirs[0])
 		if err != nil {
 			t.Fatal(err)
@@ -750,7 +758,7 @@ func TestTicklerSettingsAppliesLive(t *testing.T) {
 					} `json:"items"`
 				} `json:"result"`
 			}
-			if resp, err := http.Get(base + "/api/v1/projects/" + id + "/items?section=someday"); err == nil {
+			if resp, err := http.Get(base + "/api/v1/projects/" + id + "/items?stage=someday"); err == nil {
 				if resp.StatusCode != http.StatusOK {
 					b, _ := io.ReadAll(resp.Body)
 					t.Fatalf("someday listing status = %d body=%s", resp.StatusCode, b)
@@ -760,7 +768,7 @@ func TestTicklerSettingsAppliesLive(t *testing.T) {
 			}
 			t.Fatalf("the due item never moved into Ready; somdays=%+v events=%+v", list.Result.Items, rec.events)
 		}
-		resp, err := http.Get(base + "/api/v1/projects/" + id + "/items?section=ready")
+		resp, err := http.Get(base + "/api/v1/projects/" + id + "/items?stage=ready")
 		if err != nil {
 			t.Fatalf("list ready: %v", err)
 		}

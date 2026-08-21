@@ -148,14 +148,14 @@ func TestAddAllocatesInDeclaredGrammar(t *testing.T) {
 	s := mustOpen(t, newDir(t, map[string]string{
 		"backlog.md": customBacklog, "done.md": customDone}))
 
-	a, _, err := s.Add(AddRequest{Title: "First new"}, today)
+	a, _, err := testAddV1(s, AddRequest{Title: "First new"}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if a.ID != "MM-011" {
 		t.Errorf("first add = %s, want MM-011", a.ID)
 	}
-	b, _, err := s.Add(AddRequest{Title: "Second new"}, today)
+	b, _, err := testAddV1(s, AddRequest{Title: "Second new"}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,11 +184,11 @@ func TestCustomGrammarLifecycle(t *testing.T) {
 		"backlog.md": customBacklog, "done.md": customDone})
 	s := mustOpen(t, dir)
 
-	it, _, err := s.Add(AddRequest{Title: "Round trip", Prio: PrioHigh}, today)
+	it, _, err := testAddV1(s, AddRequest{Title: "Round trip", Prio: PrioHigh}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Start(it.ID, StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, it.ID, StartRequest{}, today); err != nil {
 		t.Fatalf("start: %v", err)
 	}
 	got, err := s.Get(it.ID)
@@ -198,7 +198,7 @@ func TestCustomGrammarLifecycle(t *testing.T) {
 	if got.State != StateWorking {
 		t.Errorf("state = %q, want working", got.State)
 	}
-	if _, _, err := s.Finish(it.ID, FinishRequest{Note: "shipped"}, today); err != nil {
+	if _, _, err := testFinishV1(s, it.ID, FinishRequest{Note: "shipped"}, today); err != nil {
 		t.Fatalf("finish: %v", err)
 	}
 	hits, err := s.Search(SearchRequest{Query: "Round trip"})
@@ -346,7 +346,7 @@ updated: 2026-07-29
 		t.Errorf("want one width warning, got %v", warns)
 	}
 
-	it, _, err := s.Add(AddRequest{Title: "Fifth"}, today)
+	it, _, err := testAddV1(s, AddRequest{Title: "Fifth"}, today)
 	if err != nil {
 		t.Fatalf("add must not be blocked by a warning: %v", err)
 	}
@@ -533,7 +533,7 @@ version: 1
 `
 	s := mustOpen(t, newDir(t, map[string]string{"backlog.md": backlog1, "done.md": done1}))
 
-	a, _, err := s.Add(AddRequest{Title: "Eighth"}, today)
+	a, _, err := testAddV1(s, AddRequest{Title: "Eighth"}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -541,7 +541,7 @@ version: 1
 		t.Errorf("add = %s, want X-8", a.ID)
 	}
 	// next_id is now X-9, the cap: the next add is exhausted.
-	_, _, err = s.Add(AddRequest{Title: "Ninth"}, today)
+	_, _, err = testAddV1(s, AddRequest{Title: "Ninth"}, today)
 	if !errors.Is(err, ErrConflict) {
 		t.Fatalf("want ErrConflict, got %v", err)
 	}
@@ -634,7 +634,7 @@ func TestMixedPrefixesCannotBeWritten(t *testing.T) {
 
 	// Allocation stays inside the declared grammar forever: it never produces
 	// a second prefix, so the counter model does not need per-prefix state.
-	a, _, err := s.Add(AddRequest{Title: "Allocated"}, today)
+	a, _, err := testAddV1(s, AddRequest{Title: "Allocated"}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -733,7 +733,7 @@ func TestConflictMarkersBlockMutations(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The directory still opens (parse, don't stop), but no mutation commits.
-	if _, _, err := s.Add(AddRequest{Title: "Nope"}, today); err == nil {
+	if _, _, err := testAddV1(s, AddRequest{Title: "Nope"}, today); err == nil {
 		t.Fatal("Add succeeded on a directory with conflict markers")
 	}
 	if _, err := s.Get("MM-001"); err != nil {
@@ -756,7 +756,7 @@ func TestAConflictMarkerAloneBlocksMutations(t *testing.T) {
 	})
 	s := mustOpen(t, dir)
 
-	_, _, err := s.Add(AddRequest{Title: "Nope"}, today)
+	_, _, err := testAddV1(s, AddRequest{Title: "Nope"}, today)
 	var ie *InvariantError
 	if !errors.As(err, &ie) {
 		t.Fatalf("err = %v, want the marker finding", err)

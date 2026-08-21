@@ -34,16 +34,21 @@ var mutations = []scenario{
 	{"add", nil, []string{"--add", "New thing", "--prio", "high", "--tag", "infra"}},
 	{"add with a detail file", nil,
 		[]string{"--add", "With detail", "--detail-text", "Long form."}},
+	// --reason, not --blocked: a supplied Blocked (version 1's field) is
+	// invisible to buildNewItemV2, which only infers a needs_reason stage
+	// from Reason (version 2's field) - --blocked here would silently land
+	// on the default "ready" stage instead of "blocked".
 	{"add to blocked", nil,
-		[]string{"--add", "Waiting", "--blocked", "on the vendor"}},
+		[]string{"--add", "Waiting", "--reason", "on the vendor"}},
 	{"edit", [][]string{{"--add", "First"}},
 		[]string{"--edit", "T-0001", "--title", "Renamed", "--prio", "low"}},
 	{"edit an unregistered field", [][]string{{"--add", "First"}},
 		[]string{"--edit", "T-0001", "--set", "owner=dana"}},
 	{"move", [][]string{{"--add", "First"}, {"--add", "Second"}},
 		[]string{"--move", "T-0002", "--top"}},
-	{"move between sections", [][]string{{"--add", "First"}},
-		[]string{"--move", "T-0001", "--section", "someday"}},
+	// --stage, not --section: moveV2 reads Stage only.
+	{"move between stages", [][]string{{"--add", "First"}},
+		[]string{"--move", "T-0001", "--stage", "someday"}},
 	{"start", [][]string{{"--add", "First"}}, []string{"--start", "T-0001"}},
 	{"pause", [][]string{{"--add", "First"}, {"--start", "T-0001"}},
 		[]string{"--pause", "T-0001"}},
@@ -57,8 +62,10 @@ var mutations = []scenario{
 		[]string{"--remove", "T-0001", "--force"}},
 	{"remove with its detail file", [][]string{{"--add", "F", "--detail-text", "x"}},
 		[]string{"--remove", "T-0001", "--force", "--with-detail"}},
-	{"wip up", nil, []string{"--wip", "3"}},
-	{"wip down", nil, []string{"--wip", "1"}},
+	// --stage working: bare --wip refuses outright on a version-2 directory
+	// (SetWipLimit's own early refusal points at --wip N --stage SLUG).
+	{"wip up", nil, []string{"--wip", "3", "--stage", "working"}},
+	{"wip down", nil, []string{"--wip", "1", "--stage", "working"}},
 
 	// Failures. The dry run must reach the same verdict.
 	{"start at the wip limit",
@@ -70,15 +77,19 @@ var mutations = []scenario{
 	{"pause something in the backlog", [][]string{{"--add", "First"}},
 		[]string{"--pause", "T-0001"}},
 	{"finish an unknown id", nil, []string{"--finish", "T-9999"}},
-	{"wip down onto an occupied slot",
-		[][]string{{"--add", "A"}, {"--start", "T-0001", "--slot", "2"}},
-		[]string{"--wip", "1"}},
+	// Version 2 has no slot count or slot numbers to lower below - the
+	// analogous conflict is lowering wip.working below how many items are
+	// actually on it, which SetStageWipLimit refuses the same way.
+	{"wip down onto occupied working slots",
+		[][]string{{"--add", "A"}, {"--add", "B"}, {"--start", "T-0001"}, {"--start", "T-0002"}},
+		[]string{"--wip", "1", "--stage", "working"}},
 }
 
-// prepare builds a project with two slots and runs the scenario's setup.
+// prepare builds a version-2 project with a wip.working cap of 2 and runs
+// the scenario's setup.
 func prepare(t *testing.T, s scenario) (runner, string) {
 	t.Helper()
-	r, dir := newProject(t, "--slots", "2")
+	r, dir := v2Project(t, "--slots", "2")
 	for _, args := range s.setup {
 		if got := r.run(args...); got.Code != ExitOK {
 			t.Fatalf("%s: setup %v: %s", s.name, args, got)

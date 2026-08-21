@@ -66,7 +66,10 @@
   <h2 data-testid="dialog-block-title" id="dialog-block-title">Block {{$id}}</h2>
   <form hx-post="/p/{{$p.ID}}/items/{{$id}}/{{if $working}}pause{{else}}block{{end}}"
         hx-target="[data-testid='board']" hx-swap="morph" hx-ext="morph">
-    {{if $working}}<input type="hidden" name="section" value="blocked">{{end}}
+    {{if $working}}
+    <input type="hidden" name="section" value="blocked">
+    <input type="hidden" name="stage" value="blocked">
+    {{end}}
     <label class="mm-field">
       <span>What is it waiting on?</span>
       <input data-testid="dialog-block-reason" name="reason" type="text" required autofocus>

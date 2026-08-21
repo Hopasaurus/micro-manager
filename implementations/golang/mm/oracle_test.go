@@ -282,39 +282,39 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 		}
 		compareValidators(t, "init", dir)
 
-		a, _, err := s.Add(AddRequest{
+		a, _, err := testAddV1(s, AddRequest{
 			Title: "First", Prio: PrioHigh, Tags: []string{"infra", "ci"},
 			Extra: []Field{{"owner", "dana"}}, DetailBody: "Long form.\n",
 		}, today)
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, _, err := s.Add(AddRequest{Title: "Second", Blocked: "waiting on ops"}, today)
+		b, _, err := testAddV1(s, AddRequest{Title: "Second", Blocked: "waiting on ops"}, today)
 		if err != nil {
 			t.Fatal(err)
 		}
 		compareValidators(t, "add", dir)
 
-		if _, _, err := s.Start(a.ID, StartRequest{}, today); err != nil {
+		if _, _, err := testStartV1(s, a.ID, StartRequest{}, today); err != nil {
 			t.Fatal(err)
 		}
 		compareValidators(t, "start", dir)
 
-		if _, _, err := s.Pause(a.ID, PauseRequest{}, today); err != nil {
+		if _, _, err := testPauseV1(s, a.ID, PauseRequest{}, today); err != nil {
 			t.Fatal(err)
 		}
 		compareValidators(t, "pause", dir)
 
-		if _, _, err := s.Start(a.ID, StartRequest{}, today); err != nil {
+		if _, _, err := testStartV1(s, a.ID, StartRequest{}, today); err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := s.Finish(a.ID, FinishRequest{Note: "shipped"}, today); err != nil {
+		if _, _, err := testFinishV1(s, a.ID, FinishRequest{Note: "shipped"}, today); err != nil {
 			t.Fatal(err)
 		}
 		compareValidators(t, "finish", dir)
 
 		// A month group that does not exist yet, created in newest-first order.
-		if _, _, err := s.Finish(b.ID, FinishRequest{
+		if _, _, err := testFinishV1(s, b.ID, FinishRequest{
 			Done: Date{2026, 5, 4}, Outcome: OutcomeCancelled,
 		}, today); err != nil {
 			t.Fatal(err)
@@ -344,7 +344,7 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 		}
 		compareValidators(t, "init with X/3", dir)
 
-		a, _, err := s.Add(AddRequest{Title: "First", DetailBody: "Long form.\n"}, today)
+		a, _, err := testAddV1(s, AddRequest{Title: "First", DetailBody: "Long form.\n"}, today)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -353,12 +353,12 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 		}
 		compareValidators(t, "add under X/3", dir)
 
-		if _, _, err := s.Start(a.ID, StartRequest{}, today); err != nil {
+		if _, _, err := testStartV1(s, a.ID, StartRequest{}, today); err != nil {
 			t.Fatal(err)
 		}
 		compareValidators(t, "start under X/3", dir)
 
-		if _, _, err := s.Finish(a.ID, FinishRequest{Note: "shipped"}, today); err != nil {
+		if _, _, err := testFinishV1(s, a.ID, FinishRequest{Note: "shipped"}, today); err != nil {
 			t.Fatal(err)
 		}
 		compareValidators(t, "finish under X/3", dir)
@@ -399,14 +399,14 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 
 		// A scheduled someday item: both validators must accept what the API
 		// wrote, and reject the hand-edit the API refuses.
-		one, _, err := s.Add(AddRequest{
+		one, _, err := testAddV1(s, AddRequest{
 			Title: "Prune", Section: SectionSomeday, Tickler: "2026-09-01@08:00",
 			Created: Date{2026, 7, 20},
 		}, today)
 		if err != nil {
 			t.Fatal(err)
 		}
-		rec, _, err := s.Add(AddRequest{
+		rec, _, err := testAddV1(s, AddRequest{
 			Title: "Watering", Section: SectionSomeday, Tickler: "first-mon@08:00",
 			Created: Date{2026, 7, 27},
 		}, today)
@@ -424,10 +424,10 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 
 		// Move the fired item out of Someday: the schedule drops, and both
 		// validators must keep agreeing that the directory is clean.
-		if _, _, err := s.Move(one.ID, MoveRequest{Section: SectionReady}, today); err != nil {
+		if _, _, err := testMoveV1(s, one.ID, MoveRequest{Section: SectionReady}, today); err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := s.Move(rec.ID, MoveRequest{Section: SectionReady}, today); err != nil {
+		if _, _, err := testMoveV1(s, rec.ID, MoveRequest{Section: SectionReady}, today); err != nil {
 			t.Fatal(err)
 		}
 		compareValidators(t, "after moving both out of Someday", dir)
@@ -501,11 +501,11 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		it, _, err := s.Add(AddRequest{Title: "Has a detail file", DetailBody: "Body.\n"}, today)
+		it, _, err := testAddV1(s, AddRequest{Title: "Has a detail file", DetailBody: "Body.\n"}, today)
 		if err != nil {
 			t.Fatal(err)
 		}
-		out, _, err := s.Remove(it.ID, RemoveRequest{Force: true}, today)
+		out, _, err := testRemoveV1(s, it.ID, RemoveRequest{Force: true}, today)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -515,11 +515,11 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 		compareValidators(t, "remove without --with-detail", dir)
 
 		// And with the file deleted, both must go quiet again.
-		it2, _, err := s.Add(AddRequest{Title: "Another", DetailBody: "Body.\n"}, today)
+		it2, _, err := testAddV1(s, AddRequest{Title: "Another", DetailBody: "Body.\n"}, today)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := s.Remove(it2.ID, RemoveRequest{Force: true, WithDetail: true}, today); err != nil {
+		if _, _, err := testRemoveV1(s, it2.ID, RemoveRequest{Force: true, WithDetail: true}, today); err != nil {
 			t.Fatal(err)
 		}
 		compareValidators(t, "remove --with-detail", dir)

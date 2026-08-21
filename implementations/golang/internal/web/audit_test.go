@@ -162,11 +162,6 @@ func auditViews(t *testing.T, ts *testServer, id string) string {
 		add("/p/"+id+"/dialog/"+name+"?item=T-0001", 200)
 	}
 
-	// The WIP-limit dialog: starting while the single slot is full.
-	blocked := ts.post("/p/"+id+"/items/T-0001/start", "{}",
-		"HX-Request", "true").expectStatus(409).Body
-	b = append(b, blocked)
-
 	// A toast, from a mutation that succeeds.
 	toast := ts.post("/p/"+id+"/items/T-0001/note", "text=audit",
 		"HX-Request", "true", "Content-Type", "application/x-www-form-urlencoded").expectStatus(200).Body
@@ -288,6 +283,16 @@ func TestAuditTestids(t *testing.T) {
 	// (§5.9); clean-full's settings page (below) only ever exercises version
 	// 1's single settings-wip-limit.
 	all += "\n" + v2ts.get("/p/"+v2id+"/settings").expectStatus(200).Body
+
+	// The WIP-limit dialog: version 1 mutations are refused outright now
+	// (VersionMismatch, T-0236), so the only fixture that can still produce
+	// this dialog is a v2 board with its working stage full. clean-v2-full
+	// starts at 1/2 (T-0003); filling the second slot with T-0001 and then
+	// starting T-0002 hits the cap.
+	v2ts.post("/p/"+v2id+"/items/T-0001/start", "{}",
+		"HX-Request", "true").expectStatus(200)
+	all += "\n" + v2ts.post("/p/"+v2id+"/items/T-0002/start", "{}",
+		"HX-Request", "true").expectStatus(409).Body
 
 	instances := patternInstances(id)
 

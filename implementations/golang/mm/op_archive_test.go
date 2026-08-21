@@ -590,7 +590,7 @@ func TestArchiveLeavesDoneTidyWhenEverythingGoes(t *testing.T) {
 		t.Errorf("an emptied done.md must still be valid:\n%s", violationMessages(vs))
 	}
 	// And it must still be a file the next --finish can write into.
-	if _, _, err := s.Finish("T-0001", FinishRequest{}, today); err != nil {
+	if _, _, err := testFinishV1(s, "T-0001", FinishRequest{}, today); err != nil {
 		t.Fatalf("finish into an emptied done.md: %v", err)
 	}
 	if vs, _ := s.Validate(); len(vs) != 0 {

@@ -25,10 +25,11 @@ func (f Fingerprint) String() string { return string(f) }
 // Fingerprint summarises the files this directory owns, without reading one of
 // them (spec-tools.md §2.4 rule 1).
 //
-// Owned means the files of the format spec: backlog.md, done.md and any
-// done-YYYY.md archive, every working.NN.md, and every file in details/. The
-// listing itself is part of the input, so adding a slot file or a detail file
-// changes the value even before anything is written into it.
+// Owned means the files of the format spec: backlog.md (version 1) or
+// board.md (version 2), done.md and any done-YYYY.md archive, every
+// working.NN.md, and every file in details/. The listing itself is part of
+// the input, so adding a slot file or a detail file changes the value even
+// before anything is written into it.
 //
 // theme.json and config.json are deliberately excluded. They sit outside the
 // file-format spec (spec-gui.md §8.2), and a theme edit must not present itself
@@ -83,7 +84,7 @@ func (s *Store) Fingerprint() (Fingerprint, error) {
 // data and does not move the fingerprint.
 func isOwnedFile(name string) bool {
 	switch {
-	case name == "backlog.md", name == "done.md":
+	case name == "backlog.md", name == "board.md", name == "done.md":
 		return true
 	case isDoneArchiveName(name):
 		return true

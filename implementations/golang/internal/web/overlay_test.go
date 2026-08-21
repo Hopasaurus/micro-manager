@@ -65,7 +65,7 @@ func TestPanelOpensFromCard(t *testing.T) {
 // T-0078: saving a NEW item dismisses the panel — the board swap carries the
 // dismissal out of band.
 func TestNewItemSaveDismissesPanel(t *testing.T) {
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 
 	// The new panel page renders the panel over the board.
 	page := ts.get("/p/" + id + "/new").expectStatus(http.StatusOK).Body
@@ -74,7 +74,7 @@ func TestNewItemSaveDismissesPanel(t *testing.T) {
 	}
 
 	r := ts.form(http.MethodPost, "/p/"+id+"/items",
-		url.Values{"title": {"A fresh item"}, "section": {"ready"}},
+		url.Values{"title": {"A fresh item"}, "stage": {"ready"}},
 		"HX-Request", "true")
 	r.expectStatus(http.StatusOK)
 	if !strings.Contains(r.Body, panelDismiss) {
@@ -87,7 +87,7 @@ func TestNewItemSaveDismissesPanel(t *testing.T) {
 
 // Saving an EDIT dismisses the panel too: the board shows the saved item.
 func TestEditSaveDismissesPanel(t *testing.T) {
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 
 	r := ts.form(http.MethodPatch, "/p/"+id+"/items/T-0001",
 		url.Values{"title": {"Renamed"}}, "HX-Request", "true")
@@ -102,10 +102,10 @@ func TestEditSaveDismissesPanel(t *testing.T) {
 // #item-panel-root. The dismissals must NOT be present: that is the whole
 // point of the button.
 func TestAddAnotherKeepsFreshPanel(t *testing.T) {
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 
 	r := ts.form(http.MethodPost, "/p/"+id+"/items",
-		url.Values{"title": {"First of many"}, "section": {"ready"},
+		url.Values{"title": {"First of many"}, "stage": {"ready"},
 			"addAnother": {"1"}},
 		"HX-Request", "true")
 	r.expectStatus(http.StatusOK)
@@ -152,10 +152,10 @@ func TestAddAnotherKeepsFreshPanel(t *testing.T) {
 // The add-another response must ACTUALLY have added the item: the toast names
 // the new ID and the board carries its card.
 func TestAddAnotherSavesTheItem(t *testing.T) {
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 
 	r := ts.form(http.MethodPost, "/p/"+id+"/items",
-		url.Values{"title": {"First of many"}, "section": {"ready"},
+		url.Values{"title": {"First of many"}, "stage": {"ready"},
 			"addAnother": {"1"}},
 		"HX-Request", "true")
 	r.expectStatus(http.StatusOK)
@@ -180,10 +180,10 @@ func TestAddAnotherSavesTheItem(t *testing.T) {
 // The new-item form's detail textarea must survive the add: the detail is
 // what makes an add useful, and an add-another workflow especially so.
 func TestAddCarriesDetail(t *testing.T) {
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 
 	r := ts.form(http.MethodPost, "/p/"+id+"/items",
-		url.Values{"title": {"Detailed"}, "section": {"ready"},
+		url.Values{"title": {"Detailed"}, "stage": {"ready"},
 			"detail": {"The durable description."}},
 		"HX-Request", "true")
 	r.expectStatus(http.StatusOK)
@@ -203,7 +203,7 @@ func TestAddCarriesDetail(t *testing.T) {
 // T-0085: confirming the remove dialog dismisses the dialog (and any open
 // panel) — the response swaps the board and clears dialog-root out of band.
 func TestRemoveConfirmationDismissesDialogs(t *testing.T) {
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 
 	// The dialog is fetched before the operation runs.
 	dialog := ts.get("/p/" + id + "/dialog/confirm-remove?item=T-0001").
@@ -226,10 +226,12 @@ func TestRemoveConfirmationDismissesDialogs(t *testing.T) {
 // A blocked operation leaves the dialog OPEN — its 409 response is the
 // wip-limit dialog itself, and the dismissal OOBs must not be part of it.
 func TestBlockedMutationKeepsTheDialog(t *testing.T) {
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 
-	// clean-full's single slot is occupied: starting T-0002 is refused with
-	// the remedy dialog.
+	// wip.working: 2, and T-0003 already occupies one; filling the other with
+	// T-0001 means a third start (T-0002) is refused with the remedy dialog.
+	ts.form(http.MethodPost, "/p/"+id+"/items/T-0001/start", nil,
+		"HX-Request", "true").expectStatus(http.StatusOK)
 	r := ts.form(http.MethodPost, "/p/"+id+"/items/T-0002/start", nil,
 		"HX-Request", "true")
 	r.expectStatus(http.StatusConflict)

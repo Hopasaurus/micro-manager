@@ -11,7 +11,7 @@ import (
 // Helpers: add a scheduled someday item the way the GUI would, via the API.
 func addScheduled(t *testing.T, s *Store, title, schedule string, created Date) Item {
 	t.Helper()
-	it, _, err := s.Add(AddRequest{
+	it, _, err := testAddV1(s, AddRequest{
 		Title:   title,
 		Section: SectionSomeday,
 		Tickler: schedule,
@@ -90,7 +90,7 @@ func TestTickOneShotMovesToReady(t *testing.T) {
 // no detail, no refs, no extras (the no-detail-copy rule, I9).
 func TestTickRecurringSpawnsReadyItem(t *testing.T) {
 	s := mustOpen(t, newDir(t, nil))
-	proto, _, err := s.Add(AddRequest{
+	proto, _, err := testAddV1(s, AddRequest{
 		Title:   "Standup notes",
 		Section: SectionSomeday,
 		Tickler: "mon@09:00",
@@ -111,7 +111,7 @@ func TestTickRecurringSpawnsReadyItem(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Give the prototype a detail file, a ref and an extra: none may travel.
-	_, _, err = s.Update(proto.ID, UpdateRequest{
+	_, _, err = testUpdateV1(s, proto.ID, UpdateRequest{
 		Set: []Field{
 			{"detail", proto.DetailPath()},
 			{"owner", "dana"},
@@ -433,7 +433,7 @@ func TestMoveLeavingSomedayDropsTickler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	moved, _, err := s.Move(it.ID, MoveRequest{Section: SectionBlocked, Blocked: "waiting"}, today)
+	moved, _, err := testMoveV1(s, it.ID, MoveRequest{Section: SectionBlocked, Blocked: "waiting"}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -445,7 +445,7 @@ func TestMoveLeavingSomedayDropsTickler(t *testing.T) {
 	}
 
 	// Moving INTO Someday does not create a schedule; I7 allows the empty case.
-	back, _, err := s.Move(moved.ID, MoveRequest{Section: SectionSomeday}, today)
+	back, _, err := testMoveV1(s, moved.ID, MoveRequest{Section: SectionSomeday}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -542,12 +542,12 @@ func TestTicklerPlacementValidation(t *testing.T) {
 func TestTicklerAPIValidation(t *testing.T) {
 	s := mustOpen(t, newDir(t, nil))
 
-	if _, _, err := s.Add(AddRequest{
+	if _, _, err := testAddV1(s, AddRequest{
 		Title: "Nope", Section: SectionReady, Tickler: "mon@08:00",
 	}, today); !errors.Is(err, ErrInvalidArgument) {
 		t.Errorf("tickler outside Someday: want ErrInvalidArgument, got %v", err)
 	}
-	if _, _, err := s.Add(AddRequest{
+	if _, _, err := testAddV1(s, AddRequest{
 		Title: "Nope", Section: SectionSomeday, Tickler: "not a schedule",
 	}, today); !errors.Is(err, ErrInvalidArgument) {
 		t.Errorf("malformed tickler: want ErrInvalidArgument, got %v", err)
@@ -565,17 +565,17 @@ func TestTicklerAPIValidation(t *testing.T) {
 	}
 
 	// setAnyField refuses a tickler on a non-Someday item.
-	if _, _, err := s.Update(it.ID, UpdateRequest{
+	if _, _, err := testUpdateV1(s, it.ID, UpdateRequest{
 		Set: []Field{{"tickler", "fri@08:00"}},
 	}, today); err != nil {
 		t.Fatalf("update (still in Someday): %v", err)
 	}
 	// Move it out first - the move itself drops the schedule - then try again.
-	moved, _, err := s.Move(it.ID, MoveRequest{Section: SectionReady}, today)
+	moved, _, err := testMoveV1(s, it.ID, MoveRequest{Section: SectionReady}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Update(moved.ID, UpdateRequest{
+	if _, _, err := testUpdateV1(s, moved.ID, UpdateRequest{
 		Set: []Field{{"tickler", "fri@08:00"}},
 	}, today); !errors.Is(err, ErrConflict) {
 		t.Errorf("setAnyField tickler outside Someday: want ErrConflict, got %v", err)
@@ -592,7 +592,7 @@ func TestFinishDropsTickler(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	finished, _, err := s.Finish(it.ID, FinishRequest{Note: "retired the prototype"}, today)
+	finished, _, err := testFinishV1(s, it.ID, FinishRequest{Note: "retired the prototype"}, today)
 	if err != nil {
 		t.Fatalf("finish: %v", err)
 	}

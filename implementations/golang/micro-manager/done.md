@@ -11,6 +11,8 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0236] VersionMismatch: scope how v1-mutation tests validate correctness once --add/--start/--pause/--finish/--move/--edit/--remove refuse against v1 | prio:med | tags:columns,migration,golang,design | detail:details/T-0236.md | created:2026-08-20 | started:2026-08-21 | done:2026-08-21 | outcome:shipped
+- [x] [T-0237] time for code & coffee | prio:med | created:2026-08-21 | done:2026-08-21 | outcome:shipped
 - [x] [T-0238] Columns: settings page + report page generalized to version 2 | prio:med | tags:columns,migration,golang,gui | detail:details/T-0238.md | created:2026-08-21 | started:2026-08-21 | done:2026-08-21 | outcome:shipped
 - [x] [T-0230] Columns M4: finish CLI/GUI/TUI surface, retire v1 mutation support | prio:med | tags:columns,migration,golang | detail:details/T-0230.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-21 | outcome:shipped
 - [x] [T-0229] Columns M3: cutover -- migrate the live board for real | prio:med | tags:columns,migration,golang | detail:details/T-0229.md | created:2026-08-20 | started:2026-08-20 | done:2026-08-20 | outcome:shipped

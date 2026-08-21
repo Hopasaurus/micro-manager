@@ -62,6 +62,17 @@ func (s *Store) Add(req AddRequest, today Date) (Item, TxResult, error) {
 	if t.model.isV2() {
 		return s.addV2(t, req, today)
 	}
+	return zero, TxResult{}, refuseIfV1(t.model)
+}
+
+// addV1 is version 1's Add: the same logic that ran inline in Store.Add
+// before the VersionMismatch guard above it (spec-tools.md §5.3.4, T-0236).
+// It is deliberately NOT itself guarded, so a test can call it directly
+// against a v1 fixture to keep exercising v1 mutation correctness - which
+// --check and --migrate still depend on - even though the public Add no
+// longer reaches this code for a v1 directory.
+func (s *Store) addV1(t *tx, req AddRequest, today Date) (Item, TxResult, error) {
+	var zero Item
 	b, e, err := t.backlog()
 	if err != nil {
 		return zero, TxResult{}, err

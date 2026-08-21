@@ -12,7 +12,7 @@ func TestFinishFromTheBacklog(t *testing.T) {
 	dir, s := startDir(t)
 
 	// Closing something that was never started is normal.
-	it, res, err := s.Finish("T-0002", FinishRequest{}, today)
+	it, res, err := testFinishV1(s, "T-0002", FinishRequest{}, today)
 	if err != nil {
 		t.Fatalf("finish: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestFinishFromTheBacklog(t *testing.T) {
 func TestFinishInsertsAtTheTopOfTheMonthGroup(t *testing.T) {
 	dir, s := startDir(t)
 
-	if _, _, err := s.Finish("T-0002", FinishRequest{}, today); err != nil {
+	if _, _, err := testFinishV1(s, "T-0002", FinishRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 	group := sectionText(readFile(t, dir, "done.md"), "## 2026-07")
@@ -67,12 +67,12 @@ func TestFinishCreatesMonthGroupsInOrder(t *testing.T) {
 
 	// August: newer than the existing 2026-07 group, so it goes above it.
 	aug := Date{2026, 8, 3}
-	if _, _, err := s.Finish("T-0001", FinishRequest{Done: aug}, today); err != nil {
+	if _, _, err := testFinishV1(s, "T-0001", FinishRequest{Done: aug}, today); err != nil {
 		t.Fatalf("finish into a new month: %v", err)
 	}
 	// June: older, so it goes below.
 	jun := Date{2026, 6, 30}
-	if _, _, err := s.Finish("T-0002", FinishRequest{Done: jun, Outcome: OutcomeCancelled}, today); err != nil {
+	if _, _, err := testFinishV1(s, "T-0002", FinishRequest{Done: jun, Outcome: OutcomeCancelled}, today); err != nil {
 		t.Fatalf("finish into an older month: %v", err)
 	}
 
@@ -102,7 +102,7 @@ func TestFinishCreatesMonthGroupsInOrder(t *testing.T) {
 func TestFinishFromASlot(t *testing.T) {
 	dir, s := pauseDir(t, "T-0001", "the fix was a one-liner")
 
-	it, _, err := s.Finish("T-0001", FinishRequest{}, today)
+	it, _, err := testFinishV1(s, "T-0001", FinishRequest{}, today)
 	if err != nil {
 		t.Fatalf("finish: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestFinishFromASlot(t *testing.T) {
 func TestFinishNote(t *testing.T) {
 	dir, s := startDir(t)
 
-	_, _, err := s.Finish("T-0002", FinishRequest{
+	_, _, err := testFinishV1(s, "T-0002", FinishRequest{
 		Outcome: OutcomeObsolete,
 		Note:    "superseded by the new pipeline",
 	}, today)
@@ -157,16 +157,16 @@ func TestFinishNote(t *testing.T) {
 func TestFinishValidatesItsArguments(t *testing.T) {
 	_, s := startDir(t)
 
-	if _, _, err := s.Finish("T-0001", FinishRequest{Outcome: "abandoned"}, today); !errors.Is(err, ErrInvalidArgument) {
+	if _, _, err := testFinishV1(s, "T-0001", FinishRequest{Outcome: "abandoned"}, today); !errors.Is(err, ErrInvalidArgument) {
 		t.Errorf("bad outcome: want ErrInvalidArgument, got %v", err)
 	}
-	if _, _, err := s.Finish("T-0001", FinishRequest{Done: Date{2026, 2, 31}}, today); !errors.Is(err, ErrInvalidArgument) {
+	if _, _, err := testFinishV1(s, "T-0001", FinishRequest{Done: Date{2026, 2, 31}}, today); !errors.Is(err, ErrInvalidArgument) {
 		t.Errorf("impossible date: want ErrInvalidArgument, got %v", err)
 	}
-	if _, _, err := s.Finish("T-0009", FinishRequest{}, today); !errors.Is(err, ErrConflict) {
+	if _, _, err := testFinishV1(s, "T-0009", FinishRequest{}, today); !errors.Is(err, ErrConflict) {
 		t.Errorf("already done: want ErrConflict, got %v", err)
 	}
-	if _, _, err := s.Finish("T-0099", FinishRequest{}, today); !errors.Is(err, ErrNotFound) {
+	if _, _, err := testFinishV1(s, "T-0099", FinishRequest{}, today); !errors.Is(err, ErrNotFound) {
 		t.Errorf("unknown id: want ErrNotFound, got %v", err)
 	}
 }
@@ -175,7 +175,7 @@ func TestFinishDryRun(t *testing.T) {
 	dir, s := startDir(t)
 	before := readFile(t, dir, "done.md")
 
-	if _, _, err := s.Finish("T-0002", FinishRequest{DryRun: true, Note: "x"}, today); err != nil {
+	if _, _, err := testFinishV1(s, "T-0002", FinishRequest{DryRun: true, Note: "x"}, today); err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
 	if readFile(t, dir, "done.md") != before {
@@ -195,10 +195,10 @@ func TestInsertIntoAnEmptySectionKeepsTheFileWellFormed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Add(AddRequest{Title: "Only item"}, today); err != nil {
+	if _, _, err := testAddV1(s, AddRequest{Title: "Only item"}, today); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Finish("T-0001", FinishRequest{}, today); err != nil {
+	if _, _, err := testFinishV1(s, "T-0001", FinishRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 

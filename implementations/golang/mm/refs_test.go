@@ -131,7 +131,7 @@ func TestRefsSurviveStartAndFinish(t *testing.T) {
 	})
 	s := mustOpen(t, dir)
 
-	started, _, err := s.Start("T-0001", StartRequest{}, today)
+	started, _, err := testStartV1(s, "T-0001", StartRequest{}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestRefsSurviveStartAndFinish(t *testing.T) {
 		t.Errorf("slot refs = %q", fmRefs)
 	}
 
-	back, _, err := s.Pause("T-0001", PauseRequest{}, today)
+	back, _, err := testPauseV1(s, "T-0001", PauseRequest{}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestUpdateSetRefs(t *testing.T) {
 	dir := newDir(t, map[string]string{})
 	s := mustOpen(t, dir)
 
-	it, _, err := s.Update("T-0001", UpdateRequest{Set: []Field{{"refs", "py:T-0012"}}}, today)
+	it, _, err := testUpdateV1(s, "T-0001", UpdateRequest{Set: []Field{{"refs", "py:T-0012"}}}, today)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,12 +212,12 @@ func TestUpdateSetRefs(t *testing.T) {
 		t.Fatalf("refs after set = %+v", it.Refs)
 	}
 
-	_, _, err = s.Update("T-0001", UpdateRequest{Set: []Field{{"refs", "py: nope"}}}, today)
+	_, _, err = testUpdateV1(s, "T-0001", UpdateRequest{Set: []Field{{"refs", "py: nope"}}}, today)
 	if err == nil {
 		t.Fatal("malformed refs must refuse")
 	}
 
-	it, _, err = s.Update("T-0001", UpdateRequest{Unset: []string{"refs"}}, today)
+	it, _, err = testUpdateV1(s, "T-0001", UpdateRequest{Unset: []string{"refs"}}, today)
 	if err != nil {
 		t.Fatal(err)
 	}

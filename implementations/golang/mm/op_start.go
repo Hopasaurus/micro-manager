@@ -43,8 +43,20 @@ func (s *Store) Start(id ID, req StartRequest, today Date) (Item, TxResult, erro
 			return zero, TxResult{}, fmt.Errorf(
 				"%w: %s is done, and done work does not go back onto the board", ErrConflict, id)
 		}
-		return s.startV2(t, id, today)
+		return s.startV2(t, id, today, req.DryRun)
 	}
+	return zero, TxResult{}, refuseIfV1(t.model)
+}
+
+// startV1 is version 1's Start: the same logic that ran inline in
+// Store.Start before the VersionMismatch guard above it (spec-tools.md
+// §5.3.4, T-0236). Deliberately NOT itself guarded, so a test can call it
+// directly against a v1 fixture to keep exercising v1 mutation correctness
+// - which --check and --migrate still depend on - even though the public
+// Start no longer reaches this code for a v1 directory.
+func (s *Store) startV1(t *tx, it *Item, req StartRequest, today Date) (Item, TxResult, error) {
+	var zero Item
+	id := it.ID
 	switch it.State {
 	case StateBacklog:
 	case StateWorking:

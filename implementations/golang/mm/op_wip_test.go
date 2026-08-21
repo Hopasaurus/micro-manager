@@ -38,7 +38,7 @@ func TestSetWipLimitGrows(t *testing.T) {
 		t.Errorf("violations:\n%s", violationMessages(vs))
 	}
 	// And the new slots work.
-	if _, _, err := s.Start("T-0001", StartRequest{Slot: 4}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{Slot: 4}, today); err != nil {
 		t.Errorf("start into a new slot: %v", err)
 	}
 }
@@ -69,7 +69,7 @@ func TestSetWipLimitShrinks(t *testing.T) {
 // nothing to do with the item.
 func TestSetWipLimitRefusesToDeleteAnOccupiedSlot(t *testing.T) {
 	dir, s := startDir(t)
-	if _, _, err := s.Start("T-0001", StartRequest{Slot: 2}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{Slot: 2}, today); err != nil {
 		t.Fatal(err)
 	}
 	before := readFile(t, dir, "working.02.md")

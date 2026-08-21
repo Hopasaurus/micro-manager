@@ -14,7 +14,7 @@ func TestRemoveRequiresForce(t *testing.T) {
 	dir, s := startDir(t)
 	before := readFile(t, dir, "backlog.md")
 
-	_, _, err := s.Remove("T-0002", RemoveRequest{}, today)
+	_, _, err := testRemoveV1(s, "T-0002", RemoveRequest{}, today)
 	if !errors.Is(err, ErrPreconditionFailed) {
 		t.Fatalf("want ErrPreconditionFailed, got %v", err)
 	}
@@ -29,7 +29,7 @@ func TestRemoveRequiresForce(t *testing.T) {
 func TestRemoveRetiresTheID(t *testing.T) {
 	dir, s := startDir(t)
 
-	out, _, err := s.Remove("T-0002", RemoveRequest{Force: true}, today)
+	out, _, err := testRemoveV1(s, "T-0002", RemoveRequest{Force: true}, today)
 	if err != nil {
 		t.Fatalf("remove: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestRemoveRetiresTheID(t *testing.T) {
 func TestRemoveFromDone(t *testing.T) {
 	dir, s := startDir(t)
 
-	if _, _, err := s.Remove("T-0009", RemoveRequest{Force: true}, today); err != nil {
+	if _, _, err := testRemoveV1(s, "T-0009", RemoveRequest{Force: true}, today); err != nil {
 		t.Fatalf("remove: %v", err)
 	}
 	if strings.Contains(readFile(t, dir, "done.md"), "[T-0009]") {
@@ -72,10 +72,10 @@ func TestRemoveFromDone(t *testing.T) {
 
 func TestRemoveRefusesAWorkingItem(t *testing.T) {
 	_, s := startDir(t)
-	if _, _, err := s.Start("T-0001", StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, "T-0001", StartRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err := s.Remove("T-0001", RemoveRequest{Force: true}, today)
+	_, _, err := testRemoveV1(s, "T-0001", RemoveRequest{Force: true}, today)
 	if !errors.Is(err, ErrConflict) {
 		t.Errorf("want ErrConflict, got %v", err)
 	}
@@ -86,7 +86,7 @@ func TestRemoveRefusesAWorkingItem(t *testing.T) {
 func TestRemoveReportsTheOrphanedDetailFile(t *testing.T) {
 	dir, s := startDir(t)
 
-	out, _, err := s.Remove("T-0001", RemoveRequest{Force: true}, today)
+	out, _, err := testRemoveV1(s, "T-0001", RemoveRequest{Force: true}, today)
 	if err != nil {
 		t.Fatalf("remove: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestRemoveReportsTheOrphanedDetailFile(t *testing.T) {
 func TestRemoveWithDetail(t *testing.T) {
 	dir, s := startDir(t)
 
-	out, _, err := s.Remove("T-0001", RemoveRequest{Force: true, WithDetail: true}, today)
+	out, _, err := testRemoveV1(s, "T-0001", RemoveRequest{Force: true, WithDetail: true}, today)
 	if err != nil {
 		t.Fatalf("remove: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestRemoveDryRun(t *testing.T) {
 	dir, s := startDir(t)
 	before := readFile(t, dir, "backlog.md")
 
-	if _, _, err := s.Remove("T-0001", RemoveRequest{Force: true, WithDetail: true, DryRun: true}, today); err != nil {
+	if _, _, err := testRemoveV1(s, "T-0001", RemoveRequest{Force: true, WithDetail: true, DryRun: true}, today); err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
 	if readFile(t, dir, "backlog.md") != before {
@@ -144,7 +144,7 @@ func TestRemoveDryRun(t *testing.T) {
 
 func TestRemoveNotFound(t *testing.T) {
 	_, s := startDir(t)
-	if _, _, err := s.Remove("T-0099", RemoveRequest{Force: true}, today); !errors.Is(err, ErrNotFound) {
+	if _, _, err := testRemoveV1(s, "T-0099", RemoveRequest{Force: true}, today); !errors.Is(err, ErrNotFound) {
 		t.Errorf("want ErrNotFound, got %v", err)
 	}
 }

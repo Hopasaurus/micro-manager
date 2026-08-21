@@ -63,7 +63,7 @@ func newProject(t *testing.T, args ...string) (runner, string) {
 }
 
 func TestRunLifecycle(t *testing.T) {
-	r, dir := newProject(t, "--slots", "2")
+	r, dir := v2Project(t, "--slots", "2")
 
 	// --add reports the assigned ID. It is the handle for every command that
 	// follows, so silence here would be a defect, not brevity.
@@ -75,10 +75,11 @@ func TestRunLifecycle(t *testing.T) {
 		t.Errorf("add must report the id:\n%s", got.Stdout)
 	}
 
+	// Version 2 has no slots to name: "T-0001 started", not "in slot N".
 	if got := r.run("--start", "1"); got.Code != ExitOK {
 		t.Fatalf("start: %s", got)
-	} else if !strings.Contains(got.Stdout, "slot 1") {
-		t.Errorf("start should name the slot:\n%s", got.Stdout)
+	} else if !strings.Contains(got.Stdout, "started") {
+		t.Errorf("start should confirm the move:\n%s", got.Stdout)
 	}
 
 	if got := r.run("--pause", "T-0001"); got.Code != ExitOK {
@@ -106,7 +107,7 @@ func TestRunLifecycle(t *testing.T) {
 
 // spec-tools.md §10. The table is the contract a script gates on.
 func TestExitCodes(t *testing.T) {
-	r, _ := newProject(t)
+	r, _ := v2Project(t)
 	r.run("--add", "Something") // T-0001, stays in the backlog
 	r.run("--add", "Another")   // T-0002, removed below
 
@@ -163,7 +164,7 @@ func TestCheckReportsViolationsWithoutAnErrorLine(t *testing.T) {
 // §3.4: --dry-run exercises the whole path and writes nothing, and returns the
 // code the real run would, so a script can gate on it.
 func TestDryRunWritesNothing(t *testing.T) {
-	r, dir := newProject(t)
+	r, dir := v2Project(t)
 	r.run("--add", "First")
 	before := readAll(t, dir)
 
@@ -172,7 +173,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 		{"--start", "T-0001", "--dry-run"},
 		{"--finish", "T-0001", "--dry-run"},
 		{"--remove", "T-0001", "--force", "--dry-run"},
-		{"--wip", "3", "--dry-run"},
+		{"--wip", "3", "--stage", "working", "--dry-run"},
 	} {
 		got := r.run(args...)
 		if got.Code != ExitOK {
@@ -453,7 +454,7 @@ func TestMachineModesDoNotDegradeIntoProse(t *testing.T) {
 // the parser. --json --json=false must disable the mode (human output instead
 // of an envelope), and a later =true re-enables it.
 func TestMachineModeSwitchLastWins(t *testing.T) {
-	r, _ := newProject(t)
+	r, _ := v2Project(t)
 	r.run("--add", "Something")
 
 	got := r.run("--list", "--json", "--json=false")
@@ -479,7 +480,7 @@ func TestMachineModeSwitchLastWins(t *testing.T) {
 // --quiet suppresses commentary, not the one value the caller cannot get any
 // other way, and not errors.
 func TestQuiet(t *testing.T) {
-	r, _ := newProject(t)
+	r, _ := v2Project(t)
 
 	got := r.run("--add", "Something", "--quiet")
 	if strings.TrimSpace(got.Stdout) != "T-0001" {
@@ -530,7 +531,7 @@ func readAll(t *testing.T, dir string) string {
 // multi-word title or query — and is refused rather than silently dropped.
 // The "--"-protected form, where the positionals ARE the subject, still works.
 func TestSurplusPositionalsAreRefused(t *testing.T) {
-	r, _ := newProject(t)
+	r, _ := v2Project(t)
 
 	for _, args := range [][]string{
 		{"--add", "Title", "surplus"},
@@ -553,7 +554,7 @@ func TestSurplusPositionalsAreRefused(t *testing.T) {
 // §5.2: --block and --unblock are sugar over --move, and --note is the
 // highest-frequency write in daily use.
 func TestBlockUnblockNote(t *testing.T) {
-	r, dir := newProject(t)
+	r, dir := v2Project(t)
 	r.run("--add", "Something")
 
 	// I5 requires a reason, so the sugar requires one too.
@@ -563,17 +564,17 @@ func TestBlockUnblockNote(t *testing.T) {
 	if got := r.run("--block", "T-0001", "--reason", "waiting on ops"); got.Code != ExitOK {
 		t.Fatalf("block: %s", got)
 	}
-	backlog := readFileAt(t, dir, "backlog.md")
-	if !strings.Contains(backlog, "blocked:waiting on ops") {
-		t.Errorf("the reason was not recorded:\n%s", backlog)
+	board := readFileAt(t, dir, "board.md")
+	if !strings.Contains(board, "reason:waiting on ops") {
+		t.Errorf("the reason was not recorded:\n%s", board)
 	}
 
 	if got := r.run("--unblock", "T-0001"); got.Code != ExitOK {
 		t.Fatalf("unblock: %s", got)
 	}
-	backlog = readFileAt(t, dir, "backlog.md")
-	if strings.Contains(backlog, "blocked:") {
-		t.Errorf("unblocking must drop the reason (I5):\n%s", backlog)
+	board = readFileAt(t, dir, "board.md")
+	if strings.Contains(board, "stage:blocked") {
+		t.Errorf("unblocking must move off blocked:\n%s", board)
 	}
 
 	// --note takes the id as its value and the text positionally.
@@ -784,6 +785,9 @@ func TestACollisionDoesNotBlockWriting(t *testing.T) {
 	}
 
 	dir := filepath.Join(proj, "micro-manager")
+	if got := base.run("--migrate", "--dir", dir); got.Code != ExitOK {
+		t.Fatal(got)
+	}
 	if got := base.run("--add", "still works", "--dir", dir); got.Code != ExitOK {
 		t.Errorf("a collision must not block a write: %s", got)
 	}

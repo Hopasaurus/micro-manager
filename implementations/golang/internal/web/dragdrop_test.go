@@ -337,17 +337,17 @@ func TestEveryDragHasANonDragEquivalent(t *testing.T) {
 // A drop into a backlog column names the column and the index, and the server
 // puts the item exactly there.
 func TestDropPositionIsHonoured(t *testing.T) {
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 
 	r := ts.form(http.MethodPost, "/p/"+id+"/items/T-0002/move",
-		url.Values{"section": {"someday"}, "position": {"1"}})
+		url.Values{"stage": {"someday"}, "position": {"1"}})
 	r.expectStatus(http.StatusOK)
 
 	store, err := mm.Open(ts.Dirs[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	items, err := store.List(mm.Filter{Section: mm.SectionSomeday})
+	items, err := store.List(mm.Filter{Stage: "someday"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,9 +368,9 @@ func TestDropPositionIsHonoured(t *testing.T) {
 // §7.2 / D12: pausing a working item into Blocked MUST prompt for a reason
 // and post it with section=blocked.
 func TestWorkingToBlockedPromptsAndPauses(t *testing.T) {
-	ts, id := boardServer(t, "clean-full")
+	ts, id := boardServer(t, "clean-v2-full")
 
-	// clean-full has T-0003 in working slot 1.
+	// clean-v2-full has T-0003 on stage:working.
 	dialogBody := ts.get("/p/" + id + "/dialog/block?item=T-0003").expectStatus(http.StatusOK).Body
 	if !hasTestid(dialogBody, "dialog-block") {
 		t.Errorf("dialog-block not rendered for working item: %s", dialogBody)
@@ -380,9 +380,23 @@ func TestWorkingToBlockedPromptsAndPauses(t *testing.T) {
 		t.Errorf("dialog-block form does not post to /pause for working item: %s", dialogBody)
 	}
 
-	// Pausing into blocked with a reason succeeds.
+	// Unlike version 1's Pause (which accepts a NEW reason at pause time),
+	// pauseV2 only checks whether the item ALREADY carries one for a
+	// needs_reason destination (research decision 18) - a reason on the
+	// pause form itself is silently ignored for version 2, so pausing
+	// straight into blocked with no existing reason: still refuses.
+	refused := ts.form(http.MethodPost, "/p/"+id+"/items/T-0003/pause",
+		url.Values{"stage": {"blocked"}, "reason": {"waiting on ops"}})
+	if refused.Status == http.StatusOK {
+		t.Fatalf("pausing into blocked with no existing reason: should refuse on v2:\n%s", refused.Body)
+	}
+
+	// Set the reason via edit first, then pause - the sequence the dialog
+	// actually has to drive on version 2.
+	ts.form(http.MethodPatch, "/p/"+id+"/items/T-0003",
+		url.Values{"reason": {"waiting on ops"}}).expectStatus(http.StatusOK)
 	r := ts.form(http.MethodPost, "/p/"+id+"/items/T-0003/pause",
-		url.Values{"section": {"blocked"}, "reason": {"waiting on ops"}})
+		url.Values{"stage": {"blocked"}})
 	r.expectStatus(http.StatusOK)
 
 	store, err := mm.Open(ts.Dirs[0])
@@ -393,7 +407,7 @@ func TestWorkingToBlockedPromptsAndPauses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if it.Section != mm.SectionBlocked || it.Blocked != "waiting on ops" {
+	if it.Stage != "blocked" || it.Reason != "waiting on ops" {
 		t.Errorf("item not paused into blocked with reason: %+v", it)
 	}
 }

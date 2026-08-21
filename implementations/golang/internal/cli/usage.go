@@ -155,14 +155,17 @@ blocked: reason sends that line to Blocked, so one run may write two sections.
 
 Porcelain columns: the same as --list, one row per created item.
 `,
-	OpList: `mm --list [--state S] [--section S] [--prio P] [--tag T]
+	OpList: `mm --list [--state S] [--section S] [--stage S] [--prio P] [--tag T]
                [--blocked-only] [--limit N]
 
 Order is always the on-disk order. ## Ready order is your own prioritisation and
 this will not re-sort it.
 
   --state backlog|working|done|all      (backlog)
-  --blocked-only            only items carrying a blocked: field
+  --section SECTION         version 1 only
+  --stage SLUG              version 2 only
+  --blocked-only            only items carrying a blocked: field (v1) or a
+                            reason: field (v2)
 `,
 	OpShow: `mm --show ID [--detail]
 

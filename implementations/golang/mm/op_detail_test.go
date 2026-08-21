@@ -327,7 +327,7 @@ func TestDetailFileNeverMoves(t *testing.T) {
 	before := readFileString(t, path)
 
 	// Move the item between sections - the file must not be touched.
-	if _, _, err := s.Update("T-0001", UpdateRequest{Prio: priop(PrioHigh)}, today); err != nil {
+	if _, _, err := testUpdateV1(s, "T-0001", UpdateRequest{Prio: priop(PrioHigh)}, today); err != nil {
 		t.Fatal(err)
 	}
 	if readFileString(t, path) != before {
@@ -335,7 +335,7 @@ func TestDetailFileNeverMoves(t *testing.T) {
 	}
 
 	// Retitle: the frontmatter title syncs, the body does not move or change.
-	if _, _, err := s.Update("T-0001", UpdateRequest{Title: strp("Renamed")}, today); err != nil {
+	if _, _, err := testUpdateV1(s, "T-0001", UpdateRequest{Title: strp("Renamed")}, today); err != nil {
 		t.Fatal(err)
 	}
 	after := readFileString(t, path)

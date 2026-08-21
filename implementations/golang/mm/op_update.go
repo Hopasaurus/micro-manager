@@ -52,6 +52,22 @@ func (s *Store) Update(id ID, req UpdateRequest, today Date) (Item, TxResult, er
 	if it == nil {
 		return zero, TxResult{}, fmt.Errorf("%w: %s is not in this directory", ErrNotFound, id)
 	}
+	if err := refuseIfV1(t.model); err != nil {
+		return zero, TxResult{}, err
+	}
+	return s.updateInternal(t, it, req, today)
+}
+
+// updateInternal is Update's shared logic. Unlike Add/Start/Pause/Finish/
+// Move, Update never had a separate v1/v2 code path to split, so there is
+// nothing to extract beyond factoring the VersionMismatch guard (§5.3.4,
+// T-0236) out of it. Deliberately NOT itself guarded, so a test can call it
+// directly against a v1 fixture to keep exercising v1 mutation correctness
+// - which --check and --migrate still depend on - even though the public
+// Update no longer reaches this code for a v1 directory.
+func (s *Store) updateInternal(t *tx, it *Item, req UpdateRequest, today Date) (Item, TxResult, error) {
+	var zero Item
+	id := it.ID
 	before := RenderItemLine(it)
 	oldTitle := it.Title
 

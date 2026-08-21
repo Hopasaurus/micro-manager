@@ -200,7 +200,7 @@ func TestReportGroupBy(t *testing.T) {
 
 func TestReportIncludeWipAndBacklog(t *testing.T) {
 	s := reportDir(t)
-	if _, _, err := s.Start("T-0009", StartRequest{}, Date{2026, 7, 29}); err != nil {
+	if _, _, err := testStartV1(s, "T-0009", StartRequest{}, Date{2026, 7, 29}); err != nil {
 		t.Fatal(err)
 	}
 	p, _ := ParsePeriod("2026-07", Date{2026, 7, 29})

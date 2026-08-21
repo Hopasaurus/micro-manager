@@ -92,7 +92,7 @@ func TestWantsEditor(t *testing.T) {
 // --add --detail opens the file it just created, passes the real path, and
 // starts the editor in the project root — not the details/ folder (F9).
 func TestAddDetailOpensTheEditor(t *testing.T) {
-	r, dir := newProject(t)
+	r, dir := v2Project(t)
 
 	var opened, cwd string
 	env := Env{
@@ -131,7 +131,7 @@ func TestAddDetailOpensTheEditor(t *testing.T) {
 // already written and validated, and losing that over a misconfigured $EDITOR
 // would be the tool destroying good work over a preference.
 func TestEditorFailureDoesNotFailTheOperation(t *testing.T) {
-	r, dir := newProject(t)
+	r, dir := v2Project(t)
 
 	env := Env{
 		Editor:      "definitely-not-a-real-editor",
@@ -148,7 +148,7 @@ func TestEditorFailureDoesNotFailTheOperation(t *testing.T) {
 		t.Errorf("the failure should be reported: %q", got.Stderr)
 	}
 	// And the work survived.
-	if !strings.Contains(readFileAt(t, dir, "backlog.md"), "T-0001") {
+	if !strings.Contains(readFileAt(t, dir, "board.md"), "T-0001") {
 		t.Error("the item was lost")
 	}
 	if !strings.Contains(readFileAt(t, dir, "details/T-0001.md"), "T-0001") {

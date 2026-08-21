@@ -181,6 +181,13 @@ func (s *Server) listItems(c *echo.Context) error {
 	if section, ok := parseSection(c.QueryParam("section")); ok {
 		filter.Section = section
 	}
+	// ?stage=SLUG: version 2's filter, parallel to ?section= above (found
+	// while migrating this route's own tests off a version-1 fixture for
+	// T-0236 - mm.Filter has carried Stage since T-0227, but this route
+	// never read it).
+	if stage := c.QueryParam("stage"); stage != "" {
+		filter.Stage = mm.Stage(stage)
+	}
 	if prio, err := mm.ParsePrio(c.QueryParam("prio")); err == nil && c.QueryParam("prio") != "" {
 		filter.Prio = prio
 	}

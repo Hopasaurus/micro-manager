@@ -15,14 +15,14 @@ import (
 
 func tickProject(t *testing.T, args ...string) (runner, string) {
 	t.Helper()
-	r, dir := newProject(t)
-	if got := r.run(append([]string{"--add", "One shot", "--section", "someday",
+	r, dir := v2Project(t)
+	if got := r.run(append([]string{"--add", "One shot", "--stage", "someday",
 		"--tickler", "2026-07-01", "--created", "2026-07-01"}, args...)...); got.Code != ExitOK {
 		t.Fatalf("add one-shot failed: %s", got)
 	}
 	// A recurring prototype whose created date anchors a due fire: created
 	// 2026-07-01, so next(created) is on or before testDay 2026-07-30.
-	if got := r.run("--add", "Recurring", "--section", "someday",
+	if got := r.run("--add", "Recurring", "--stage", "someday",
 		"--tickler", "15@08:00", "--created", "2026-07-01"); got.Code != ExitOK {
 		t.Fatalf("add recurring failed: %s", got)
 	}
@@ -67,7 +67,7 @@ func TestTickFiresBothKinds(t *testing.T) {
 func TestTickDryRunWritesNothing(t *testing.T) {
 	r, dir := tickProject(t)
 
-	before := readFile(t, dir+"/backlog.md")
+	before := readFile(t, dir+"/board.md")
 	got := r.run("--tick", "--dry-run")
 	if got.Code != ExitOK {
 		t.Fatalf("dry run failed: %s", got)
@@ -75,7 +75,7 @@ func TestTickDryRunWritesNothing(t *testing.T) {
 	if !strings.HasPrefix(got.Stdout, "would: ") {
 		t.Errorf("dry run output must be prefixed:\n%s", got.Stdout)
 	}
-	if after := readFile(t, dir+"/backlog.md"); after != before {
+	if after := readFile(t, dir+"/board.md"); after != before {
 		t.Errorf("dry run wrote the file")
 	}
 
@@ -151,8 +151,10 @@ func TestTickJSONAndPorcelain(t *testing.T) {
 }
 
 func TestTickNothingDue(t *testing.T) {
-	r, _ := newProject(t)
-	r.run("--add", "Later", "--section", "someday", "--tickler", "2026-09-01")
+	r, _ := v2Project(t)
+	if got := r.run("--add", "Later", "--stage", "someday", "--tickler", "2026-09-01"); got.Code != ExitOK {
+		t.Fatalf("add failed: %s", got)
+	}
 
 	got := r.run("--tick")
 	if got.Code != ExitOK {
@@ -179,14 +181,16 @@ func TestTickNothingDue(t *testing.T) {
 }
 
 func TestTickAddRequiresSomeday(t *testing.T) {
-	r, _ := newProject(t)
-	// --tickler without --section someday is the library's I7 rule; the CLI
-	// passes the value through and the library refuses it.
+	r, _ := v2Project(t)
+	// --tickler without --stage naming a tickler_stages source is the
+	// library's placement rule (generalized from version 1's fixed Someday);
+	// the CLI passes the value through and the library refuses it. The
+	// default stage (ready) is not a source in DefaultStageConfig.
 	got := r.run("--add", "Wrong place", "--tickler", "mon@08:00")
 	if got.Code != ExitUsage {
 		t.Fatalf("expected a refusal, got %d:\n%s", got.Code, got)
 	}
-	if !strings.Contains(got.Stderr, "Someday") && !strings.Contains(got.Stdout, "Someday") {
-		t.Errorf("refusal should name the Someday rule:\n%s", got)
+	if !strings.Contains(got.Stderr, "tickler_stages") && !strings.Contains(got.Stdout, "tickler_stages") {
+		t.Errorf("refusal should name the tickler_stages rule:\n%s", got)
 	}
 }

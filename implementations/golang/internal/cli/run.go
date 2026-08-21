@@ -539,6 +539,11 @@ func runList(env Env, in *Invocation, s *mm.Store) error {
 		}
 		f.Section = sec
 	}
+	// --list --stage SLUG: version 2's filter, parallel to --section above.
+	// mm.Filter has carried Stage since T-0227; this CLI flag never read it.
+	if v := in.Value("stage"); v != "" {
+		f.Stage = mm.Stage(v)
+	}
 	if v := in.Value("prio"); v != "" {
 		p, err := mm.ParsePrio(v)
 		if err != nil {
@@ -842,9 +847,14 @@ func runBlock(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
 	if reason == "" {
 		return usagef("--block needs --reason TEXT; I5 requires every blocked item to say why")
 	}
+	// Both version-1 and version-2 fields are set unconditionally: Store.Move
+	// dispatches on the directory's actual version and reads only the pair
+	// that applies, same pattern as the GUI's block/unblock (T-0230).
 	item, res, err := s.Move(id, mm.MoveRequest{
 		Section: mm.SectionBlocked,
 		Blocked: reason,
+		Stage:   "blocked",
+		Reason:  reason,
 		DryRun:  in.DryRun,
 	}, env.Today)
 	if err != nil {
@@ -863,8 +873,9 @@ func runUnblock(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
 		return err
 	}
 	// Back to Ready, at the top by default: something that has just become
-	// possible is usually the next thing to pick up.
-	req := mm.MoveRequest{Section: mm.SectionReady, Top: true, DryRun: in.DryRun}
+	// possible is usually the next thing to pick up. Both version-1 and
+	// version-2 fields are set unconditionally, same as --block above.
+	req := mm.MoveRequest{Section: mm.SectionReady, Stage: "ready", Top: true, DryRun: in.DryRun}
 	if in.Bool("end") {
 		req.Top, req.End = false, true
 	}

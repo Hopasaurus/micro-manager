@@ -160,14 +160,14 @@ func TestNoOpOperationsWriteNothing(t *testing.T) {
 	}
 
 	// Moving an item to where it already is.
-	if _, res, err := s.Move("T-0001", MoveRequest{Top: true}, today); err != nil {
+	if _, res, err := testMoveV1(s, "T-0001", MoveRequest{Top: true}, today); err != nil {
 		t.Fatalf("move: %v", err)
 	} else if len(res.Files) != 0 {
 		t.Errorf("a move to the current position wrote %v", res.Files)
 	}
 
 	// An update that sets a field to the value it already holds.
-	if _, res, err := s.Update("T-0001", UpdateRequest{Prio: ptr(PrioHigh)}, today); err != nil {
+	if _, res, err := testUpdateV1(s, "T-0001", UpdateRequest{Prio: ptr(PrioHigh)}, today); err != nil {
 		t.Fatalf("update: %v", err)
 	} else if len(res.Files) != 0 {
 		t.Errorf("a no-change update wrote %v", res.Files)
@@ -200,7 +200,7 @@ func TestEditTouchesOnlyItsOwnLine(t *testing.T) {
 	dir, s := startDir(t)
 	before := strings.Split(readFile(t, dir, "backlog.md"), "\n")
 
-	if _, _, err := s.Update("T-0002", UpdateRequest{Prio: ptr(PrioLow)}, today); err != nil {
+	if _, _, err := testUpdateV1(s, "T-0002", UpdateRequest{Prio: ptr(PrioLow)}, today); err != nil {
 		t.Fatal(err)
 	}
 	after := strings.Split(readFile(t, dir, "backlog.md"), "\n")
@@ -237,7 +237,7 @@ func TestExtraFieldsSurviveEveryTransition(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	it, _, err := s.Add(AddRequest{
+	it, _, err := testAddV1(s, AddRequest{
 		Title: "Carries baggage",
 		Tags:  []string{"infra"},
 		Extra: []Field{{"owner", "dana"}, {"ticket", "ACME-42"}},
@@ -262,26 +262,26 @@ func TestExtraFieldsSurviveEveryTransition(t *testing.T) {
 	}
 
 	hasExtras("added")
-	if _, _, err := s.Move(it.ID, MoveRequest{Section: SectionSomeday}, today); err != nil {
+	if _, _, err := testMoveV1(s, it.ID, MoveRequest{Section: SectionSomeday}, today); err != nil {
 		t.Fatal(err)
 	}
 	hasExtras("moved")
-	if _, _, err := s.Move(it.ID, MoveRequest{Section: SectionReady}, today); err != nil {
+	if _, _, err := testMoveV1(s, it.ID, MoveRequest{Section: SectionReady}, today); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Start(it.ID, StartRequest{}, today); err != nil {
+	if _, _, err := testStartV1(s, it.ID, StartRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 	hasExtras("started")
-	if _, _, err := s.Update(it.ID, UpdateRequest{Title: ptr("Renamed while working")}, today); err != nil {
+	if _, _, err := testUpdateV1(s, it.ID, UpdateRequest{Title: ptr("Renamed while working")}, today); err != nil {
 		t.Fatal(err)
 	}
 	hasExtras("updated in a slot")
-	if _, _, err := s.Pause(it.ID, PauseRequest{}, today); err != nil {
+	if _, _, err := testPauseV1(s, it.ID, PauseRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 	hasExtras("paused")
-	if _, _, err := s.Finish(it.ID, FinishRequest{}, today); err != nil {
+	if _, _, err := testFinishV1(s, it.ID, FinishRequest{}, today); err != nil {
 		t.Fatal(err)
 	}
 	hasExtras("finished")

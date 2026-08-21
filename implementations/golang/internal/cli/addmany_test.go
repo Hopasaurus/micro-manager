@@ -122,7 +122,7 @@ func TestAddManySpansSections(t *testing.T) {
 
 // §5.2.1: --top puts the batch at the top, still in the input's order.
 func TestAddManyTopKeepsTheInputOrder(t *testing.T) {
-	r, _ := newProject(t)
+	r, _ := v2Project(t)
 	if got := r.run("--add", "Already here"); got.Code != ExitOK {
 		t.Fatalf("add: %s", got)
 	}
