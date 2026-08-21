@@ -7,7 +7,8 @@ import (
 	"testing"
 )
 
-// mkProject creates a real directory at root/rel with the given project name.
+// mkProject creates a real version-2 directory at root/rel with the given
+// project name.
 func mkProject(t *testing.T, root, rel, project string) string {
 	t.Helper()
 	dir := filepath.Join(root, rel)
@@ -15,6 +16,21 @@ func mkProject(t *testing.T, root, rel, project string) string {
 		t.Fatal(err)
 	}
 	if _, _, err := Init(dir, InitRequest{Project: project}, today); err != nil {
+		t.Fatalf("init %s: %v", rel, err)
+	}
+	return dir
+}
+
+// mkProjectV1 is mkProject's version-1 form, via the test-only initV1 bypass
+// - for the handful of discovery tests that specifically need backlog.md's
+// shape rather than board.md's.
+func mkProjectV1(t *testing.T, root, rel, project string) string {
+	t.Helper()
+	dir := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := initV1(dir, InitRequest{Project: project}, today); err != nil {
 		t.Fatalf("init %s: %v", rel, err)
 	}
 	return dir
@@ -94,8 +110,8 @@ func TestDiscoverOrdersByProjectThenPath(t *testing.T) {
 }
 
 // The emptiness test (spec-file-format.md Appendix B). A directory that merely
-// shares the name — a source repository, a skill package — holds neither
-// backlog.md nor done.md, and discovery skips it silently rather than making
+// shares the name — a source repository, a skill package — holds none of
+// board.md, backlog.md, or done.md, and discovery skips it silently rather than making
 // every checker run report it forever.
 func TestDiscoverSkipsANameWithNoBoardFiles(t *testing.T) {
 	root := t.TempDir()
@@ -127,14 +143,33 @@ func TestDiscoverSkipsANameWithNoBoardFiles(t *testing.T) {
 	}
 }
 
-// EITHER file, not both: a board that has lost one is still a board, and
-// hiding it would make a half-deleted project vanish from the checker at the
-// moment it most needs attention.
+// EITHER file of a version's own pair, not both: a board that has lost one is
+// still a board, and hiding it would make a half-deleted project vanish from
+// the checker at the moment it most needs attention (Appendix B).
 func TestDiscoverFindsABoardMissingOneFile(t *testing.T) {
-	for _, keep := range []string{"backlog.md", "done.md"} {
-		t.Run(keep, func(t *testing.T) {
+	for _, keep := range []string{"board.md", "done.md"} {
+		t.Run("v2 keeping "+keep, func(t *testing.T) {
 			root := t.TempDir()
 			dir := mkProject(t, root, "p/micro-manager", "Half")
+			drop := "done.md"
+			if keep == "done.md" {
+				drop = "board.md"
+			}
+			if err := os.Remove(filepath.Join(dir, drop)); err != nil {
+				t.Fatal(err)
+			}
+
+			res := Discover(DefaultDiscoveryOptions(root))
+			if len(res.Directories) != 1 {
+				t.Fatalf("a board with only %s must still be found, got %v",
+					keep, discoveredPaths(res))
+			}
+		})
+	}
+	for _, keep := range []string{"backlog.md", "done.md"} {
+		t.Run("v1 keeping "+keep, func(t *testing.T) {
+			root := t.TempDir()
+			dir := mkProjectV1(t, root, "p/micro-manager", "Half")
 			drop := "done.md"
 			if keep == "done.md" {
 				drop = "backlog.md"

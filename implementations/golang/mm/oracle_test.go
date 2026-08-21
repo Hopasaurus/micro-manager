@@ -276,7 +276,7 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 
 	t.Run("after the whole lifecycle", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "mm")
-		s, _, err := Init(dir, InitRequest{Project: "Written", Wip: 2}, today)
+		s, _, err := initV1(dir, InitRequest{Project: "Written", Wip: 2}, today)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -336,7 +336,7 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 	// X-### IDs (next_id included), and both validators have to read them.
 	t.Run("a non-default ID grammar", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "mm")
-		s, _, err := Init(dir, InitRequest{
+		s, _, err := initV1(dir, InitRequest{
 			Project: "Custom IDs", Wip: 2, IDPrefix: "X", IDWidth: 3,
 		}, today)
 		if err != nil {
@@ -391,7 +391,7 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 
 	t.Run("after a tickler lifecycle", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "mm")
-		s, _, err := Init(dir, InitRequest{Project: "Tickler", Wip: 2}, today)
+		s, _, err := initV1(dir, InitRequest{Project: "Tickler", Wip: 2}, today)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -497,7 +497,7 @@ func TestValidatorAgreesWithCheckShOnWrittenDirectories(t *testing.T) {
 	// default and says so. Both validators must then report the same orphan.
 	t.Run("after a remove that orphans a detail file", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "mm")
-		s, _, err := Init(dir, InitRequest{Project: "Orphans"}, today)
+		s, _, err := initV1(dir, InitRequest{Project: "Orphans"}, today)
 		if err != nil {
 			t.Fatal(err)
 		}

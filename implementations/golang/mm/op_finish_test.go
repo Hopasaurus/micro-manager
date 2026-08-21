@@ -191,7 +191,7 @@ func TestFinishDryRun(t *testing.T) {
 // stepping past it appends after the end of the file.
 func TestInsertIntoAnEmptySectionKeepsTheFileWellFormed(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "mm")
-	s, _, err := Init(dir, InitRequest{Project: "Spacing"}, today)
+	s, _, err := initV1(dir, InitRequest{Project: "Spacing"}, today)
 	if err != nil {
 		t.Fatal(err)
 	}

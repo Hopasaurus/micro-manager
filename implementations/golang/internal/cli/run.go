@@ -149,33 +149,23 @@ func runInit(env Env, in *Invocation) error {
 	}
 
 	req := mm.InitRequest{Project: project, DryRun: in.DryRun}
-	// --slots, not --wip: --wip N is an operation, and §3.2 gives operations and
-	// modifiers one namespace so that no switch changes meaning depending on
-	// what preceded it. See the correction note at spec-tools.md §5.1.1.
-	if v := in.Value("slots"); v != "" {
+	// --wip-limit, not --wip: --wip N is an operation, and §3.2 gives operations
+	// and modifiers one namespace so that no switch changes meaning depending on
+	// what preceded it. See the correction note at spec-tools.md §5.1.1. Unlike
+	// version 1's retired --slots, absent OR explicit zero both mean uncapped -
+	// version 2's own default, not a value to guard against as accidental.
+	if v := in.Value("wip-limit"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil {
-			return usagef("--slots takes a number, got %q", v)
+			return usagef("--wip-limit takes a number, got %q", v)
 		}
-		// Zero is the library's "not given" value, so it must never reach Init
-		// as an explicit request: --slots 0 would otherwise silently become the
-		// default of one slot.
-		if n < 1 {
-			return usagef("--slots must be at least 1, got %d", n)
+		if n < 0 {
+			return usagef("--wip-limit cannot be negative, got %d", n)
 		}
 		req.Wip = n
 	}
-	if v := in.Value("slot-width"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return usagef("--slot-width takes a number, got %q", v)
-		}
-		// Same zero-means-unset trap as --slots: --slot-width 0 would silently
-		// become the default width of 2.
-		if n < 1 {
-			return usagef("--slot-width must be at least 1, got %d", n)
-		}
-		req.SlotWidth = n
+	if v := in.Value("description"); v != "" {
+		req.Description = v
 	}
 	// The ID grammar is declared once, at init, and read back by every other
 	// operation (spec-file-format.md §3.3.2). An invalid prefix or width is a

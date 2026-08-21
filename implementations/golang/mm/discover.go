@@ -20,12 +20,12 @@ import (
 // The one probe is the difference between "never was a board" and "is a broken
 // board", and the whole rule turns on it:
 //
-//	neither backlog.md nor done.md   not a board. Skipped silently: a source
-//	                                 tree that shares the name would otherwise
+//	none of backlog.md/board.md/     not a board. Skipped silently: a source
+//	done.md                          tree that shares the name would otherwise
 //	                                 be permanent noise in front of the real
 //	                                 problems, and nobody will ever "fix" it.
-//	exactly one of the two           a board that LOST a file. Found, and left
-//	                                 for the checker to report — skipping this
+//	done.md alone, or board.md/      a board that LOST a file. Found, and left
+//	backlog.md alone                 for the checker to report — skipping this
 //	                                 would hide a half-deleted project.
 //
 // The skip is DISCOVERY's alone. A path the user named explicitly is never
@@ -51,18 +51,18 @@ func IsDirectoryName(name string) bool {
 }
 
 // IsBoardDirectory applies the emptiness test of spec-file-format.md Appendix B:
-// a directory is a board when it holds backlog.md or done.md.
+// a directory is a board when it holds backlog.md, board.md, or done.md.
 //
-// EITHER, not both. One of the two missing is a board that lost a file, which a
-// checker must be able to see; only the absence of BOTH means there was never a
-// board here.
-//
-// The name is not re-checked. Callers reach this either from the walker, which
-// has already matched the name, or from a front end resolving a path the user
-// named — and in that second case the name is the user's business, not a rule
-// to enforce twice.
+// EITHER of a version's own pair, not both. One of the two missing is a board
+// that lost a file, which a checker must be able to see; only the absence of
+// every one of the three means there was never a board here. board.md and
+// backlog.md never coexist in a real directory (a directory is one version or
+// the other, never both - store.go), so checking for both alongside done.md
+// costs nothing on a healthy directory and is what lets a version-2 board
+// missing its own done.md still be found (T-0241 - discovered while updating
+// this package's own tests for --init's version-2 default).
 func IsBoardDirectory(path string) bool {
-	for _, name := range []string{"backlog.md", "done.md"} {
+	for _, name := range []string{"backlog.md", "board.md", "done.md"} {
 		if fi, err := os.Stat(filepath.Join(path, name)); err == nil && !fi.IsDir() {
 			return true
 		}

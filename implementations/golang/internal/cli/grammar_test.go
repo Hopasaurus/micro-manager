@@ -183,17 +183,32 @@ func TestInitRejectsBadGrammarFlags(t *testing.T) {
 		{"--init", "--project", "P", "--id-width", "0"},
 		{"--init", "--project", "P", "--id-width", "-1"},
 		{"--init", "--project", "P", "--id-width", "abc"},
-		// Zero means unset in the library, so an explicit 0 must never reach
-		// Init as a request (code-review-007 F2): --slots 0 would otherwise
-		// silently become the one-slot default.
-		{"--init", "--project", "P", "--slots", "0"},
-		{"--init", "--project", "P", "--slots", "-1"},
-		{"--init", "--project", "P", "--slot-width", "0"},
-		{"--init", "--project", "P", "--slot-width", "-1"},
+		{"--init", "--project", "P", "--wip-limit", "-1"},
+		{"--init", "--project", "P", "--wip-limit", "abc"},
 	} {
 		if got := r.run(args...); got.Code != ExitUsage {
 			t.Errorf("%v: want usage error, got %s", args, got)
 		}
+	}
+}
+
+// Unlike version 1's retired --slots (code-review-007 F2: zero silently
+// became the one-slot default), version 2's --wip-limit has no such trap -
+// zero and "absent" both mean the same real thing, uncapped, so an explicit
+// zero is accepted rather than refused.
+func TestInitWipLimitZeroMeansUncapped(t *testing.T) {
+	cwd := t.TempDir()
+	r := runner{cwd: cwd}
+	got := r.run("--init", "--project", "P", "--wip-limit", "0")
+	if got.Code != ExitOK {
+		t.Fatalf("--wip-limit 0: want ok, got %s", got)
+	}
+	b, err := os.ReadFile(filepath.Join(cwd, "micro-manager", "board.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "wip.working") {
+		t.Errorf("--wip-limit 0 must write no wip.working key:\n%s", b)
 	}
 }
 
@@ -233,7 +248,7 @@ func TestInitExplicitDefaultsWriteNoKeys(t *testing.T) {
 	if got := r.run("--init", "--project", "P", "--prefix", "T", "--id-width", "4"); got.Code != ExitOK {
 		t.Fatalf("init: %s", got)
 	}
-	b, err := os.ReadFile(filepath.Join(cwd, "micro-manager", "backlog.md"))
+	b, err := os.ReadFile(filepath.Join(cwd, "micro-manager", "board.md"))
 	if err != nil {
 		t.Fatal(err)
 	}

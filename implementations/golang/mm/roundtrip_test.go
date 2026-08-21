@@ -232,7 +232,7 @@ func TestEditTouchesOnlyItsOwnLine(t *testing.T) {
 // tool that understood it.
 func TestExtraFieldsSurviveEveryTransition(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "mm")
-	s, _, err := Init(dir, InitRequest{Project: "Extras"}, today)
+	s, _, err := initV1(dir, InitRequest{Project: "Extras"}, today)
 	if err != nil {
 		t.Fatal(err)
 	}

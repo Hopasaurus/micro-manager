@@ -466,16 +466,11 @@ func TestGrammarAPIInit(t *testing.T) {
 	}
 
 	// The created directory opens and allocates in the declared grammar.
-	// --init (and this API route) still only creates version-1 directories
-	// (a known, deliberately-unaddressed question - see T-0230's own detail
-	// notes), and Store.Add now refuses one outright (T-0236); migrate first,
-	// as any real caller wanting to add through the library directly would
-	// have to.
+	// --init (and this API route) create version-2 directories directly
+	// (T-0241 - spec-tools.md §5.1.1 describes no other output), so no
+	// migration is needed before adding through the library directly.
 	store, err := mm.Open(path)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.MigrateVersion(mm.MigrateVersionRequest{}, mm.Date{Year: 2026, Month: 8, Day: 21}); err != nil {
 		t.Fatal(err)
 	}
 	it, _, err := store.Add(mm.AddRequest{Title: "Init add"}, mm.Date{})

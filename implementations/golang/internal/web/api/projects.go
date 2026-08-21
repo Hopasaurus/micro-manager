@@ -65,9 +65,9 @@ type initRequest struct {
 	Path        string `json:"path"`
 	Project     string `json:"project"`
 	Wip         int    `json:"wip"`
-	SlotWidth   int    `json:"slotWidth"`
 	IDPrefix    string `json:"idPrefix"`
 	IDWidth     int    `json:"idWidth"`
+	Description string `json:"description"`
 	NoStructure bool   `json:"noStructure"`
 	DryRun      bool   `json:"dryRun"`
 }
@@ -86,9 +86,9 @@ func (s *Server) initProject(c *echo.Context) error {
 	store, res, err := mm.Init(req.Path, mm.InitRequest{
 		Project:     req.Project,
 		Wip:         req.Wip,
-		SlotWidth:   req.SlotWidth,
 		IDPrefix:    req.IDPrefix,
 		IDWidth:     req.IDWidth,
+		Description: req.Description,
 		NoStructure: req.NoStructure,
 		DryRun:      req.DryRun,
 	}, s.today())

@@ -165,16 +165,15 @@ func TestDryRunInit(t *testing.T) {
 	cwd := t.TempDir()
 	r := runner{cwd: cwd}
 
-	got := r.run("--init", "--project", "Dry", "--slots", "2", "--dry-run")
+	got := r.run("--init", "--project", "Dry", "--wip-limit", "2", "--dry-run")
 	if got.Code != ExitOK {
 		t.Fatalf("%s", got)
 	}
 	if !strings.Contains(got.Stdout, "would") {
 		t.Errorf("unmarked:\n%s", got.Stdout)
 	}
-	// Six files named, and none of them on disk.
-	for _, name := range []string{"backlog.md", "done.md", "working.01.md",
-		"working.02.md", "_template.md", "structure.md"} {
+	// Four files named (version 2: no working files), none of them on disk.
+	for _, name := range []string{"board.md", "done.md", "_template.md", "structure.md"} {
 		if !strings.Contains(got.Stdout, name) {
 			t.Errorf("%s is not in the report:\n%s", name, got.Stdout)
 		}

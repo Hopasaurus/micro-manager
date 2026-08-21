@@ -140,7 +140,7 @@ func TestSetWipLimitDryRun(t *testing.T) {
 // A directory created at a wider slot width keeps that width when it grows.
 func TestSetWipLimitKeepsTheDirectoryWidth(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "mm")
-	s, _, err := Init(dir, InitRequest{Project: "Wide", Wip: 2, SlotWidth: 3}, today)
+	s, _, err := initV1(dir, InitRequest{Project: "Wide", Wip: 2, SlotWidth: 3}, today)
 	if err != nil {
 		t.Fatal(err)
 	}

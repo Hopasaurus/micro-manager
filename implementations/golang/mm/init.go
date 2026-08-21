@@ -9,24 +9,31 @@ import (
 )
 
 // InitRequest creates a new micro-manager directory (spec-tools.md §5.1.1).
+//
+// Init always creates a version-2 directory (board.md) — the spec describes
+// no version-1 output for --init at all, and no version modifier exists to
+// ask for one (T-0241). Version 1 remains fully supported for directories
+// that already exist; it is simply no longer what a fresh one is born as.
 type InitRequest struct {
 	// Project is the human name of the directory, and is required: I7 makes it
 	// the one piece of frontmatter a backlog cannot do without.
 	Project string
 
-	// Wip is how many working files to create, and so IS the WIP limit - the
-	// limit is a file count, never a declared number (spec-file-format.md
-	// §5.2.1). Zero means one.
+	// Wip is the fresh board's wip.working cap. Zero means UNCAPPED: no
+	// wip.working key is written at all (spec-tools.md §5.1.1 - "this is the
+	// one place version 2 does not reproduce version 1's out-of-the-box
+	// behavior by default"). A caller wanting version 1's old default of one
+	// concurrent item passes Wip: 1 explicitly.
 	Wip int
 
-	// SlotWidth is the digit width of the slot filenames. Zero means 2, the
-	// recommended width. Any width works provided it is uniform, which is why
-	// it is fixed once here rather than per file.
+	// SlotWidth is version-1-only (initV1's working-file digit width). A
+	// version-2 board has no working files, so Init ignores it; it survives
+	// only for initV1's test-only callers.
 	SlotWidth int
 
 	// IDPrefix is the declared id_prefix (spec-file-format.md §3.3.2): one to
 	// four uppercase ASCII letters. Empty means "T" and writes no id_prefix
-	// key, so a default init is byte-identical to spec version 1 (rule 6).
+	// key, so a default init declares no grammar of its own (rule 6).
 	IDPrefix string
 
 	// IDWidth is the declared id_width: 1 to 15. Zero means 4 and writes no
@@ -34,9 +41,15 @@ type InitRequest struct {
 	// about, never refused, and 16+ is invalid everywhere (§3.3.2 rule 3).
 	IDWidth int
 
+	// Description seeds structure.md's first paragraph (spec-tools.md
+	// §5.1.1), replacing its default prose. Supplying it makes structure.md's
+	// SHOULD a MUST: it is written even when NoStructure is also set, since
+	// there is nowhere else for a supplied description to live.
+	Description string
+
 	// NoStructure skips structure.md. The spec only SHOULD-writes it, but a
 	// directory without it is a format nobody can read without a tool, which is
-	// the opposite of the point.
+	// the opposite of the point. Overridden by a non-empty Description.
 	NoStructure bool
 
 	DryRun bool
@@ -47,10 +60,90 @@ type InitRequest struct {
 // The directory itself may already exist and hold anything else; what it may NOT
 // hold is any file this would write. Merging into a half-built directory would
 // mean guessing which of the two layouts is authoritative.
+//
+// Always version 2 (see InitRequest's doc comment). Version-1 creation
+// (backlog.md/working.NN.md) survives only as the unexported initV1, reachable
+// solely from this package's own tests, which still need to construct
+// version-1 fixtures to test version-1 behavior the CLI and library keep
+// supporting on directories that already exist.
 func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
-	project := strings.TrimSpace(req.Project)
-	if project == "" || project == "null" {
+	project, err := validatedProjectName(req.Project)
+	if err != nil {
+		return nil, TxResult{}, err
+	}
+	if req.Wip < 0 {
 		return nil, TxResult{}, fmt.Errorf(
+			"%w: a WIP cap cannot be negative", ErrInvalidArgument)
+	}
+	g, err := resolvedIDGrammar(req.IDPrefix, req.IDWidth)
+	if err != nil {
+		return nil, TxResult{}, err
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, TxResult{}, fmt.Errorf("%w: %s: %v", ErrIO, path, err)
+	}
+
+	writeStructure := !req.NoStructure || req.Description != ""
+	files := map[string]string{
+		"board.md":   renderInitBoard(project, today, g, req.Wip),
+		"done.md":    renderInitDone(today, 2),
+		templateName: initTemplate,
+	}
+	order := []string{"board.md", "done.md", templateName}
+	if writeStructure {
+		files["structure.md"] = renderInitStructureV2(project, today, req.Description)
+		order = append(order, "structure.md")
+	}
+
+	// Nothing may be overwritten. An existing file here is a directory that is
+	// already something else, and merging into it would mean choosing which
+	// layout wins.
+	for _, name := range order {
+		if _, err := os.Stat(filepath.Join(abs, name)); err == nil {
+			return nil, TxResult{}, fmt.Errorf(
+				"%w: %s already exists in %s", ErrAlreadyExists, name, path)
+		}
+	}
+
+	// Pre-commit validation, on the same terms as every mutation: parse what is
+	// about to be written and refuse to create a directory this package's own
+	// checker would reject.
+	if vs := validateInitV2(abs, files); len(vs) > 0 {
+		return nil, TxResult{}, &InvariantError{Violations: vs}
+	}
+
+	var ws writeSet
+	var res TxResult
+	res.DryRun = req.DryRun
+	for _, name := range order {
+		ws.Add(filepath.Join(abs, name), []byte(files[name]), stamp{missing: true})
+		res.Changes = append(res.Changes, Change{Kind: ChangeCreated, File: name})
+	}
+	res.Files = ws.Paths()
+
+	if req.DryRun {
+		return nil, res, nil
+	}
+	if err := os.MkdirAll(abs, 0o755); err != nil {
+		return nil, res, fmt.Errorf("%w: creating %s: %v", ErrIO, path, err)
+	}
+	if err := ws.Commit(); err != nil {
+		return nil, res, err
+	}
+	s, err := Open(abs)
+	if err != nil {
+		return nil, res, err
+	}
+	return s, res, nil
+}
+
+// validatedProjectName is Init's shared name check (v1 and v2 alike).
+func validatedProjectName(name string) (string, error) {
+	project := strings.TrimSpace(name)
+	if project == "" || project == "null" {
+		return "", fmt.Errorf(
 			"%w: a directory needs a project name", ErrInvalidArgument)
 	}
 	// Frontmatter values are read with a trailing comment stripped, so a name
@@ -58,9 +151,210 @@ func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
 	// describe itself the moment it was written.
 	if strings.ContainsAny(project, "\n\r") || strings.Contains(project, " #") ||
 		strings.Contains(project, "\t#") {
-		return nil, TxResult{}, fmt.Errorf(
+		return "", fmt.Errorf(
 			"%w: a project name may not contain a newline or a comment marker (' #')",
 			ErrInvalidArgument)
+	}
+	return project, nil
+}
+
+// resolvedIDGrammar is Init's shared grammar check (v1 and v2 alike): the ID
+// grammar (§3.3.2). Both keys are optional and default independently; what
+// Init writes is a directory that declares its own grammar, validated here the
+// same way the parsers validate a hand-written one.
+func resolvedIDGrammar(prefix string, width int) (IDGrammar, error) {
+	g := DefaultIDGrammar()
+	if prefix != "" {
+		if !ValidIDPrefix(prefix) {
+			return g, fmt.Errorf(
+				"%w: id_prefix must be one to four uppercase letters (A-Z), got %q",
+				ErrInvalidArgument, prefix)
+		}
+		g.Prefix = prefix
+	}
+	if width != 0 {
+		if width < 1 || width > 15 {
+			// The shared cap of §3.3.2 rule 3 (T-0120): at 16 digits the
+			// narrowest readers silently round, so no implementation honors
+			// it, and Init must not create a directory the checkers reject.
+			return g, fmt.Errorf(
+				"%w: id_width must be 1 to 15, got %d", ErrInvalidArgument, width)
+		}
+		g.Width = width
+	}
+	return g, nil
+}
+
+// validateInitV2 runs the real validator over the version-2 files Init is
+// about to write, mirroring migrateOneToTwo's own pre-write validation.
+func validateInitV2(path string, files map[string]string) []Violation {
+	board, bvs := parseBoard("board.md", []byte(files["board.md"]))
+	done, dvs := parseDoneG("done.md", []byte(files["done.md"]), board.grammar)
+	m := &dirModel{path: path, board: board, done: done, details: map[string]*detailFile{}}
+	// The template is exempt from I9 by name, so it is deliberately not added
+	// to m.details - doing so would report the file the format requires as an
+	// orphan.
+	vs := append(bvs, dvs...)
+	vs = append(vs, m.validate()...)
+	return vs
+}
+
+// renderInitBoard is board.md for a fresh version-2 directory: no stages/
+// stage_labels/tickler_stages/needs_reason keys, since Init offers no
+// modifier to customize any of them and their absence already means the
+// documented defaults (parseStageConfig, DefaultStageConfig).
+func renderInitBoard(project string, today Date, g IDGrammar, wip int) string {
+	fm := NewFrontmatter()
+	fm.Set("doc", "board")
+	fm.Set("version", "2")
+	fm.Set("project", project)
+	fm.Set("next_id", string(g.NewID(1)))
+	if g.Prefix != "T" {
+		fm.Set("id_prefix", g.Prefix)
+	}
+	if g.Width != 4 {
+		fm.Set("id_width", strconv.Itoa(g.Width))
+	}
+	if wip > 0 {
+		fm.Set("wip.working", strconv.Itoa(wip))
+	}
+	fm.Set("updated", today.String())
+	return fm.Render() + `
+# Board
+
+Everything not started or done, in stage order. See structure.md for the
+line format.
+`
+}
+
+// renderInitStructureV2 is structure.md for a fresh version-2 directory.
+// description, when non-empty, replaces the default prose as the first
+// paragraph after the title (spec-tools.md §5.1.1).
+func renderInitStructureV2(project string, today Date, description string) string {
+	intro := `A todo directory in plain Markdown. Every file is readable in any editor and
+parseable with a handful of regexes — a tool is faster than editing by hand, but
+nothing here needs one.`
+	if description != "" {
+		intro = description
+	}
+	return "---\ndoc: structure\nversion: 2\nupdated: " + today.String() + `
+---
+
+# ` + project + `
+
+` + intro + `
+
+## Files
+
+| File | Holds |
+|---|---|
+| ` + "`board.md`" + ` | Every item not archived, one flat ordered list. |
+| ` + "`done.md`" + ` | Everything finished or cancelled, newest first. |
+| ` + "`details/T-NNNN.md`" + ` | Long-form description for one item. |
+
+An item lives in **exactly one** of ` + "`board.md`" + ` or ` + "`done.md`" + ` at a time.
+Moving it is cut-and-paste, never a copy. Detail files are the exception: they
+never move, so the long text survives every transition.
+
+## The item line
+
+` + "```" + `
+- [ ] [T-0042] Fix the deploy script | stage:ready | prio:high | tags:infra,ci | created:2026-07-29
+` + "```" + `
+
+- Box — a space for open, ` + "`x`" + ` for closed. Open lines only in
+  ` + "`board.md`" + `, closed lines only in ` + "`done.md`" + `.
+- ID — ` + "`T-`" + ` plus four digits. Permanent: never reused, never renumbered.
+- Title — one line, and it must not contain ` + "`|`" + `.
+- Fields — ` + "` | `" + ` separated ` + "`key:value`" + ` pairs. Order does not matter, and
+  unknown keys are legal and must be preserved when an item moves.
+
+| Key | Values |
+|---|---|
+| ` + "`stage`" + ` | one of the board's declared stages — default ` + "`someday`" + `, ` + "`ready`" + `,
+  ` + "`blocked`" + `, ` + "`working`" + ` — required on every open item |
+| ` + "`prio`" + ` | ` + "`high`" + ` ` + "`med`" + ` ` + "`low`" + ` — absent means ` + "`med`" + ` |
+| ` + "`tags`" + ` | comma separated, no spaces |
+| ` + "`created`" + ` ` + "`started`" + ` ` + "`done`" + ` | ` + "`YYYY-MM-DD`" + ` |
+| ` + "`outcome`" + ` | ` + "`shipped`" + ` ` + "`cancelled`" + ` ` + "`obsolete`" + ` — required in done.md |
+| ` + "`reason`" + ` | free text — required on a stage listed in ` + "`needs_reason`" + `
+  (default: ` + "`blocked`" + `), legal on any stage |
+| ` + "`detail`" + ` | ` + "`details/T-0042.md`" + ` — must match the item's own ID |
+| ` + "`tickler`" + ` | a wake-up schedule; only on a stage listed as a ` + "`tickler_stages`" + `
+  source (default: ` + "`someday`" + `) |
+| ` + "`tickler_dest`" + ` | overrides where a fired schedule lands, instead of that
+  stage's ` + "`tickler_stages`" + ` default |
+
+## board.md
+
+Frontmatter carries ` + "`project`" + ` and ` + "`next_id`" + `, the ID to hand out next. The
+body is a **flat, order-significant list** — no ` + "`## `" + ` sections; where an item
+sits is entirely its own ` + "`stage:`" + ` field, not its position in the file. A
+writer MAY group items by stage for a human reading the raw file but is not
+required to.
+
+Per-stage WIP caps are declared as ` + "`wip.<slug>`" + ` frontmatter keys (absent
+means uncapped); a fresh board only ever declares ` + "`wip.working`" + `, and only
+when asked for one at creation.
+
+## done.md
+
+Items grouped under ` + "`## YYYY-MM`" + ` headings, newest month first, newest item
+first within a month. Every line closed, with ` + "`done:`" + ` and ` + "`outcome:`" + `.
+
+## Operations by hand
+
+**Add** — read ` + "`next_id`" + `, append the line to the bottom of its stage's run
+with today's ` + "`created:`" + `, increment ` + "`next_id`" + `.
+
+**Start** — move the line to ` + "`stage:working`" + `, set ` + "`started:`" + ` to today.
+*If working is capped and already full, stop* — that is the WIP limit doing
+its job.
+
+**Pause** — move the line back to a backlog stage (` + "`ready`" + ` by default),
+keeping ` + "`started:`" + `. A destination listed in ` + "`needs_reason`" + ` needs its
+` + "`reason:`" + ` field set already — pausing does not prompt for one.
+
+**Finish** — write the line at the top of the current month group in
+` + "`done.md`" + ` as ` + "`- [x]`" + ` with ` + "`done:`" + ` and ` + "`outcome:`" + `, preserving every
+other field (` + "`stage:`" + ` included, though it no longer means anything once an
+item is done). ` + "`outcome:cancelled`" + ` is how work is abandoned without
+deleting it.
+
+## The rules
+
+1. An ID appears in exactly one file. Never copy an item — move it.
+2. Every ID is below ` + "`next_id`" + `. Never reuse or renumber an ID.
+3. ` + "`board.md`" + ` holds only open boxes; ` + "`done.md`" + ` only closed ones.
+4. Every open item declares a ` + "`stage:`" + ` that is one of the board's declared
+   stages.
+5. Every item on a ` + "`needs_reason`" + ` stage has a ` + "`reason:`" + ` field; a stage not
+   listed there never requires one.
+6. Every item in ` + "`done.md`" + ` has ` + "`done:`" + ` and ` + "`outcome:`" + `, under the month
+   heading its date names.
+7. Dates are real calendar dates, tags have no spaces, no value contains ` + "`|`" + `.
+8. Every ` + "`detail:`" + ` path is ` + "`details/<that item's ID>.md`" + ` and exists.
+9. Every non-` + "`_`" + ` file in ` + "`details/`" + ` is referenced by exactly one item, with
+   matching ` + "`id`" + ` and ` + "`title`" + `.
+10. A stage named in ` + "`wip.<slug>`" + `, ` + "`tickler_stages`" + ` or ` + "`needs_reason`" + ` is
+    always a member of the board's declared ` + "`stages`" + `.
+`
+}
+
+// ---------------------------------------------------------------------------
+// Version 1 (initV1): unexported, test-only. The public Init above always
+// creates version 2 (T-0241); this is the prior, unmodified implementation,
+// kept reachable solely from this package's own tests, which still need to
+// construct version-1 fixtures to test version-1 behavior the CLI and
+// library keep supporting on directories that already exist (sample-data/,
+// and any directory not yet migrated).
+
+// initV1 creates a version-1 micro-manager directory: backlog.md,
+// working.NN.md and done.md, exactly as Init used to before T-0241.
+func initV1(path string, req InitRequest, today Date) (*Store, TxResult, error) {
+	project, err := validatedProjectName(req.Project)
+	if err != nil {
+		return nil, TxResult{}, err
 	}
 
 	wip := req.Wip
@@ -86,27 +380,9 @@ func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
 			ErrInvalidArgument, wip, n, width)
 	}
 
-	// The ID grammar (§3.3.2). Both keys are optional and default independently;
-	// what Init writes is a directory that declares its own grammar, validated
-	// here the same way the parsers validate a hand-written one.
-	g := DefaultIDGrammar()
-	if req.IDPrefix != "" {
-		if !ValidIDPrefix(req.IDPrefix) {
-			return nil, TxResult{}, fmt.Errorf(
-				"%w: id_prefix must be one to four uppercase letters (A-Z), got %q",
-				ErrInvalidArgument, req.IDPrefix)
-		}
-		g.Prefix = req.IDPrefix
-	}
-	if req.IDWidth != 0 {
-		if req.IDWidth < 1 || req.IDWidth > 15 {
-			// The shared cap of §3.3.2 rule 3 (T-0120): at 16 digits the
-			// narrowest readers silently round, so no implementation honors
-			// it, and Init must not create a directory the checkers reject.
-			return nil, TxResult{}, fmt.Errorf(
-				"%w: id_width must be 1 to 15, got %d", ErrInvalidArgument, req.IDWidth)
-		}
-		g.Width = req.IDWidth
+	g, err := resolvedIDGrammar(req.IDPrefix, req.IDWidth)
+	if err != nil {
+		return nil, TxResult{}, err
 	}
 
 	abs, err := filepath.Abs(path)
@@ -116,7 +392,7 @@ func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
 
 	files := map[string]string{
 		"backlog.md": renderInitBacklog(project, today, g),
-		"done.md":    renderInitDone(today),
+		"done.md":    renderInitDone(today, 1),
 		templateName: initTemplate,
 	}
 	if !req.NoStructure {
@@ -147,7 +423,7 @@ func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
 	// Pre-commit validation, on the same terms as every mutation: parse what is
 	// about to be written and refuse to create a directory this package's own
 	// checker would reject.
-	if vs := validateInit(abs, files, order); len(vs) > 0 {
+	if vs := validateInitV1(abs, files, order); len(vs) > 0 {
 		return nil, TxResult{}, &InvariantError{Violations: vs}
 	}
 
@@ -176,8 +452,9 @@ func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
 	return s, res, nil
 }
 
-// validateInit runs the real validator over the files Init is about to write.
-func validateInit(path string, files map[string]string, order []string) []Violation {
+// validateInitV1 runs the real validator over the version-1 files initV1 is
+// about to write.
+func validateInitV1(path string, files map[string]string, order []string) []Violation {
 	m := &dirModel{path: path, details: map[string]*detailFile{}, stamps: map[string]stamp{}}
 	b, vs := parseBacklog("backlog.md", []byte(files["backlog.md"]))
 	m.backlog = b
@@ -232,8 +509,11 @@ Everything not started. See [structure.md](structure.md) for the line format.
 `
 }
 
-func renderInitDone(today Date) string {
-	return "---\ndoc: done\nversion: 1\nupdated: " + today.String() + `
+// renderInitDone is done.md, shared by version 1 and version 2 - the two
+// differ only in the declared version, everything else about a fresh,
+// month-group-free done.md is identical either way.
+func renderInitDone(today Date, version int) string {
+	return "---\ndoc: done\nversion: " + strconv.Itoa(version) + "\nupdated: " + today.String() + `
 ---
 
 # Done

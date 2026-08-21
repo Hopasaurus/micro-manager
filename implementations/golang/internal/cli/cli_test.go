@@ -3,8 +3,10 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -50,16 +52,123 @@ func (r runner) runWith(base Env, args ...string) result {
 	return result{Code: code, Stdout: stdout.String(), Stderr: stderr.String()}
 }
 
-// newProject returns a runner over a freshly initialised directory.
+// newProject returns a runner over a freshly created VERSION-1 directory.
+//
+// --init itself no longer produces version 1 (T-0241 - spec-tools.md §5.1.1
+// describes only version-2 output for it, with no modifier to ask for
+// anything else), so this suite's own version-1 fixtures - the vast majority
+// of it, since version 1 remains fully supported on directories that already
+// exist - are written directly rather than through --init. This mirrors
+// mm/init.go's initV1 exactly (that function is unexported and this is a
+// different package, so it cannot be called directly); v2Project below
+// layers --migrate on top for a real version-2 fixture built the honest way,
+// through a directory that actually was version 1 first.
+//
+// args accepts only the one variant this suite's callers actually pass
+// through v2Project: "--slots", "N", changing the working-file count (and so
+// the WIP limit) from its default of one. Anything else is a test bug, not a
+// silently-ignored option.
 func newProject(t *testing.T, args ...string) (runner, string) {
 	t.Helper()
-	cwd := t.TempDir()
-	r := runner{cwd: cwd}
-	got := r.run(append([]string{"--init", "--project", "Test Project"}, args...)...)
-	if got.Code != ExitOK {
-		t.Fatalf("init failed: %s", got)
+	slots := 1
+	switch len(args) {
+	case 0:
+	case 2:
+		if args[0] != "--slots" {
+			t.Fatalf("newProject: unsupported arg %q", args[0])
+		}
+		n, err := strconv.Atoi(args[1])
+		if err != nil || n < 1 {
+			t.Fatalf("newProject: bad --slots value %q", args[1])
+		}
+		slots = n
+	default:
+		t.Fatalf("newProject: unsupported args %v", args)
 	}
-	return r, filepath.Join(cwd, "micro-manager")
+
+	cwd := t.TempDir()
+	dir := filepath.Join(cwd, "micro-manager")
+	if err := os.MkdirAll(filepath.Join(dir, "details"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, dir, "backlog.md", `---
+doc: backlog
+version: 1
+project: Test Project
+next_id: T-0001
+updated: 2026-07-30
+---
+
+# Backlog
+
+## Ready
+
+## Blocked
+
+## Someday
+`)
+	writeFile(t, dir, "done.md", `---
+doc: done
+version: 1
+updated: 2026-07-30
+---
+
+# Done
+`)
+	for i := 1; i <= slots; i++ {
+		writeFile(t, dir, workingFileName(i), `---
+doc: working
+version: 1
+status: idle
+id: null
+title: null
+prio: null
+tags: null
+detail: null
+created: null
+started: null
+---
+
+# Working
+
+## Task
+
+## Plan
+
+## Notes
+
+## Blockers
+`)
+	}
+	writeFile(t, dir, "details/_template.md", `---
+doc: detail
+id: T-XXXX
+title: Copy this file to details/<ID>.md and match id + title to the item line
+---
+
+# T-XXXX — Title goes here
+`)
+	writeFile(t, dir, "structure.md", `---
+doc: structure
+version: 1
+updated: 2026-07-30
+---
+
+# Test Project
+`)
+
+	return runner{cwd: cwd}, dir
+}
+
+func workingFileName(n int) string {
+	return "working." + fmt.Sprintf("%02d", n) + ".md"
+}
+
+func writeFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestRunLifecycle(t *testing.T) {
