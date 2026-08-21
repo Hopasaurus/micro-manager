@@ -306,7 +306,10 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 	// added the Wake-up group's visibility toggles (kind select chooses the
 	// shape; the new panel's section selector reveals the group) — a response
 	// to a select that must be instant, which only the client can do — for 900.
-	if lines := strings.Count(js, "\n"); lines > 900 {
+	// T-0242 added the item panel's resize drag (pointer math and the clamp,
+	// which the server has no way to compute before the client's own viewport
+	// width is known) — for 960.
+	if lines := strings.Count(js, "\n"); lines > 960 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }

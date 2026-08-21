@@ -509,12 +509,31 @@ body {
   position: fixed;
   top: 0; right: 0; bottom: 0;
   z-index: 35;
+  /* The no-JS/pre-paint fallback. mm.js's applyPanelWidth (T-0242) sets an
+     inline width from the stored preference (default 33vw, its own floor)
+     before first paint, the same way T-0150's collapse state is. */
   width: min(32rem, 100%);
   overflow-y: auto;
   padding: var(--mm-space-4);
   background: var(--mm-color-bg-overlay);
   border-left: var(--mm-border-width-thin) solid var(--mm-color-border-default);
   box-shadow: var(--mm-shadow-lg);
+}
+
+/* T-0242: the panel's resize handle, a thin strip along its left edge. */
+.mm-panel__resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  touch-action: none;
+  background: transparent;
+}
+.mm-panel__resize:hover,
+.mm-panel__resize[data-dragging="true"] {
+  background: var(--mm-color-accent-base);
 }
 
 .mm-panel__title { margin-top: 0; font-size: var(--mm-font-size-lg); }

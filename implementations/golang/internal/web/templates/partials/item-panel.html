@@ -18,6 +18,14 @@
        data-state="ready" data-new="{{yesno $d.New}}"
        role="dialog" aria-modal="false" aria-labelledby="item-panel-title">
 
+  {{/* T-0242: a drag handle resizing the panel horizontally. Width is a
+       client-only preference (mm.js), the same "never persisted server-side,
+       applied before paint on every render" shape the someday/column collapse
+       toggle already established (T-0150, generalized in T-0240) - the panel
+       is born at the right width rather than flashing to it. */}}
+  <div data-testid="x-item-panel-resize-handle" class="mm-panel__resize"
+       aria-hidden="true"></div>
+
   <h2 data-testid="item-panel-title" id="item-panel-title" class="mm-panel__title">
     {{if $d.New}}New item{{else}}{{$i.ID}} — {{$i.Title}}{{end}}
   </h2>

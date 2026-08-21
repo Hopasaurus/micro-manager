@@ -32,6 +32,9 @@ func TestItemPanel(t *testing.T) {
 		"item-field-reason", "item-field-detail",
 		"item-save", "item-cancel", "item-actions",
 		"item-notes", "item-plan", "item-meta",
+		// T-0242: the resize handle, x- prefixed since resizing is a client
+		// affordance §5.1's closed testid list does not name.
+		"x-item-panel-resize-handle",
 	}
 	for _, testid := range required {
 		if !hasTestid(body, testid) {

@@ -782,6 +782,86 @@ test('a fresh project with no stored preference seeds from the server default', 
   assert.equal(byTestid(win, 'board-column-ready').getAttribute('data-collapsed'), 'false');
 });
 
+/* ------------------------------------------- resizable item panel (T-0242) ------------------------------------------- */
+
+const PANEL_RESIZE_HTML = `
+<div data-testid="app" data-project-id="panel-project" hx-ext="sse,morph">
+  <aside data-testid="item-panel" class="mm-panel">
+    <div data-testid="x-item-panel-resize-handle" class="mm-panel__resize"></div>
+  </aside>
+</div>
+`;
+
+// Real DOM layout metrics (innerWidth, getBoundingClientRect) are all
+// jsdom-computed zeros, so this stubs only window.innerWidth - the one input
+// the resize math actually reads - rather than faking a full layout engine.
+function stubViewportWidth(win, width) {
+  Object.defineProperty(win, 'innerWidth', { value: width, configurable: true });
+}
+
+test('dragging the resize handle sets the panel width, clamped to the floor and ceiling', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  stubViewportWidth(win, 1000);
+  const handle = byTestid(win, 'x-item-panel-resize-handle');
+  const panel = byTestid(win, 'item-panel');
+
+  const down = new win.PointerEvent('pointerdown', { bubbles: true, clientX: 700, pointerId: 1 });
+  handle.dispatchEvent(down);
+  assert.equal(handle.getAttribute('data-dragging'), 'true');
+
+  // Dragging to x=700 of 1000: width = (1000-700)/1000 = 30%, clamped up to the 33vw floor.
+  win.document.dispatchEvent(new win.PointerEvent('pointermove', { bubbles: true, clientX: 700 }));
+  assert.equal(panel.style.width, '33vw', 'below the floor clamps to it');
+
+  // Dragging to x=50 of 1000: width would be 95%, clamped down to the 90vw ceiling.
+  win.document.dispatchEvent(new win.PointerEvent('pointermove', { bubbles: true, clientX: 50 }));
+  assert.equal(panel.style.width, '90vw', 'above the ceiling clamps to it');
+
+  // A mid-range drag is honoured exactly: x=400 of 1000 -> 60vw.
+  win.document.dispatchEvent(new win.PointerEvent('pointermove', { bubbles: true, clientX: 400 }));
+  assert.equal(panel.style.width, '60vw');
+
+  win.document.dispatchEvent(new win.PointerEvent('pointerup', { bubbles: true, clientX: 400 }));
+  assert.equal(handle.getAttribute('data-dragging'), null, 'dragging attribute cleared on release');
+  assert.equal(
+    win.localStorage.getItem('mm:item-panel-width-vw'), '60',
+    'the released width is persisted',
+  );
+});
+
+test('further pointermove after release does not keep resizing the panel', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  stubViewportWidth(win, 1000);
+  const handle = byTestid(win, 'x-item-panel-resize-handle');
+  const panel = byTestid(win, 'item-panel');
+
+  handle.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, clientX: 400, pointerId: 1 }));
+  win.document.dispatchEvent(new win.PointerEvent('pointermove', { bubbles: true, clientX: 400 }));
+  win.document.dispatchEvent(new win.PointerEvent('pointerup', { bubbles: true, clientX: 400 }));
+  assert.equal(panel.style.width, '60vw');
+
+  win.document.dispatchEvent(new win.PointerEvent('pointermove', { bubbles: true, clientX: 100 }));
+  assert.equal(panel.style.width, '60vw', 'the drag listener was removed on pointerup');
+});
+
+test('a fresh panel is born at the stored width, not the CSS default', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  win.localStorage.setItem('mm:item-panel-width-vw', '45');
+
+  win.document.dispatchEvent(new win.Event('DOMContentLoaded', { bubbles: true }));
+
+  assert.equal(byTestid(win, 'item-panel').style.width, '45vw');
+});
+
+test('a stored width outside the floor/ceiling is clamped on load, not trusted verbatim', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  win.localStorage.setItem('mm:item-panel-width-vw', '5');
+
+  win.document.dispatchEvent(new win.Event('DOMContentLoaded', { bubbles: true }));
+
+  assert.equal(byTestid(win, 'item-panel').style.width, '33vw');
+});
+
 test('dragging into done prompts the finish dialog', (t) => {
   const { win, htmx } = load(t);
   stubLayout(win);

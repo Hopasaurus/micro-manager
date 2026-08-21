@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0242] Make item detail resizable. | prio:med | detail:details/T-0242.md | created:2026-08-21 | started:2026-08-21 | done:2026-08-21 | outcome:shipped
 - [x] [T-0241] Decide and implement --init's version-2 story (spec-tools.md §5.1.1 already describes v2 output) | prio:high | tags:columns,migration,golang,design | detail:details/T-0241.md | created:2026-08-21 | started:2026-08-21 | done:2026-08-21 | outcome:shipped
 - [x] [T-0240] Generalize column collapsing to every stage (spec-gui.md §5.5/§9.3) | prio:med | tags:columns,gui | detail:details/T-0240.md | created:2026-08-21 | started:2026-08-21 | done:2026-08-21 | outcome:shipped
 - [x] [T-0239] Research effort to make column collapsing generic to all columns | prio:med | detail:details/T-0239.md | created:2026-08-21 | done:2026-08-21 | outcome:shipped

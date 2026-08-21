@@ -827,6 +827,65 @@
   document.body.addEventListener('htmx:afterSwap', restoreCollapsedState);
   document.addEventListener('DOMContentLoaded', restoreCollapsedState);
 
+  /* -------------------------------------------- resizable item panel (T-0242) */
+
+  /* A client preference in localStorage, persisted as a percentage of the
+     viewport width so it survives a resized browser window sanely - a raw
+     pixel width would not. 33 is both the default and the floor: the panel
+     never starts, and can never be dragged, narrower than a third of the
+     viewport. 90 is the ceiling, leaving a sliver of the board in view. */
+  const PANEL_MIN_VW = 33;
+  const PANEL_MAX_VW = 90;
+
+  function panelWidthVw() {
+    try {
+      const stored = parseFloat(localStorage.getItem('mm:item-panel-width-vw'));
+      if (!Number.isFinite(stored)) return PANEL_MIN_VW;
+      return Math.min(PANEL_MAX_VW, Math.max(PANEL_MIN_VW, stored));
+    } catch (_) { return PANEL_MIN_VW; }
+  }
+
+  function saveWidthVw(vw) {
+    try { localStorage.setItem('mm:item-panel-width-vw', String(vw)); } catch (_) {}
+  }
+
+  /* Applied on every render the panel can appear in - a fresh /item/:id load,
+     the new-item panel, and "save and add another" reopening a copy over the
+     board (T-0080) - so it is never born at the CSS default and then jumped
+     to the stored width a frame later. */
+  function applyPanelWidth() {
+    const panel = document.querySelector('[data-testid="item-panel"]');
+    if (panel) panel.style.width = panelWidthVw() + 'vw';
+  }
+
+  document.body.addEventListener('htmx:afterSwap', applyPanelWidth);
+  document.addEventListener('DOMContentLoaded', applyPanelWidth);
+
+  document.body.addEventListener('pointerdown', (e) => {
+    const handle = e.target.closest('[data-testid="x-item-panel-resize-handle"]');
+    if (!handle) return;
+    const panel = handle.closest('[data-testid="item-panel"]');
+    if (!panel) return;
+    e.preventDefault();
+    try { handle.setPointerCapture(e.pointerId); } catch (_) { /* not in jsdom */ }
+    handle.setAttribute('data-dragging', 'true');
+
+    const clamp = (vw) => Math.min(PANEL_MAX_VW, Math.max(PANEL_MIN_VW, vw));
+    /* The panel is anchored right:0, so its width is the distance from the
+       pointer to the RIGHT edge of the viewport, not the left. */
+    const widthAt = (clientX) => clamp(((window.innerWidth - clientX) / window.innerWidth) * 100);
+
+    const move = (ev) => { panel.style.width = widthAt(ev.clientX) + 'vw'; };
+    const up = (ev) => {
+      handle.removeAttribute('data-dragging');
+      saveWidthVw(widthAt(ev.clientX));
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  });
+
   /* --------------------------------------------------- SSE-down polling */
 
   /*
