@@ -624,8 +624,18 @@
     if (op === 'move' || op === 'pause') {
       /* Which column it landed in. A pause names it because §7.2 takes the
          position from the drop index; a move within the backlog names it
-         because the section may have changed. */
+         because the section may have changed. Both section (version 1) and
+         stage (version 2) are sent unconditionally - the server dispatches on
+         the directory's actual version and reads only the pair that applies
+         (internal/web/item.go's own "move"/"pause" cases), the same
+         both-fields convention its own block/unblock handlers already use.
+         Sending section alone silently no-ops a version-2 move: with no
+         stage field, moveV2/pauseV2 default the destination to the item's
+         CURRENT stage, so the drop reduces to a same-stage reposition -
+         exactly the "dragged into Someday, it stayed in Ready" bug this
+         fixes. */
       values.section = to;
+      values.stage = to;
     }
 
     htmx.ajax('POST', `/p/${project}/items/${id}/${op}`, {

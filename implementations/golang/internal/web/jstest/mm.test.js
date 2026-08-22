@@ -598,6 +598,7 @@ test('drop commits with the drop\'s own coordinates, not the last dragover', (t)
   assert.equal(call.url, '/p/x/items/T-0002/move');
   assert.equal(call.opts.values.position, '2', 'the drop position comes from the release');
   assert.equal(call.opts.values.section, 'ready');
+  assert.equal(call.opts.values.stage, 'ready', 'version 2 needs its own field, not just section');
   assert.equal(call.opts.swap, 'morph');
 });
 
@@ -656,6 +657,7 @@ test('dropping on a collapsed column moves the item to the bottom of it', (t) =>
   assert.equal(call.method, 'POST');
   assert.equal(call.url, '/p/x/items/T-0002/move');
   assert.equal(call.opts.values.section, 'someday');
+  assert.equal(call.opts.values.stage, 'someday', 'version 2 needs its own field, not just section');
   assert.equal(call.opts.values.position, '2', 'after the one card already there');
 });
 
@@ -680,6 +682,7 @@ test('a keyboard move into a collapsed column also lands at the bottom', (t) => 
   assert.equal(htmx.calls.length, 1);
   assert.equal(htmx.calls[0].opts.values.position, '2');
   assert.equal(htmx.calls[0].opts.values.section, 'someday');
+  assert.equal(htmx.calls[0].opts.values.stage, 'someday', 'version 2 needs its own field, not just section');
 });
 
 test('an expanded column still takes its index from the pointer', (t) => {
