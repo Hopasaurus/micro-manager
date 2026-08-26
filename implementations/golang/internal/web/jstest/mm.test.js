@@ -885,15 +885,19 @@ test('an illegal drop issues no request', (t) => {
   const { win, htmx } = load(t);
   stubLayout(win);
   const card = byTestid(win, 'item-T-0002');
-  const body = byTestid(win, 'board-column-ready-body');
+  const doneBody = byTestid(win, 'board-column-done-body');
+  const readyBody = byTestid(win, 'board-column-ready-body');
 
-  // working -> working is Conflict, so make the source column a working one
-  // and drop within it.
-  body.setAttribute('data-column', 'working');
+  // Reopening a done item is illegal (spec-gui.md §7.2) - move the card
+  // into the done body first so its own column reads done at dragstart.
+  // (T-0248/T-0249: working -> working stopped being illegal - a reorder
+  // within working is now a plain legal move - so this test needs a
+  // transition that is still genuinely refused.)
+  doneBody.appendChild(card);
   card.dispatchEvent(dragEvent(win, 'dragstart', 60));
-  body.dispatchEvent(dragEvent(win, 'dragover', 10));
+  readyBody.dispatchEvent(dragEvent(win, 'dragover', 10));
   assert.equal(byTestid(win, 'board-column-ready').getAttribute('data-drop-allowed'), 'false');
-  body.dispatchEvent(dragEvent(win, 'drop', 10));
+  readyBody.dispatchEvent(dragEvent(win, 'drop', 10));
 
   assert.equal(htmx.calls.length, 0, 'a Conflict drop posts nothing');
 });
@@ -975,6 +979,48 @@ test('start and pause are legal between a custom stage and working', (t) => {
   workingBody.dispatchEvent(dragEvent(win, 'drop', 10));
   assert.equal(htmx.calls.length, 1);
   assert.equal(htmx.calls[0].url, '/p/x/items/T-0009/start', 'entering working is a start, from any stage');
+});
+
+// spec-gui.md §7.2 (T-0249): version 2's working is an ordinary declared
+// stage with its own ordered run, not version 1's separate, order-free
+// slot files - a reorder within it is a plain --move, same as any other
+// stage, not the illegal working-to-working transition it used to be.
+test('reordering within working is legal', (t) => {
+  const html = BOARD_HTML.replace(
+    '<section data-testid="board-column-done"',
+    `<section data-testid="board-column-working" class="mm-column">
+       <div data-testid="board-column-working-body" class="mm-column__body" data-column="working">
+         <article data-testid="item-T-0010" class="mm-item" data-item-id="T-0010" tabindex="0">
+           <h3><a href="/p/x/item/T-0010">Working one</a></h3>
+         </article>
+         <article data-testid="item-T-0011" class="mm-item" data-item-id="T-0011" tabindex="0">
+           <h3><a href="/p/x/item/T-0011">Working two</a></h3>
+         </article>
+       </div>
+     </section>
+     <section data-testid="board-column-done"`,
+  );
+  const { win, htmx } = load(t, html);
+  stubLayout(win);
+
+  const card = byTestid(win, 'item-T-0010');
+  const workingBody = byTestid(win, 'board-column-working-body');
+  const workingColumn = byTestid(win, 'board-column-working');
+
+  card.dispatchEvent(dragEvent(win, 'dragstart', 60));
+  const other = byTestid(win, 'item-T-0011').getBoundingClientRect();
+  const overEvt = dragEvent(win, 'dragover', other.bottom + 5);
+  workingBody.dispatchEvent(overEvt);
+  assert.equal(overEvt.defaultPrevented, true);
+  assert.equal(workingColumn.getAttribute('data-drop-allowed'), 'true',
+    'working -> working must no longer be marked Conflict');
+  workingBody.dispatchEvent(dragEvent(win, 'drop', other.bottom + 5));
+
+  assert.equal(htmx.calls.length, 1, 'the reorder posts a plain move');
+  const call = htmx.calls[0];
+  assert.equal(call.url, '/p/x/items/T-0010/move');
+  assert.equal(call.opts.values.stage, 'working');
+  assert.equal(call.opts.values.section, undefined, '"working" is not a version-1 section');
 });
 
 test('dragend clears every drag attribute', (t) => {

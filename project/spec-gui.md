@@ -866,13 +866,13 @@ column's own drop-target styling carries the feedback.
 
 | From | To | Operation | Notes |
 |---|---|---|---|
-| any non-`working`, non-done column | same column | `--move --position N` | reorder |
+| any non-done column | same column | `--move --position N` | reorder — `working` included: version 2's `working` is an ordinary declared stage with its own ordered run (`spec-file-format.md` §5.1.6), not version 1's separate, order-free slot files, so it has exactly as much order to rearrange as any other stage |
 | any column | a `needs_reason` column (e.g. `blocked`) | `--move --stage` / `--block` | MUST prompt for a reason unless the item already carries one; cancelling aborts |
 | a `needs_reason` column | another column | `--move --stage` / `--unblock` | `reason:` is kept, not dropped (`spec-file-format.md` §5.1.5) |
 | any two non-`working`, non-done columns | — | `--move --stage` | general case; every declared stage is a legal destination for every other |
 | any column | `working` | `--start` | fails `WipLimitReached` when that stage's `wip.working` cap is met |
 | `working` | any other non-done column | `--pause` | position from drop index |
-| `working` | `working` | — | **illegal**; there is no working order to rearrange beyond plain reorder (first row) |
+| `working` | `working` | `--move --position N` | reorder, same as the first row. Distinct from `--start` on an item already on `working`, which stays illegal (`spec-tools.md` §5.1.8's own `Conflict`) — a drag within `working` is a reorder, never a re-`--start` |
 | any column | done | `--finish` | MUST prompt for outcome, default `shipped` |
 | done | anywhere | — | **illegal**; reopening is not a specified operation |
 

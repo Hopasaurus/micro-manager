@@ -438,7 +438,15 @@
   const backlog = (k) => k === 'ready' || k === 'blocked' || k === 'someday';
 
   function legality(from, to) {
-    if (from === 'working' && to === 'working') return { allowed: false, reason: 'Conflict' };
+    // A reorder within the SAME stage is always a plain --move, working
+    // included: version 2's working is an ordinary declared stage with its
+    // own ordered run (spec-file-format.md §5.1.6), not version 1's
+    // separate, order-free slot files, so it has exactly as much order to
+    // rearrange as any other stage (spec-gui.md §7.2 - T-0249, removing an
+    // earlier client-only restriction that had no library rule behind it).
+    // This is distinct from --start on an item already on working, which
+    // stays illegal and is never reachable from this branch: to === from
+    // here, never the "entering working from elsewhere" case start means.
     if (from === to) return { allowed: true, op: 'move' };
     if (to === 'done') return { allowed: true, op: 'finish' };
     if (from === 'done') return { allowed: false, reason: 'Conflict' };

@@ -1272,7 +1272,7 @@ exit codes (§10) and a UI maps them to messages.
 | `NotFound` | ID or directory does not exist. |
 | `Ambiguous` | Directory resolution matched more than one candidate. |
 | `InvalidArgument` | A value fails the format spec: bad date, unknown prio, pipe in a title, malformed tag, an unknown `Stage`. |
-| `Conflict` | The operation contradicts the item's state: starting a done item, moving an already-`working` item into `working`, finishing twice. |
+| `Conflict` | The operation contradicts the item's state: starting a done item, starting an item already on `working`, finishing twice. Reordering an item already on `working` via `--move` is NOT this: `--move --position N` within the current stage is legal on any stage, `working` included (§5.1.7). |
 | `WipLimitReached` | A stage's `wip.<slug>` cap is already met. Distinct from `Conflict` because it is the one error with a routine, expected remedy. |
 | `PreconditionFailed` | A guard was not satisfied: `--remove` without `--force`. |
 | `InvariantViolation` | The requested change would produce a directory that fails I1–I10 (I4, I10 retired). Carries the `Violation` list. |

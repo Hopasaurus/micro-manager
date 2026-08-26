@@ -22,11 +22,12 @@ import (
 // data-drop-allowed="false" and issues no request, but the server is the
 // authority and has to refuse it too (§2.1).
 func TestIllegalTransitionsAreRefused(t *testing.T) {
-	t.Run("working to working", func(t *testing.T) {
+	t.Run("starting an already-working item", func(t *testing.T) {
 		ts, id := boardServer(t, "clean-multi-slot")
 
-		// clean-multi-slot has an item in slot 1. Starting it again or moving it to
-		// working is the server-side shape of an intra-working drag.
+		// clean-multi-slot has an item in slot 1. Starting it again is the
+		// server-side shape of dragging a working card back onto working -
+		// distinct from REORDERING within working, which is legal (below).
 		store, err := mm.Open(ts.Dirs[0])
 		if err != nil {
 			t.Fatal(err)
@@ -48,13 +49,34 @@ func TestIllegalTransitionsAreRefused(t *testing.T) {
 		r := ts.form(http.MethodPost, "/p/"+id+"/items/"+string(working)+"/start",
 			url.Values{})
 		if r.Status == http.StatusOK {
-			t.Error("the server allowed starting an already working item; working->working is illegal (§7.2)")
+			t.Error("the server allowed starting an already working item (§7.2, spec-tools.md §5.1.8)")
 		}
+	})
 
-		r2 := ts.form(http.MethodPost, "/p/"+id+"/items/"+string(working)+"/move",
-			url.Values{"section": {"working"}})
-		if r2.Status == http.StatusOK {
-			t.Error("the server allowed moving a working item; working->working is illegal (§7.2)")
+	// spec-gui.md §7.2 (T-0249): version 2's working is an ordinary declared
+	// stage with its own ordered run, not version 1's separate, order-free
+	// slot files - reordering within it is a plain --move, not the illegal
+	// transition working-to-working used to be. clean-v2-full's wip.working:2
+	// leaves T-0003 alone on working, so this fills the other slot first.
+	t.Run("reordering within working (version 2)", func(t *testing.T) {
+		ts, id := boardServer(t, "clean-v2-full")
+		ts.form(http.MethodPost, "/p/"+id+"/items/T-0001/start", url.Values{}).
+			expectStatus(http.StatusOK)
+
+		r := ts.form(http.MethodPost, "/p/"+id+"/items/T-0003/move",
+			url.Values{"stage": {"working"}, "position": {"2"}})
+		r.expectStatus(http.StatusOK)
+
+		store, err := mm.Open(ts.Dirs[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		items, err := store.List(mm.Filter{Stage: "working"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(items) != 2 || items[1].ID != "T-0003" {
+			t.Errorf("working order = %v, want T-0001 then T-0003", items)
 		}
 	})
 
@@ -310,8 +332,10 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 	// which the server has no way to compute before the client's own viewport
 	// width is known) — for 960. T-0248 generalized the drag legality table
 	// past the four version-1 stage names (a custom stage was entirely
-	// undraggable) — for 990.
-	if lines := strings.Count(js, "\n"); lines > 990 {
+	// undraggable) — for 990. T-0249 removed the working-to-working
+	// refusal (a reorder within version 2's working is legal, not the
+	// illegal transition version 1's slot files made it) — for 1010.
+	if lines := strings.Count(js, "\n"); lines > 1010 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }
