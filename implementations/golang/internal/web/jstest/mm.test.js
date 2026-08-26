@@ -865,6 +865,49 @@ test('a stored width outside the floor/ceiling is clamped on load, not trusted v
   assert.equal(byTestid(win, 'item-panel').style.width, '33vw');
 });
 
+/* -------------------------------------- new-item panel autofocus (T-0252) ------------------------------------------- */
+
+const NEW_ITEM_PANEL_HTML = `
+<div data-testid="app" data-project-id="panel-project" hx-ext="sse,morph">
+  <aside data-testid="item-panel" data-new="true">
+    <input data-testid="item-field-title" name="title" type="text">
+  </aside>
+</div>
+`;
+
+const EXISTING_ITEM_PANEL_HTML = `
+<div data-testid="app" data-project-id="panel-project" hx-ext="sse,morph">
+  <aside data-testid="item-panel" data-new="false">
+    <input data-testid="item-field-title" name="title" type="text" value="Existing">
+  </aside>
+</div>
+`;
+
+test('the new-item panel focuses its title field on load', (t) => {
+  const { win } = load(t, NEW_ITEM_PANEL_HTML);
+  win.document.dispatchEvent(new win.Event('DOMContentLoaded', { bubbles: true }));
+  assert.equal(win.document.activeElement, byTestid(win, 'item-field-title'));
+});
+
+test('the new-item panel focuses its title field after an htmx swap', (t) => {
+  const { win } = load(t, EXISTING_ITEM_PANEL_HTML);
+  const title = byTestid(win, 'item-field-title');
+  assert.notEqual(win.document.activeElement, title, 'sanity: not focused yet');
+
+  // Swap the panel out for a fresh new-item one, as board.html's add link
+  // (hx-target="#item-panel-root") does.
+  byTestid(win, 'item-panel').outerHTML = NEW_ITEM_PANEL_HTML.trim();
+  win.document.body.dispatchEvent(new win.CustomEvent('htmx:afterSwap', { bubbles: true }));
+
+  assert.equal(win.document.activeElement, byTestid(win, 'item-field-title'));
+});
+
+test('an existing item panel does not steal focus on load', (t) => {
+  const { win } = load(t, EXISTING_ITEM_PANEL_HTML);
+  win.document.dispatchEvent(new win.Event('DOMContentLoaded', { bubbles: true }));
+  assert.notEqual(win.document.activeElement, byTestid(win, 'item-field-title'));
+});
+
 test('dragging into done prompts the finish dialog', (t) => {
   const { win, htmx } = load(t);
   stubLayout(win);

@@ -921,6 +921,23 @@
   document.body.addEventListener('htmx:afterSwap', applyPanelWidth);
   document.addEventListener('DOMContentLoaded', applyPanelWidth);
 
+  /* Focus the title field the moment a fresh item panel opens, so typing can
+     start immediately with no click. Editing an existing item leaves focus
+     alone - data-new is what tells the two apart. Runs on the same events as
+     applyPanelWidth above for the same reason (a direct /new page load, the
+     htmx-swapped new-item panel, and "save and add another"'s OOB reopen);
+     calling focus() on an element that already has it is a no-op, so this is
+     harmless to re-run on an unrelated swap while the panel stays open. */
+  function focusTitleForNewItem() {
+    const title = document.querySelector(
+      '[data-testid="item-panel"][data-new="true"] [data-testid="item-field-title"]'
+    );
+    if (title) title.focus();
+  }
+
+  document.body.addEventListener('htmx:afterSwap', focusTitleForNewItem);
+  document.addEventListener('DOMContentLoaded', focusTitleForNewItem);
+
   document.body.addEventListener('pointerdown', (e) => {
     const handle = e.target.closest('[data-testid="x-item-panel-resize-handle"]');
     if (!handle) return;

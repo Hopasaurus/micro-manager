@@ -334,8 +334,10 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 	// past the four version-1 stage names (a custom stage was entirely
 	// undraggable) — for 990. T-0249 removed the working-to-working
 	// refusal (a reorder within version 2's working is legal, not the
-	// illegal transition version 1's slot files made it) — for 1010.
-	if lines := strings.Count(js, "\n"); lines > 1010 {
+	// illegal transition version 1's slot files made it) — for 1010. T-0252
+	// added the new-item panel's autofocus, which the server cannot do once
+	// the panel is swapped in client-side — for 1030.
+	if lines := strings.Count(js, "\n"); lines > 1030 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }

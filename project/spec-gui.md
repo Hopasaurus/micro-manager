@@ -1468,8 +1468,11 @@ Requirements below are normative and double as testability guarantees.
 4. Drag operations MUST announce start, target change, and result through the
    live region.
 5. Dialogs trap focus and restore it to the invoking element on close.
-6. `prefers-reduced-motion` MUST disable non-essential animation.
-7. Contrast between `fg.default` and `bg.base`, and between `accent.fg` and
+6. The item panel of §5.6 MUST focus its title field the moment it opens for
+   a **new** item — typing should need no click first. Opening it for an
+   existing item leaves focus alone.
+7. `prefers-reduced-motion` MUST disable non-essential animation.
+8. Contrast between `fg.default` and `bg.base`, and between `accent.fg` and
    `accent.base`, MUST meet WCAG AA (4.5:1). The theme editor MUST warn when a
    token pair fails; it MUST NOT block saving.
 

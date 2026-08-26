@@ -41,7 +41,7 @@
         {{end}}
         hx-target="[data-testid='board']" hx-swap="morph" hx-ext="morph">
       <input data-testid="item-field-title" name="title" type="text"
-             value="{{$i.Title}}" required autocomplete="off">
+             value="{{$i.Title}}" required autocomplete="off"{{if $d.New}} autofocus{{end}}>
     </label>
 
     <label class="mm-field">
