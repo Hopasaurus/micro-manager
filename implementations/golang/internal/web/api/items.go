@@ -274,19 +274,29 @@ func (s *Server) operate(c *echo.Context, op string) error {
 
 	case "pause":
 		req := mm.PauseRequest{DryRun: dry}
+		reason := str("reason")
 		if sec := str("section"); sec != "" {
 			section, ok := parseSection(sec)
 			if !ok {
 				return fmt.Errorf("%w: %q is not a section", mm.ErrInvalidArgument, sec)
 			}
 			req.Section = section
-			req.Blocked = str("reason")
+			req.Blocked = reason
 		}
-		// Version 2: unlike version 1's Blocked, pauseV2 does not accept a
-		// NEW reason at pause time - it only checks whether the item
-		// already carries one for a needs_reason destination.
 		if stage := str("stage"); stage != "" {
 			req.Stage = mm.Stage(stage)
+			// Version 2: pauseV2 does not accept a NEW reason itself (unlike
+			// version 1's Blocked, which travels with the move) - it only
+			// checks whether the item already carries one for a
+			// needs_reason destination (research decision 18). A caller
+			// submitting both a stage and a reason in one call - mirroring
+			// dialog-block's single-submission UX (internal/web/item.go's
+			// own "pause" case) - needs the reason set first (T-0245).
+			if reason != "" {
+				if _, _, err := store.Update(id, mm.UpdateRequest{Blocked: &reason, DryRun: dry}, today); err != nil {
+					return err
+				}
+			}
 		}
 		req.End = boolv("end")
 		req.DiscardNotes = boolv("discardNotes")

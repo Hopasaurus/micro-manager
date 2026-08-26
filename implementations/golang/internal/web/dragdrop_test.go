@@ -384,22 +384,15 @@ func TestWorkingToBlockedPromptsAndPauses(t *testing.T) {
 	}
 
 	// Unlike version 1's Pause (which accepts a NEW reason at pause time),
-	// pauseV2 only checks whether the item ALREADY carries one for a
-	// needs_reason destination (research decision 18) - a reason on the
-	// pause form itself is silently ignored for version 2, so pausing
-	// straight into blocked with no existing reason: still refuses.
-	refused := ts.form(http.MethodPost, "/p/"+id+"/items/T-0003/pause",
-		url.Values{"stage": {"blocked"}, "reason": {"waiting on ops"}})
-	if refused.Status == http.StatusOK {
-		t.Fatalf("pausing into blocked with no existing reason: should refuse on v2:\n%s", refused.Body)
-	}
-
-	// Set the reason via edit first, then pause - the sequence the dialog
-	// actually has to drive on version 2.
-	ts.form(http.MethodPatch, "/p/"+id+"/items/T-0003",
-		url.Values{"reason": {"waiting on ops"}}).expectStatus(http.StatusOK)
+	// pauseV2 itself only checks whether the item ALREADY carries one for a
+	// needs_reason destination (research decision 18). dialog-block is one
+	// dialog asking for the reason and pausing in a single submission
+	// though, so the web handler sets the reason (via Update) before pausing
+	// when both a stage and a reason arrive together - matching the
+	// dialog's own single form (T-0245; previously refused with the dialog
+	// stuck open on a fresh item, found live).
 	r := ts.form(http.MethodPost, "/p/"+id+"/items/T-0003/pause",
-		url.Values{"stage": {"blocked"}})
+		url.Values{"stage": {"blocked"}, "reason": {"waiting on ops"}})
 	r.expectStatus(http.StatusOK)
 
 	store, err := mm.Open(ts.Dirs[0])

@@ -373,19 +373,32 @@ func (s *Server) operate(c *echo.Context, op string) error {
 		// A drag from a slot into a backlog column names which column it landed
 		// in (§7.2); the item menu's Pause names none and takes the default.
 		req := mm.PauseRequest{DryRun: dryRun}
+		reason := c.Request().FormValue("reason")
 		if v := c.Request().FormValue("section"); v != "" {
 			section, ok := parseSection(v)
 			if !ok {
 				return fmt.Errorf("%w: %q is not a section", mm.ErrInvalidArgument, v)
 			}
 			req.Section = section
-			req.Blocked = c.Request().FormValue("reason")
+			req.Blocked = reason
 		}
 		if v := c.Request().FormValue("stage"); v != "" {
-			// Version 2: unlike version 1's Blocked, pauseV2 does not accept
-			// a NEW reason at pause time - it only checks whether the item
-			// already carries one for a needs_reason destination.
 			req.Stage = mm.Stage(v)
+			// Version 2: pauseV2 does not accept a NEW reason itself (unlike
+			// version 1's Blocked, which travels with the move) - it only
+			// checks whether the item already carries one for a needs_reason
+			// destination (a deliberate decoupling, "research decision 18").
+			// dialog-block is a single dialog asking for the reason and then
+			// pausing in one submission, so that submission has to set the
+			// reason itself first: without this, typing a reason and
+			// clicking Block on a fresh (reason-less) item refused with
+			// "needs a reason", leaving the dialog open on what looked like
+			// a no-op (found live, T-0245).
+			if reason != "" {
+				if _, _, err := store.Update(id, mm.UpdateRequest{Blocked: &reason, DryRun: dryRun}, date); err != nil {
+					return err
+				}
+			}
 		}
 		it, _, err := store.Pause(id, req, date)
 		if err != nil {

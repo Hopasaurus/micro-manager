@@ -416,6 +416,26 @@ func TestAPIOperations(t *testing.T) {
 	}
 	ts.post("/api/v1/projects/"+id+"/items/T-0002/unblock", `{}`, apiHeaders()...).expectStatus(200)
 
+	// The generic /pause route, given both a stage and a reason together in
+	// one call - the shape dialog-block's single submission needs (T-0245):
+	// T-0001 is still on working (never paused above), fresh, so it carries
+	// no reason: yet.
+	var pausedIntoBlocked struct {
+		OK     bool `json:"ok"`
+		Result struct {
+			Item struct {
+				Stage  string `json:"stage"`
+				Reason string `json:"reason"`
+			} `json:"item"`
+		} `json:"result"`
+	}
+	ts.post("/api/v1/projects/"+id+"/items/T-0001/pause",
+		`{"stage":"blocked","reason":"waiting on a fresh item"}`, apiHeaders()...).
+		expectStatus(200).json(&pausedIntoBlocked)
+	if pausedIntoBlocked.Result.Item.Stage != "blocked" || pausedIntoBlocked.Result.Item.Reason != "waiting on a fresh item" {
+		t.Fatalf("paused-with-reason item = %+v", pausedIntoBlocked.Result.Item)
+	}
+
 	// move to a position.
 	ts.post("/api/v1/projects/"+id+"/items/T-0002/move",
 		`{"stage":"someday","position":1}`, apiHeaders()...).expectStatus(200)

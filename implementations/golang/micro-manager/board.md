@@ -2,8 +2,8 @@
 doc: board
 version: 2
 project: micro-manager — Go implementation
-next_id: T-0244
-updated: 2026-08-22
+next_id: T-0246
+updated: 2026-08-26
 wip.working: 4
 ---
 
@@ -14,7 +14,7 @@ wip.working: 4
 - [ ] [T-0190] Need a way to make drag scroll down | stage:someday | prio:med | detail:details/T-0190.md | created:2026-08-06
 - [ ] [T-0195] slim down the skill | stage:someday | prio:med | tags:needs-refinement | detail:details/T-0195.md | created:2026-08-06
 - [ ] [T-0196] think about removing the spec from the project files | stage:someday | prio:med | tags:needs-refinement | detail:details/T-0196.md | created:2026-08-06
-- [ ] [T-0199] tie your shoes | stage:someday | prio:med | created:2026-08-06 | tickler:mon@07:00 | tickled:2026-08-17
+- [ ] [T-0199] tie your shoes | stage:someday | prio:med | created:2026-08-06 | tickler:mon@07:00 | tickled:2026-08-24
 - [ ] [T-0201] make sure ui is local and storage is time zoned | stage:someday | prio:med | created:2026-08-06
 - [ ] [T-0192] Investigate caching, was: Make sure the UI has a place to enter the time when setting a wakeup type. | stage:someday | prio:med | detail:details/T-0192.md | created:2026-08-06
 - [ ] [T-0208] time for code & coffee | stage:someday | prio:med | created:2026-08-07 | tickler:fri@08:30 | tickled:2026-08-21
@@ -26,3 +26,4 @@ wip.working: 4
 - [ ] [T-0132] Library: expose per-file stamps for region-level change detection | stage:blocked | prio:med | tags:library,flicker-fix,phase-2 | detail:details/T-0132.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
 - [ ] [T-0133] Broker: publish per-column events from a per-file diff; detail-body edits fire nothing | stage:blocked | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0133.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
 - [ ] [T-0134] Per-column fragment routes and hx-triggers (gated on T-0131) | stage:blocked | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0134.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead
+- [ ] [T-0244] tie your shoes | stage:ready | prio:med | created:2026-08-24
