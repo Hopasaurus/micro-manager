@@ -59,20 +59,27 @@
   §7.2: moving into blocked MUST prompt for a reason, and cancelling aborts.
   I5 requires the reason too, so this is the format's rule surfacing as a prompt.
 */}}
+{{/*
+  T-0250: always posts to /block (§6.1's --block sugar over --move), for a
+  working item too - moveV2 places no restriction on the item's current
+  stage, so there is no need for a separate /pause path the way dialog-block
+  used to have one. /block already hardcodes section/stage server-side
+  (internal/web/item.go), so no hidden input carries them here; position
+  DOES need one, since it comes from wherever the drag actually dropped the
+  card, not from anything the server already knows.
+*/}}
 {{define "dialog-block" -}}
-{{$p := .App.Project}}{{$id := .Data.ItemID}}{{$working := .Data.IsWorking}}
+{{$p := .App.Project}}{{$id := .Data.ItemID}}
 <div data-testid="dialog-block" class="mm-dialog" role="dialog" aria-modal="true"
      aria-labelledby="dialog-block-title" data-item-id="{{$id}}">
   <h2 data-testid="dialog-block-title" id="dialog-block-title">Block {{$id}}</h2>
-  <form hx-post="/p/{{$p.ID}}/items/{{$id}}/{{if $working}}pause{{else}}block{{end}}"
+  <form hx-post="/p/{{$p.ID}}/items/{{$id}}/block"
         hx-target="[data-testid='board']" hx-swap="morph" hx-ext="morph">
-    {{if $working}}
-    <input type="hidden" name="section" value="blocked">
-    <input type="hidden" name="stage" value="blocked">
-    {{end}}
+    {{if .Data.Position}}<input type="hidden" name="position" value="{{.Data.Position}}">{{end}}
     <label class="mm-field">
       <span>What is it waiting on?</span>
-      <input data-testid="dialog-block-reason" name="reason" type="text" required autofocus>
+      <input data-testid="dialog-block-reason" name="reason" type="text"
+             value="{{.Data.Reason}}" required autofocus>
     </label>
     <button data-testid="dialog-block-confirm" class="mm-button mm-button--primary" type="submit">Block</button>
     <button data-testid="dialog-block-cancel" class="mm-button" type="button" data-dismiss>Cancel</button>

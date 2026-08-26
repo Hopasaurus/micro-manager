@@ -881,6 +881,37 @@ test('dragging into done prompts the finish dialog', (t) => {
   assert.equal(call.url, '/p/x/dialog/finish?item=T-0002', 'finish prompts before it runs (§7.2)');
 });
 
+// T-0250: the block dialog fetch carries the drop's own position, so the
+// dialog's later submission can land the card where it was actually
+// dropped instead of wherever the server's own default would otherwise
+// put it.
+test('dragging into blocked prompts the block dialog with the drop position', (t) => {
+  const html = BOARD_HTML.replace(
+    '<section data-testid="board-column-done"',
+    `<section data-testid="board-column-blocked" class="mm-column">
+       <div data-testid="board-column-blocked-body" class="mm-column__body" data-column="blocked">
+         <article data-testid="item-T-0004" class="mm-item" data-item-id="T-0004" tabindex="0">
+           <h3><a href="/p/x/item/T-0004">Already blocked</a></h3>
+         </article>
+       </div>
+     </section>
+     <section data-testid="board-column-done"`,
+  );
+  const { win, htmx } = load(t, html);
+  stubLayout(win);
+  const card = byTestid(win, 'item-T-0002'); // ready -> blocked, at the top
+  const blockedBody = byTestid(win, 'board-column-blocked-body');
+
+  card.dispatchEvent(dragEvent(win, 'dragstart', 60));
+  blockedBody.dispatchEvent(dragEvent(win, 'dragover', 10)); // above the one existing card
+  blockedBody.dispatchEvent(dragEvent(win, 'drop', 10));
+
+  assert.equal(htmx.calls.length, 1);
+  const call = htmx.calls[0];
+  assert.equal(call.method, 'GET');
+  assert.equal(call.url, '/p/x/dialog/block?item=T-0002&position=1');
+});
+
 test('an illegal drop issues no request', (t) => {
   const { win, htmx } = load(t);
   stubLayout(win);

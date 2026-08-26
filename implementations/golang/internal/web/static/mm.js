@@ -648,7 +648,14 @@
     if (op === 'block' || op === 'finish' || (op === 'pause' && to === 'blocked')) {
       dialogOpener = card;
       const dialogName = (op === 'pause' && to === 'blocked') ? 'block' : op;
-      htmx.ajax('GET', `/p/${project}/dialog/${dialogName}?item=${id}`, {
+      /* dialog-block's own submission needs the drop position too (T-0250) -
+         carried as a query param since the dialog fetch is a plain GET, then
+         echoed back as a hidden field in the rendered form. Without it, the
+         card always landed wherever Move's own default put it (the end of
+         Blocked) regardless of where it was actually dropped. finish has no
+         equivalent - the done column has no position to preserve. */
+      const position = dialogName === 'block' ? `&position=${index + 1}` : '';
+      htmx.ajax('GET', `/p/${project}/dialog/${dialogName}?item=${id}${position}`, {
         target: "[data-testid='dialog-root']",
       });
       return;

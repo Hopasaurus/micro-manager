@@ -44,17 +44,22 @@ func (s *Server) dialog(c *echo.Context) error {
 	v := s.newView(c, "", store)
 	v.Data = map[string]any{
 		"ItemID": itemID,
-		// Version 1's "working" is StateWorking; version 2 has no separate
-		// state for it, only stage:working (T-0236 - found while migrating
-		// this route's own tests off a version-1 fixture: this check never
-		// matched a v2 working item, so dialog-block posted to /block
-		// instead of /pause for one, the wrong endpoint entirely).
-		"IsWorking": it.State == mm.StateWorking || it.Stage == "working",
 		// confirm-remove offers to delete the detail file along with the item,
 		// so it has to know whether there is one to offer (spec-tools.md
 		// §5.1.6). Empty for an item with no detail file, and the dialog then
 		// says nothing about detail files at all.
 		"Detail": it.Detail,
+		// dialog-block (T-0250): the reason input is pre-populated from the
+		// item's existing reason, if it has one - blank for a fresh item, so
+		// the placeholder/required behavior is unaffected either way.
+		"Reason": it.Reason,
+		// Position (T-0250): the drop index a drag computed, carried through
+		// as a hidden field so the dialog's own submission lands the item
+		// where it was actually dropped instead of Move's own default
+		// (append at the end). Absent when the dialog was opened from the
+		// item menu rather than a drag, in which case that default is
+		// exactly right - there is no drop position to honour.
+		"Position": c.Request().URL.Query().Get("position"),
 	}
 
 	// A dialog is always a fragment: it is swapped into dialog-root over

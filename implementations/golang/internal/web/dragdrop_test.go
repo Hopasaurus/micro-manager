@@ -419,9 +419,11 @@ func TestMoveToACustomStageWithNoSection(t *testing.T) {
 	}
 }
 
-// §7.2 / D12: pausing a working item into Blocked MUST prompt for a reason
-// and post it with section=blocked.
-func TestWorkingToBlockedPromptsAndPauses(t *testing.T) {
+// §7.2 / D12: blocking a working item MUST prompt for a reason and post it,
+// via the same /block route a non-working item already uses (T-0250 -
+// moveV2 places no restriction on the item's current stage, so there is no
+// need for a separate /pause path the way this used to have one).
+func TestWorkingToBlockedPromptsAndBlocks(t *testing.T) {
 	ts, id := boardServer(t, "clean-v2-full")
 
 	// clean-v2-full has T-0003 on stage:working.
@@ -429,21 +431,12 @@ func TestWorkingToBlockedPromptsAndPauses(t *testing.T) {
 	if !hasTestid(dialogBody, "dialog-block") {
 		t.Errorf("dialog-block not rendered for working item: %s", dialogBody)
 	}
-	if !strings.Contains(dialogBody, `action="/p/`+id+`/items/T-0003/pause"`) &&
-		!strings.Contains(dialogBody, `hx-post="/p/`+id+`/items/T-0003/pause"`) {
-		t.Errorf("dialog-block form does not post to /pause for working item: %s", dialogBody)
+	if !strings.Contains(dialogBody, `hx-post="/p/`+id+`/items/T-0003/block"`) {
+		t.Errorf("dialog-block form does not post to /block for working item: %s", dialogBody)
 	}
 
-	// Unlike version 1's Pause (which accepts a NEW reason at pause time),
-	// pauseV2 itself only checks whether the item ALREADY carries one for a
-	// needs_reason destination (research decision 18). dialog-block is one
-	// dialog asking for the reason and pausing in a single submission
-	// though, so the web handler sets the reason (via Update) before pausing
-	// when both a stage and a reason arrive together - matching the
-	// dialog's own single form (T-0245; previously refused with the dialog
-	// stuck open on a fresh item, found live).
-	r := ts.form(http.MethodPost, "/p/"+id+"/items/T-0003/pause",
-		url.Values{"stage": {"blocked"}, "reason": {"waiting on ops"}})
+	r := ts.form(http.MethodPost, "/p/"+id+"/items/T-0003/block",
+		url.Values{"reason": {"waiting on ops"}})
 	r.expectStatus(http.StatusOK)
 
 	store, err := mm.Open(ts.Dirs[0])
@@ -455,6 +448,59 @@ func TestWorkingToBlockedPromptsAndPauses(t *testing.T) {
 		t.Fatal(err)
 	}
 	if it.Stage != "blocked" || it.Reason != "waiting on ops" {
-		t.Errorf("item not paused into blocked with reason: %+v", it)
+		t.Errorf("item not blocked with reason: %+v", it)
+	}
+}
+
+// T-0250: dropping into Blocked at a specific position must land there, not
+// wherever Move's own default (append at the end) would otherwise put it -
+// found live: a drop at the top or middle of Blocked always ended up at the
+// bottom (from a non-working column, where /block never read a position at
+// all) or the top (from working, where /pause's own default is the top).
+func TestBlockHonoursTheDropPosition(t *testing.T) {
+	ts, id := boardServer(t, "clean-v2-full")
+
+	// clean-v2-full already has T-0004 on stage:blocked. Blocking T-0001
+	// with no position appends it (Move's own default), giving Blocked a
+	// middle to drop into: T-0004, T-0001.
+	ts.form(http.MethodPost, "/p/"+id+"/items/T-0001/block",
+		url.Values{"reason": {"first"}}).expectStatus(http.StatusOK)
+
+	// T-0003 (working) dropped at position 1 must land at the TOP, above
+	// both existing occupants, not appended after them.
+	ts.form(http.MethodPost, "/p/"+id+"/items/T-0003/block",
+		url.Values{"reason": {"second"}, "position": {"1"}}).expectStatus(http.StatusOK)
+
+	store, err := mm.Open(ts.Dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := store.List(mm.Filter{Stage: "blocked"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 3 || items[0].ID != "T-0003" || items[1].ID != "T-0004" || items[2].ID != "T-0001" {
+		t.Errorf("blocked order = %v, want T-0003, T-0004, T-0001", items)
+	}
+}
+
+// T-0250: the dialog pre-populates the reason field from the item's own
+// current reason, if it has one - e.g. an item blocked before, unblocked,
+// and now being blocked again without ever having lost that field (v2's
+// reason: is not dropped on unblock, unlike v1's blocked:).
+func TestBlockDialogPrefillsAnExistingReason(t *testing.T) {
+	ts, id := boardServer(t, "clean-v2-full")
+
+	// T-0004 is already on stage:blocked with a reason in the fixture.
+	body := ts.get("/p/" + id + "/dialog/block?item=T-0004").expectStatus(http.StatusOK).Body
+	reason := attrOf(t, testid(t, body, "dialog-block-reason"), "value")
+	if reason != "the vendor has not replied" {
+		t.Errorf("reason input value = %q, want the item's existing reason", reason)
+	}
+
+	// A fresh item with no reason yet gets an empty field, not a stale one.
+	fresh := ts.get("/p/" + id + "/dialog/block?item=T-0003").expectStatus(http.StatusOK).Body
+	if got := attrOf(t, testid(t, fresh, "dialog-block-reason"), "value"); got != "" {
+		t.Errorf("reason input value = %q, want empty for a reason-less item", got)
 	}
 }

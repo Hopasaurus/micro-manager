@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0250] Fix drop position lost + pre-populate reason in the block dialog | prio:high | tags:gui,bug | detail:details/T-0250.md | created:2026-08-26 | started:2026-08-26 | done:2026-08-26 | outcome:shipped
 - [x] [T-0249] Allow reordering within working (drag + spec) | prio:med | tags:gui,spec | detail:details/T-0249.md | created:2026-08-26 | started:2026-08-26 | done:2026-08-26 | outcome:shipped
 - [x] [T-0248] Custom v2 stages (e.g. review) were entirely undraggable, then rejected once fixed | prio:high | tags:gui,bug | detail:details/T-0248.md | created:2026-08-26 | started:2026-08-26 | done:2026-08-26 | outcome:shipped
 - [x] [T-0247] Regroup board.md by stage on every write, blank-line separated | prio:med | tags:golang,gui | detail:details/T-0247.md | created:2026-08-26 | started:2026-08-26 | done:2026-08-26 | outcome:shipped

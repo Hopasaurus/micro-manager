@@ -425,18 +425,31 @@ func (s *Server) operate(c *echo.Context, op string) error {
 		// Sugar over --move --stage blocked (spec-gui.md §6.1). Both the
 		// version-1 and version-2 fields are set unconditionally: Store.Move
 		// dispatches on the directory's actual version and reads only the
-		// pair that applies, so one call is correct for either.
+		// pair that applies, so one call is correct for either. dialog-block
+		// now posts here for a working item too (T-0250 - moveV2 places no
+		// restriction on the item's current stage, so there is no need for
+		// a separate /pause path the way this used to have one), which is
+		// also why position matters here: without it, Move's own default
+		// (append at the end) silently discarded wherever a drag actually
+		// dropped the card - found live alongside the missing reason
+		// pre-population below.
 		reason := c.Request().FormValue("reason")
 		if strings.TrimSpace(reason) == "" {
 			// §7.2: blocking MUST prompt for a reason, and cancelling aborts.
 			// The library requires one too; refusing here names the field.
 			return fmt.Errorf("%w: blocking %s needs a reason", mm.ErrInvalidArgument, id)
 		}
-		it, _, err := store.Move(id, mm.MoveRequest{
+		req := mm.MoveRequest{
 			Section: mm.SectionBlocked, Blocked: reason,
 			Stage: "blocked", Reason: reason,
 			DryRun: dryRun,
-		}, date)
+		}
+		if v := c.Request().FormValue("position"); v != "" {
+			var n int
+			fmt.Sscanf(v, "%d", &n)
+			req.Position = n
+		}
+		it, _, err := store.Move(id, req, date)
 		if err != nil {
 			return err
 		}
