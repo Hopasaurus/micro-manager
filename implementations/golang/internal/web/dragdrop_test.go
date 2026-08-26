@@ -308,8 +308,10 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 	// to a select that must be instant, which only the client can do — for 900.
 	// T-0242 added the item panel's resize drag (pointer math and the clamp,
 	// which the server has no way to compute before the client's own viewport
-	// width is known) — for 960.
-	if lines := strings.Count(js, "\n"); lines > 960 {
+	// width is known) — for 960. T-0248 generalized the drag legality table
+	// past the four version-1 stage names (a custom stage was entirely
+	// undraggable) — for 990.
+	if lines := strings.Count(js, "\n"); lines > 990 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }
@@ -365,6 +367,31 @@ func TestDropPositionIsHonoured(t *testing.T) {
 	first := regexp.MustCompile(`data-testid="item-(T-\d{4})"[^>]*data-position="1"`).FindStringSubmatch(someday)
 	if first == nil || first[1] != "T-0002" {
 		t.Errorf("data-position was not recomputed: %v", first)
+	}
+}
+
+// T-0248: a custom version-2 stage (clean-v2-full declares "review", beyond
+// the four version-1 names) must accept a move the same way ready/blocked/
+// someday do - mirroring EXACTLY what the fixed mm.js now sends for such a
+// destination: stage alone, no section at all, since "review" is not a
+// valid version-1 section and item.go's own handler refuses one outright.
+func TestMoveToACustomStageWithNoSection(t *testing.T) {
+	ts, id := boardServer(t, "clean-v2-full")
+
+	r := ts.form(http.MethodPost, "/p/"+id+"/items/T-0002/move",
+		url.Values{"stage": {"review"}, "position": {"1"}})
+	r.expectStatus(http.StatusOK)
+
+	store, err := mm.Open(ts.Dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, err := store.Get("T-0002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it.Stage != "review" {
+		t.Errorf("item stage = %q, want review", it.Stage)
 	}
 }
 

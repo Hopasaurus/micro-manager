@@ -432,19 +432,45 @@
     cursor looks like, and the server decides whether the drop happens. The
     error codes are the ones the server would return, so the two agree.
   */
-  function legality(from, to) {
-    const backlog = (k) => k === 'ready' || k === 'blocked' || k === 'someday';
+  // The three names version 1's Section enum recognizes (mm.ParseSection) -
+  // shared with commitMove below, which needs the same test to decide
+  // whether "section" means anything for a given destination.
+  const backlog = (k) => k === 'ready' || k === 'blocked' || k === 'someday';
 
+  function legality(from, to) {
     if (from === 'working' && to === 'working') return { allowed: false, reason: 'Conflict' };
     if (from === to) return { allowed: true, op: 'move' };
     if (to === 'done') return { allowed: true, op: 'finish' };
     if (from === 'done') return { allowed: false, reason: 'Conflict' };
-    if (backlog(from) && to === 'working') return { allowed: true, op: 'start' };
-    if (from === 'working' && backlog(to)) return { allowed: true, op: 'pause' };
+    // start/pause are legal from or to ANY stage the board declares, not only
+    // ready/blocked/someday: the library's startV2/pauseV2 place no
+    // restriction on the other side (mm/board_ops.go), so a custom stage
+    // (e.g. "review") entering or leaving working is exactly as legal as one
+    // of the four default stages doing the same - found live (T-0248): a
+    // custom stage was entirely undraggable, in or out, because this table
+    // only ever recognized the four literal version-1 names.
+    if (to === 'working') return { allowed: true, op: 'start' };
+    if (from === 'working') return { allowed: true, op: 'pause' };
     if (backlog(from) && to === 'blocked') return { allowed: true, op: 'block' };
     if (from === 'blocked' && backlog(to)) return { allowed: true, op: 'unblock' };
-    if (backlog(from) && backlog(to)) return { allowed: true, op: 'move' };
-    return { allowed: false, reason: 'Conflict' };
+    // Any other stage-to-stage transition is a plain --move (spec-tools.md
+    // §5.1.7 accepts any two declared stages); the four named branches above
+    // are only the CLIENT's shortcuts for the sugar ops (start/pause/block/
+    // unblock) the library and the item menu both special-case, not an
+    // exhaustive list of what is legal. The server is the real authority
+    // here (this function's own header comment) - refusing by default would
+    // make an entire custom stage undraggable for no reason the library
+    // itself enforces.
+    //
+    // One known gap this does not close: dragging into a stage OTHER than
+    // "blocked" that is ALSO listed in needs_reason still refuses server-side
+    // ("needs a reason") with no dialog to collect one, because dialog-block
+    // (internal/web/templates/partials/dialogs.html) is hardcoded to the
+    // literal "blocked" stage, not parameterized by an arbitrary
+    // destination. Not reachable on this session's reported board (its only
+    // needs_reason stage is the literal "blocked"), so left as a follow-up
+    // rather than generalizing the dialog itself here.
+    return { allowed: true, op: 'move' };
   }
 
   /* The move in progress: pointer or keyboard, one shape either way. */
@@ -624,18 +650,27 @@
     if (op === 'move' || op === 'pause') {
       /* Which column it landed in. A pause names it because §7.2 takes the
          position from the drop index; a move within the backlog names it
-         because the section may have changed. Both section (version 1) and
-         stage (version 2) are sent unconditionally - the server dispatches on
-         the directory's actual version and reads only the pair that applies
-         (internal/web/item.go's own "move"/"pause" cases), the same
-         both-fields convention its own block/unblock handlers already use.
-         Sending section alone silently no-ops a version-2 move: with no
-         stage field, moveV2/pauseV2 default the destination to the item's
-         CURRENT stage, so the drop reduces to a same-stage reposition -
-         exactly the "dragged into Someday, it stayed in Ready" bug this
-         fixes. */
-      values.section = to;
+         because the section may have changed. stage (version 2) is sent
+         unconditionally - the server dispatches on the directory's actual
+         version and reads only the field that applies (internal/web/
+         item.go's own "move"/"pause" cases), the same both-fields
+         convention its own block/unblock handlers already use. Omitting
+         stage silently no-ops a version-2 move: with no stage field,
+         moveV2/pauseV2 default the destination to the item's CURRENT stage,
+         so the drop reduces to a same-stage reposition - the "dragged into
+         Someday, it stayed in Ready" bug T-0243 fixed.
+
+         section (version 1) is sent ONLY when to is one of the three names
+         mm.ParseSection actually recognizes - unlike stage, section is not
+         a free-form slug, and item.go's handler refuses the request
+         outright on an unrecognized one before it ever reaches the stage
+         field. Sending it unconditionally alongside stage broke every drag
+         into or within a custom version-2 stage (e.g. "review") with a
+         flat 400 "not a section", regardless of what legality() decided -
+         found live (T-0248), the same day legality() was generalized past
+         the four version-1 names. */
       values.stage = to;
+      if (backlog(to)) values.section = to;
     }
 
     htmx.ajax('POST', `/p/${project}/items/${id}/${op}`, {

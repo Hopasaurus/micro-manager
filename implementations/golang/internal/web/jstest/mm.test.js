@@ -898,6 +898,85 @@ test('an illegal drop issues no request', (t) => {
   assert.equal(htmx.calls.length, 0, 'a Conflict drop posts nothing');
 });
 
+/* ------------------------------------------- a custom stage's legality (T-0248) ------------------------------------------- */
+
+// A stage beyond the four version-1 names (ready/blocked/someday/working) -
+// a fixture stands in for a directory's own custom "review" stage.
+const REVIEW_HTML = BOARD_HTML.replace(
+  '<section data-testid="board-column-ready"',
+  `<section data-testid="board-column-review" class="mm-column" data-stage="review" data-needs-reason="false">
+     <div data-testid="board-column-review-body" class="mm-column__body" data-column="review">
+       <article data-testid="item-T-0009" class="mm-item" data-item-id="T-0009" tabindex="0">
+         <h3><a href="/p/x/item/T-0009">In review</a></h3>
+       </article>
+     </div>
+   </section>
+   <section data-testid="board-column-ready"`,
+);
+
+test('a custom stage accepts a drop from elsewhere on the board', (t) => {
+  const { win, htmx } = load(t, REVIEW_HTML);
+  stubLayout(win);
+  const card = byTestid(win, 'item-T-0001'); // starts in ready
+  const reviewBody = byTestid(win, 'board-column-review-body');
+
+  card.dispatchEvent(dragEvent(win, 'dragstart', 60));
+  reviewBody.dispatchEvent(dragEvent(win, 'dragover', 10));
+  assert.equal(
+    byTestid(win, 'board-column-review').getAttribute('data-drop-allowed'), 'true',
+    'a stage the four hardcoded names do not include must still accept a drop',
+  );
+  reviewBody.dispatchEvent(dragEvent(win, 'drop', 10));
+
+  assert.equal(htmx.calls.length, 1, 'the drop posts the move');
+  const call = htmx.calls[0];
+  assert.equal(call.url, '/p/x/items/T-0001/move');
+  assert.equal(call.opts.values.stage, 'review');
+  // "review" is not a valid version-1 section (mm.ParseSection), unlike
+  // ready/blocked/someday - the field must be omitted, not sent and left
+  // for the server to reject (T-0248's second bug, found moments after
+  // the first: sending it unconditionally 400'd every drag into or within
+  // a custom stage before "stage" was ever read).
+  assert.equal(call.opts.values.section, undefined, 'section has no meaning for a custom stage');
+});
+
+test('reordering within a custom stage is legal', (t) => {
+  const { win, htmx } = load(t, REVIEW_HTML);
+  stubLayout(win);
+  const card = byTestid(win, 'item-T-0009');
+  const reviewBody = byTestid(win, 'board-column-review-body');
+
+  card.dispatchEvent(dragEvent(win, 'dragstart', 60));
+  reviewBody.dispatchEvent(dragEvent(win, 'dragover', 10));
+  assert.equal(byTestid(win, 'board-column-review').getAttribute('data-drop-allowed'), 'true');
+  reviewBody.dispatchEvent(dragEvent(win, 'drop', 10));
+
+  assert.equal(htmx.calls.length, 1);
+  assert.equal(htmx.calls[0].url, '/p/x/items/T-0009/move');
+});
+
+// start/pause are legal to or from a custom stage too, not only the four
+// hardcoded ones - startV2/pauseV2 place no restriction on the OTHER side.
+test('start and pause are legal between a custom stage and working', (t) => {
+  const html = REVIEW_HTML.replace(
+    '<section data-testid="board-column-done"',
+    `<section data-testid="board-column-working" class="mm-column">
+       <div data-testid="board-column-working-body" class="mm-column__body" data-column="working"></div>
+     </section>
+     <section data-testid="board-column-done"`,
+  );
+  const { win, htmx } = load(t, html);
+  stubLayout(win);
+
+  const card = byTestid(win, 'item-T-0009'); // review -> working
+  const workingBody = byTestid(win, 'board-column-working-body');
+  card.dispatchEvent(dragEvent(win, 'dragstart', 60));
+  workingBody.dispatchEvent(dragEvent(win, 'dragover', 10));
+  workingBody.dispatchEvent(dragEvent(win, 'drop', 10));
+  assert.equal(htmx.calls.length, 1);
+  assert.equal(htmx.calls[0].url, '/p/x/items/T-0009/start', 'entering working is a start, from any stage');
+});
+
 test('dragend clears every drag attribute', (t) => {
   const { win } = load(t);
   stubLayout(win);
