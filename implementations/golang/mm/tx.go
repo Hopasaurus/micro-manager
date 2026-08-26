@@ -172,6 +172,13 @@ func (t *tx) stage(names ...string) {
 		if !ok || !e.Dirty() {
 			continue // untouched, or touched and unchanged: write nothing
 		}
+		// Every mutation that actually changes board.md re-lays it out into
+		// stage-grouped blocks (regroupBoard) - the standing physical layout,
+		// not a one-off tidy. One central hook here covers every version-2
+		// operation rather than a call in each of theirs.
+		if name == "board.md" && t.model.board != nil {
+			regroupBoard(t.model.board, e)
+		}
 		t.ws.Add(filepath.Join(t.store.path, name), e.Bytes(), t.stampFor(name))
 	}
 }

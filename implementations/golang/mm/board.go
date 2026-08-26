@@ -343,3 +343,71 @@ func (b *boardFile) RemoveItem(e *fileEdit, it *Item) {
 	}
 	renumber(b.StageItems(it.Stage))
 }
+
+// regroupBoard rewrites board.md's item lines into contiguous,
+// blank-line-separated blocks in stages: order — spec-file-format.md §5.1.6
+// explicitly permits physically grouping items by stage ("a writer MAY still
+// group items physically... for a human reading the raw file"); this makes
+// that the standing layout, reapplied by every mutation (tx.stage), rather
+// than an incidental side effect of wherever InsertItem happened to land a
+// line.
+//
+// Content between the frontmatter and the first item — the board's own
+// heading and any introductory prose — is preserved verbatim. Content
+// interspersed AMONG or AFTER the items is not: this fully replaces
+// everything from the first item's current line to the end of the file,
+// which is the one place a regroup does not round-trip byte for byte.
+// Nothing today writes such content there, and §5.1.6 requires only that a
+// reader ignore non-item content, not that a writer preserve its position.
+func regroupBoard(b *boardFile, e *fileEdit) {
+	if len(b.Items) == 0 {
+		return
+	}
+	firstLine := b.Items[0].Source.Line
+	for _, it := range b.Items[1:] {
+		if it.Source.Line < firstLine {
+			firstLine = it.Source.Line
+		}
+	}
+
+	// Preserve the heading/prose before the first item verbatim, dropping
+	// one trailing run of blank lines so the regrouped section controls its
+	// own single separating blank line.
+	head := append([]string(nil), e.lines[:firstLine-1]...)
+	for len(head) > 0 && head[len(head)-1] == "" {
+		head = head[:len(head)-1]
+	}
+
+	lines := append(head, "")
+	wrote := false
+	written := map[*Item]bool{}
+	emit := func(items []*Item) {
+		if len(items) == 0 {
+			return
+		}
+		if wrote {
+			lines = append(lines, "")
+		}
+		for _, it := range items {
+			it.Source.Line = len(lines) + 1
+			lines = append(lines, RenderItemLine(it))
+			written[it] = true
+		}
+		wrote = true
+	}
+	for _, stage := range b.stageCfg.Stages {
+		emit(b.StageItems(stage))
+	}
+	// Defensive: an item on a stage outside stages: is a pre-existing
+	// violation (I4) this must preserve, not silently delete.
+	var stray []*Item
+	for _, it := range b.Items {
+		if !written[it] {
+			stray = append(stray, it)
+		}
+	}
+	emit(stray)
+
+	lines = append(lines, "")
+	e.lines = lines
+}

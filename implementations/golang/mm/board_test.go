@@ -476,3 +476,105 @@ func TestV2NoOpMoveWritesNothing(t *testing.T) {
 		t.Error("board.md changed on a no-op move")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// regroupBoard: the standing physical layout after any real mutation
+// (spec-file-format.md §5.1.6, tx.go's stage()).
+// ---------------------------------------------------------------------------
+
+// stageOrderIn returns the stage of every item line in file order, by
+// scanning raw text — deliberately not going through the parser, so this
+// proves what is actually ON DISK rather than what the model claims.
+func stageOrderIn(t *testing.T, body string) []string {
+	t.Helper()
+	var order []string
+	for _, line := range strings.Split(body, "\n") {
+		if !strings.HasPrefix(line, "- [") {
+			continue
+		}
+		for _, field := range strings.Split(line, " | ") {
+			if v, ok := strings.CutPrefix(field, "stage:"); ok {
+				order = append(order, v)
+				break
+			}
+		}
+	}
+	return order
+}
+
+func TestMoveRegroupsBoardByStage(t *testing.T) {
+	// v2Board's own file order is ready, ready, blocked, someday, working,
+	// review - NOT stages: order (someday, ready, blocked, working, review)
+	// - so any real change must visibly re-lay the whole file out.
+	dir, s := v2Dir(t)
+	if _, _, err := s.Move("T-0005", MoveRequest{Stage: "someday", Top: true}, today); err != nil {
+		t.Fatalf("move: %v", err)
+	}
+	body := readFile(t, dir, "board.md")
+
+	got := stageOrderIn(t, body)
+	want := []string{"someday", "ready", "ready", "blocked", "working", "review"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("file order = %v, want stages: order %v", got, want)
+	}
+
+	// Exactly one blank line at every group boundary: the existing one
+	// between the heading/prose and the first group (unchanged from the
+	// fixture's own convention), plus one between each of the five stage
+	// groups (someday/ready/blocked/working/review) and the next.
+	if n := strings.Count(body, "\n\n- ["); n != 5 {
+		t.Errorf("found %d blank-line-then-item boundaries, want 5:\n%s", n, body)
+	}
+
+	if vs, _ := s.Validate(); len(vs) != 0 {
+		t.Errorf("regrouped board should still validate:\n%s", violationMessages(vs))
+	}
+}
+
+// An empty stage contributes no group and no orphaned blank line.
+func TestRegroupSkipsEmptyStagesCleanly(t *testing.T) {
+	dir, s := v2Dir(t)
+	// Empty out "review" by finishing its one occupant.
+	if _, _, err := s.Finish("T-0007", FinishRequest{}, today); err != nil {
+		t.Fatalf("finish: %v", err)
+	}
+	body := readFile(t, dir, "board.md")
+	if strings.Contains(body, "\n\n\n") {
+		t.Errorf("an emptied stage left a double-blank gap:\n%s", body)
+	}
+	if strings.HasSuffix(strings.TrimRight(body, "\n"), "\n") {
+		t.Errorf("trailing blank line left after the last group:\n%q", body)
+	}
+}
+
+// A stray item whose stage: is not among the declared stages (a
+// pre-existing violation, I4) must survive a regroup, not be silently
+// dropped - this must never turn "reported broken" into "quietly deleted."
+func TestRegroupPreservesAnItemOnAnUndeclaredStage(t *testing.T) {
+	dir := newV2Dir(t, map[string]string{
+		"board.md": `---
+doc: board
+version: 2
+project: Stray
+next_id: T-0003
+stages: ready,working
+---
+
+# Board
+
+- [ ] [T-0001] Fine | stage:ready | created:2026-07-20
+- [ ] [T-0002] Orphaned stage | stage:archived | created:2026-07-20
+`,
+		"done.md": "---\ndoc: done\nversion: 2\n---\n\n# Done\n",
+	})
+	s := mustOpen(t, dir)
+
+	// Move the well-formed item, which is enough to trigger a regroup.
+	if _, _, err := s.Move("T-0001", MoveRequest{Stage: "working"}, today); err != nil {
+		t.Fatalf("move: %v", err)
+	}
+	body := readFile(t, dir, "board.md")
+	if !strings.Contains(body, "[T-0002] Orphaned stage") {
+		t.Fatalf("the stray item was dropped by the regroup:\n%s", body)
+	}
+}

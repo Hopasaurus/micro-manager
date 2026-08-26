@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0247] Regroup board.md by stage on every write, blank-line separated | prio:med | tags:golang,gui | detail:details/T-0247.md | created:2026-08-26 | started:2026-08-26 | done:2026-08-26 | outcome:shipped
 - [x] [T-0245] Dragging a fresh working item into a needs_reason stage refused with the dialog stuck open | prio:high | tags:gui,bug | detail:details/T-0245.md | created:2026-08-26 | started:2026-08-26 | done:2026-08-26 | outcome:shipped
 - [x] [T-0243] Drag-and-drop moves silently no-op on v2 boards: mm.js never sent stage: | prio:high | tags:gui,bug | detail:details/T-0243.md | created:2026-08-22 | started:2026-08-22 | done:2026-08-22 | outcome:shipped
 - [x] [T-0242] Make item detail resizable. | prio:med | detail:details/T-0242.md | created:2026-08-21 | started:2026-08-21 | done:2026-08-21 | outcome:shipped
