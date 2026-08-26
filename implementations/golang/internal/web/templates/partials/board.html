@@ -53,7 +53,18 @@
             type="button" aria-label="Toggle {{$c.Title}} column">{{if $c.Collapsed}}v{{else}}&gt;{{end}}</button>
     <h2 data-testid="{{$c.Testid}}-title" class="mm-column__title">{{$c.Title}}</h2>
     <span data-testid="{{$c.Testid}}-count" class="mm-column__count">{{if and $c.IsDone (gt $c.Total $c.Count)}}{{$c.Count}} of {{$c.Total}}{{else}}{{$c.Count}}{{end}}</span>
-    {{if not $c.IsWorking}}
+    {{/* Working gets an add link too when it is a version-2 column ($c.Stage
+         is only ever set there — version 1 has no --add --stage working, so
+         its working columnData never sets it, and the link stays absent). */}}
+    {{if or (not $c.IsWorking) $c.Stage}}
+    {{if $c.WipCapped}}
+    {{$full := ge $c.WipUsed $c.WipLimit}}
+    {{/* Same token pair the column border already reads (line ~42 above),
+         swapped to the danger feedback token once the cap is met - §8.3's
+         REQUIRED color.feedback.danger, not a new one. */}}
+    <span data-testid="{{$c.Testid}}-wip" class="mm-column__wip"
+          style="color: {{if $full}}var(--mm-color-feedback-danger){{else}}var(--mm-color-state-{{$c.Key}}, var(--mm-color-accent-base)){{end}};">{{$c.WipUsed}}/{{$c.WipLimit}}</span>
+    {{end}}
     {{/* T-0162: the add link opens the panel through the same htmx swap as the
          card title (item-card.html) — href for no-JS, hx-get into
          #item-panel-root with hx-push-url — so it stops being the last
@@ -62,11 +73,17 @@
          (§5.6) — version 1's section or version 2's stage, whichever this
          column carries. */}}
     {{$stage := ""}}{{if $c.Section}}{{$stage = $c.Section}}{{else if $c.Stage}}{{$stage = $c.Stage}}{{end}}
+    {{if and $c.WipCapped (ge $c.WipUsed $c.WipLimit)}}
+    <button data-testid="{{$c.Testid}}-add" class="mm-column__add" type="button" disabled
+            data-reason="WipLimitReached"
+            aria-label="Add an item to {{$c.Title}}">+</button>
+    {{else}}
     <a data-testid="{{$c.Testid}}-add" class="mm-column__add"
        href="{{with $p}}/p/{{.ID}}/new{{if $stage}}?stage={{$stage}}{{end}}{{end}}"
        {{with $p}}hx-get="/p/{{.ID}}/new{{if $stage}}?stage={{$stage}}{{end}}" hx-target="#item-panel-root"
        hx-swap="innerHTML" hx-push-url="true"{{end}}
        aria-label="Add an item to {{$c.Title}}">+</a>
+    {{end}}
     {{end}}
   </header>
   <div data-testid="{{$c.Testid}}-body" class="mm-column__body" data-column="{{$c.Key}}">

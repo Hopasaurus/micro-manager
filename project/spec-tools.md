@@ -423,7 +423,14 @@ Allocates the ID from `next_id`, writes the item line, increments `next_id`.
   `needs_reason` (format spec §5.1.5; default `blocked`) REQUIRES `--reason`;
   supplying `--reason` with no `--stage` named implies `--stage blocked` (or
   whichever single stage is the directory's `needs_reason` default). `SLUG`
-  MUST be a member of the directory's declared `stages`.
+  MUST be a member of the directory's declared `stages`, `working` included —
+  there is no carve-out excluding it, and any declared `wip.<slug>` cap on it
+  is pre-commit-validated exactly as `--start`/`--move` already enforce it
+  (§5.1.7, §8), refusing the add rather than silently overfilling the stage.
+  `started:` is likewise a structural requirement of stage `working` (format
+  spec I7), not `--start`'s alone to set, so `--add --stage working` MUST
+  stamp it to today when adding directly onto it (§5.1.7's own note on
+  `--move --stage working` applies here verbatim).
 - `--created` defaults to today. It exists for backfilling.
 - `--tickler SCHEDULE` schedules the item (a SCHEDULE expression,
   spec-file-format §3.3). It REQUIRES `--stage` to name a `SOURCE` in the
@@ -451,7 +458,8 @@ every output mode — a caller that just created an item needs its handle.
 Errors: `InvalidArgument` (empty title, title containing `|`, malformed tag,
 bad date, an unknown `--stage`, a `needs_reason` stage without `--reason`),
 `Conflict` (`next_id` exhausted at the declared width's cap — `T-9999` for
-the default grammar).
+the default grammar), `WipLimitReached` (`--stage` names a capped stage
+already at its limit).
 
 ---
 

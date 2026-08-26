@@ -325,13 +325,34 @@ body {
   margin-left: auto;
   padding: 0 var(--mm-space-2);
   border-radius: var(--mm-radius-sm);
+  border: none;
+  background: none;
   color: var(--mm-color-fg-muted);
   text-decoration: none;
   font-size: var(--mm-font-size-lg);
+  font-family: inherit;
   line-height: 1;
+  cursor: pointer;
 }
 
 .mm-column__add:hover { color: var(--mm-color-accent-base); background: var(--mm-color-bg-raised); }
+
+.mm-column__add[disabled] { color: var(--mm-color-fg-subtle); cursor: not-allowed; }
+.mm-column__add[disabled]:hover { background: none; }
+
+/* A WIP-capped column's used/limit count, immediately left of its add
+   control (spec-gui.md §8.3 - reuses the state token the column border
+   already uses, and the REQUIRED feedback.danger token once full, rather
+   than declaring new colors). */
+.mm-column__wip {
+  margin-left: auto;
+  font-size: var(--mm-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.mm-column__wip + .mm-column__add {
+  margin-left: 0;
+}
 
 /* The done column's "Show all N" link (§5.5), only present when doneLimit
    hid some items. A link, not a button: it navigates to the addressable

@@ -266,6 +266,40 @@ func TestAddV2ToCustomStage(t *testing.T) {
 	}
 }
 
+// T-0251: --add --stage working is a real operation now (the GUI's Working
+// column gets an add control) - it must stamp started: (I7 requires it on
+// any working item) and respect wip.working like Start/Move already do.
+func TestAddV2ToWorkingStampsStarted(t *testing.T) {
+	_, s := v2Dir(t)
+	it, _, err := s.Add(AddRequest{Title: "Straight to working", Stage: "working"}, today)
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	if it.Stage != "working" || it.Started != today {
+		t.Errorf("stage/started = %s/%s, want working/%s", it.Stage, it.Started, today)
+	}
+}
+
+func TestAddV2EnforcesWipLimit(t *testing.T) {
+	_, s := v2Dir(t)
+	// wip.working: 2, and T-0006 already occupies one slot.
+	if _, _, err := s.Add(AddRequest{Title: "Fills the second slot", Stage: "working"}, today); err != nil {
+		t.Fatalf("first add: %v", err)
+	}
+	_, _, err := s.Add(AddRequest{Title: "One too many", Stage: "working"}, today)
+	if !errors.Is(err, ErrWipLimitReached) {
+		t.Fatalf("err = %v, want ErrWipLimitReached", err)
+	}
+	var swe *StageWipLimitError
+	if !errors.As(err, &swe) {
+		t.Fatalf("error does not carry a StageWipLimitError")
+	}
+	if swe.Stage != "working" || swe.Limit != 2 || len(swe.Occupants) != 2 {
+		t.Errorf("stage/limit/occupants = %s/%d/%d, want working/2/2",
+			swe.Stage, swe.Limit, len(swe.Occupants))
+	}
+}
+
 func TestAddV2RejectsUndeclaredStage(t *testing.T) {
 	_, s := v2Dir(t)
 	_, _, err := s.Add(AddRequest{Title: "x", Stage: "qa"}, today)

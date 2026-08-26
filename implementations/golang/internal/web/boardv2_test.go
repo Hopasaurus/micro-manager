@@ -30,18 +30,16 @@ func TestBoardV2ColumnsAndOrder(t *testing.T) {
 	}
 
 	for _, col := range want {
-		suffixes := []string{"-header", "-title", "-count", "-body"}
-		if col != "board-column-working" {
-			suffixes = append(suffixes, "-add")
-		}
+		// Version 2's working carries -add too, same as any other stage:
+		// unlike version 1 (which has no --add --stage working), --add
+		// --stage working is a real operation here, and this fixture's
+		// working (1/2) is not yet at its cap.
+		suffixes := []string{"-header", "-title", "-count", "-body", "-add"}
 		for _, suffix := range suffixes {
 			if !hasTestid(body, col+suffix) {
 				t.Errorf("%s is missing", col+suffix)
 			}
 		}
-	}
-	if hasTestid(body, "board-column-working-add") {
-		t.Error("board-column-working-add MUST NOT exist, same rule as version 1")
 	}
 
 	// A column carrying wip.<slug> (working: 2) shows both attributes; one
@@ -56,12 +54,60 @@ func TestBoardV2ColumnsAndOrder(t *testing.T) {
 		t.Error("board-column-review has no cap and must carry neither wip attribute")
 	}
 
+	// The visible WIP badge (used/limit) sits next to the add control on a
+	// capped column, and only there.
+	if !hasTestid(body, "board-column-working-wip") {
+		t.Error("board-column-working-wip badge is missing")
+	}
+	if !regexp.MustCompile(`data-testid="board-column-working-wip"[^>]*>1/2<`).MatchString(body) {
+		t.Errorf("board-column-working-wip should read 1/2:\n%s", body)
+	}
+	if hasTestid(body, "board-column-review-wip") {
+		t.Error("board-column-review has no cap and must carry no wip badge")
+	}
+	// Working is not yet full (1/2): its add control is an enabled link, not
+	// a disabled button.
+	if tag := testid(t, body, "board-column-working-add"); !strings.HasPrefix(tag, "<a") {
+		t.Errorf("board-column-working-add should render as a link below its cap, got %s", tag)
+	}
+
 	// needs_reason: blocked.
 	if !regexp.MustCompile(`data-testid="board-column-blocked"[^>]*data-needs-reason="true"`).MatchString(body) {
 		t.Errorf("board-column-blocked should carry data-needs-reason=true:\n%s", body)
 	}
 	if !regexp.MustCompile(`data-testid="board-column-ready"[^>]*data-needs-reason="false"`).MatchString(body) {
 		t.Errorf("board-column-ready should carry data-needs-reason=false:\n%s", body)
+	}
+}
+
+// T-0251: a WIP-capped column's add control dims (disables) once the cap is
+// reached, and its badge switches to the danger feedback token - clean-v2-full
+// starts at 1/2 (T-0003); starting T-0001 fills the second slot.
+func TestBoardV2AddDisabledWhenWipFull(t *testing.T) {
+	ts, id := boardServer(t, "clean-v2-full")
+	ts.post("/p/"+id+"/items/T-0001/start", "{}", "HX-Request", "true").expectStatus(http.StatusOK)
+
+	body := ts.get("/p/" + id + "/board").expectStatus(http.StatusOK).Body
+
+	if !regexp.MustCompile(`data-testid="board-column-working"[^>]*data-wip-used="2"[^>]*data-wip-limit="2"`).MatchString(body) {
+		t.Errorf("board-column-working should carry data-wip-used=2 data-wip-limit=2:\n%s", body)
+	}
+	if !regexp.MustCompile(`data-testid="board-column-working-wip"[^>]*>2/2<`).MatchString(body) {
+		t.Errorf("board-column-working-wip should read 2/2:\n%s", body)
+	}
+	if !regexp.MustCompile(`data-testid="board-column-working-wip"[^>]*color: var\(--mm-color-feedback-danger\)`).MatchString(body) {
+		t.Errorf("board-column-working-wip should switch to the danger feedback token once full:\n%s", body)
+	}
+
+	tag := testid(t, body, "board-column-working-add")
+	if !strings.HasPrefix(tag, "<button") {
+		t.Errorf("board-column-working-add should render as a button once full, got %s", tag)
+	}
+	if !strings.Contains(tag, "disabled") {
+		t.Errorf("board-column-working-add should be disabled once full: %s", tag)
+	}
+	if attrOf(t, tag, "data-reason") != "WipLimitReached" {
+		t.Errorf("board-column-working-add should carry data-reason=WipLimitReached: %s", tag)
 	}
 }
 

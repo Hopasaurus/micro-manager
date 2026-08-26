@@ -31,6 +31,9 @@ func (s *Store) addV2(t *tx, req AddRequest, today Date) (Item, TxResult, error)
 	if err != nil {
 		return zero, TxResult{}, err
 	}
+	if err := checkStageWipLimit(b, it.Stage); err != nil {
+		return zero, TxResult{}, err
+	}
 
 	g := t.model.grammar()
 	next, err := allocNextV2(e, b, g)
@@ -64,6 +67,19 @@ func (s *Store) addV2(t *tx, req AddRequest, today Date) (Item, TxResult, error)
 		return zero, res, err
 	}
 	return *it, res, nil
+}
+
+// checkStageWipLimit refuses inserting one more item onto stage if its
+// wip.<slug> cap (if any) is already met - the same rule Move/Start apply,
+// generalized to Add: entering a capped stage directly must not silently
+// overfill it.
+func checkStageWipLimit(b *boardFile, stage Stage) error {
+	if limit, ok := b.stageCfg.WipLimits[stage]; ok {
+		if used := len(b.StageItems(stage)); used >= limit {
+			return &StageWipLimitError{Stage: stage, Limit: limit, Occupants: b.StageItems(stage)}
+		}
+	}
+	return nil
 }
 
 // buildNewItemV2 validates a request against a directory's declared stages
@@ -143,7 +159,7 @@ func buildNewItemV2(req AddRequest, cfg StageConfig, today Date) (*Item, error) 
 		}
 	}
 
-	return &Item{
+	it := &Item{
 		Title:       title,
 		State:       StateBoard,
 		Stage:       stage,
@@ -155,7 +171,11 @@ func buildNewItemV2(req AddRequest, cfg StageConfig, today Date) (*Item, error) 
 		TicklerDest: req.TicklerDest,
 		Created:     created,
 		Extra:       req.Extra,
-	}, nil
+	}
+	if stage == "working" {
+		it.Started = today
+	}
+	return it, nil
 }
 
 // addManyV2 is AddMany's version-2 body: one transaction, one write, board.md
@@ -187,6 +207,9 @@ func (s *Store) addManyV2(t *tx, reqs []AddRequest, today Date) ([]Item, TxResul
 
 		it, err := buildNewItemV2(req, cfg, today)
 		if err != nil {
+			return nil, TxResult{}, fmt.Errorf("item %d: %w", i+1, err)
+		}
+		if err := checkStageWipLimit(b, it.Stage); err != nil {
 			return nil, TxResult{}, fmt.Errorf("item %d: %w", i+1, err)
 		}
 		next, err := allocNextV2(e, b, g)

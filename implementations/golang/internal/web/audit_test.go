@@ -223,16 +223,19 @@ func patternInstances(projectID string) map[string][]string {
 	}
 
 	return map[string][]string{
-		"toast-<n>":                     {"toast-1"},
-		"dialog-<name>":                 {"dialog-confirm-remove", "dialog-block", "dialog-finish", "dialog-wip-limit", "dialog-import-theme"},
-		"project-card-<projectId>":      {"project-card-" + projectID, "project-card-name", "project-card-path", "project-card-wip", "project-card-favorite-toggle"},
-		"board-column-<slug>":           column("", false),
-		"board-column-<slug>-toggle":    column("-toggle", false), // every column carries one (T-0240)
-		"board-column-<slug>-header":    column("-header", false),
-		"board-column-<slug>-title":     column("-title", false),
-		"board-column-<slug>-count":     column("-count", false),
-		"board-column-<slug>-add":       column("-add", true),
-		"board-column-<slug>-body":      column("-body", false),
+		"toast-<n>":                  {"toast-1"},
+		"dialog-<name>":              {"dialog-confirm-remove", "dialog-block", "dialog-finish", "dialog-wip-limit", "dialog-import-theme"},
+		"project-card-<projectId>":   {"project-card-" + projectID, "project-card-name", "project-card-path", "project-card-wip", "project-card-favorite-toggle"},
+		"board-column-<slug>":        column("", false),
+		"board-column-<slug>-toggle": column("-toggle", false), // every column carries one (T-0240)
+		"board-column-<slug>-header": column("-header", false),
+		"board-column-<slug>-title":  column("-title", false),
+		"board-column-<slug>-count":  column("-count", false),
+		"board-column-<slug>-add":    column("-add", true),
+		"board-column-<slug>-body":   column("-body", false),
+		// -wip only renders on a WIP-capped column; clean-full's working is
+		// the only one of the four fixed stages that carries a cap.
+		"board-column-<slug>-wip":       {"board-column-working-wip"},
 		"item-<ID>":                     item(""),
 		"item-<ID>-title":               item("-title"),
 		"item-<ID>-id":                  item("-id"),

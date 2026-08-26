@@ -1,6 +1,9 @@
 package mm
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 // AddMany, generalized to a stage-based board (spec-tools.md §5.2.1). The
 // line grammar (ParseAddLine) is directory-agnostic, so it accepts stage:/
@@ -85,6 +88,41 @@ func TestAddManyV2TopKeepsInputOrderPerStage(t *testing.T) {
 		if seq[i] != id {
 			t.Fatalf("ready sequence = %v, want %v", seq, want)
 		}
+	}
+}
+
+// T-0251: AddMany shares addV2's WIP check via buildNewItemV2/checkStageWipLimit,
+// and the same "a bad line means nothing is written" guarantee applies - a
+// batch that would overfill working must leave board.md untouched.
+func TestAddManyV2EnforcesWipLimitAllOrNothing(t *testing.T) {
+	dir, s := v2Dir(t)
+	before := readMigFile(t, dir, "board.md")
+
+	// wip.working: 2, and T-0006 already occupies one slot - two more items
+	// destined for working is one too many.
+	_, _, err := s.AddMany([]AddRequest{
+		{Title: "Fills the second slot", Stage: "working"},
+		{Title: "One too many", Stage: "working"},
+	}, today)
+	if !errors.Is(err, ErrWipLimitReached) {
+		t.Fatalf("err = %v, want ErrWipLimitReached", err)
+	}
+	if got := readMigFile(t, dir, "board.md"); got != before {
+		t.Error("board.md changed even though the batch failed")
+	}
+}
+
+func TestAddManyV2ToWorkingStampsStarted(t *testing.T) {
+	_, s := v2Dir(t)
+
+	items, _, err := s.AddMany([]AddRequest{
+		{Title: "Straight to working", Stage: "working"},
+	}, today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if items[0].Stage != "working" || items[0].Started != today {
+		t.Errorf("stage/started = %s/%s, want working/%s", items[0].Stage, items[0].Started, today)
 	}
 }
 

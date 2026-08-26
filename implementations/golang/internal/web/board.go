@@ -258,6 +258,9 @@ func (s *Server) buildBoard(c *echo.Context, store *mm.Store) (boardData, error)
 		Title:     "Working",
 		IsWorking: true,
 		Collapsed: collapsed["working"],
+		WipCapped: true,
+		WipUsed:   dir.WipUsed,
+		WipLimit:  dir.WipLimit,
 	}
 	for _, slot := range dir.Slots {
 		if slot.Item != nil {
@@ -300,13 +303,10 @@ func (s *Server) buildBoardV2(c *echo.Context, dir mm.Directory, items []mm.Item
 
 	for _, stage := range cfg.Stages {
 		col := columnData{
-			Testid: "board-column-" + string(stage),
-			Key:    string(stage),
-			Title:  cfg.Label(stage),
-			Stage:  string(stage),
-			// The literal "working" stays the one column with no --add link
-			// (spec-gui.md Appendix A: "board-column-working does not"),
-			// matching --start's own hardcoded destination (board_ops.go).
+			Testid:      "board-column-" + string(stage),
+			Key:         string(stage),
+			Title:       cfg.Label(stage),
+			Stage:       string(stage),
 			IsWorking:   stage == "working",
 			NeedsReason: cfg.StageNeedsReason(stage),
 			// §5.5: every declared stage MAY collapse, not only Someday

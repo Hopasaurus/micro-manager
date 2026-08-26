@@ -471,6 +471,26 @@ dashboard wants at the top level. **Any column whose stage carries a
 carries the same two attributes on the column itself; a column with no cap
 carries neither.
 
+A capped column also renders the pair **visibly**, as `board-column-<slug>-wip`
+(`used/limit`) immediately left of the column's add control — not just as data
+attributes for a script to read. Its color is the column's own `color.state.
+<slug>` token (`accent.base` fallback, §8.3), the same one the column border
+already uses, so the badge reads as *that column's* count; once `used` reaches
+`limit` it switches to the required `feedback.danger` token instead, since the
+column is now refusing new entries. **A column with no cap renders no badge.**
+
+**Every declared stage's column carries an add control** (`board-column-<slug>
+-add`), `working` included — `--add --stage working` is a legal operation
+(`spec-tools.md` §5.1.2) like any other declared stage, so the column that
+represents it is no exception. (Version 1's four fixed columns are a partial
+exception: `board-column-working` there has no add control, because version 1
+has no `--add --stage working` operation at all — an item reaches Working only
+via `--start`. This is the one place the two versions' Working columns differ.)
+When the column's stage is WIP-capped and already full, the add control MUST
+still be present but disabled, carrying `data-reason="WipLimitReached"` —
+the same present-but-disabled convention `spec-gui.md` already requires of an
+item's own action menu, rather than hiding the control outright.
+
 Item card, identical in every column:
 
 ```html
@@ -1517,7 +1537,9 @@ project-card-<projectId>  project-card-name  project-card-path
 project-card-wip  project-card-favorite-toggle
 
 board  board-column-<slug>  board-column-<slug>-toggle  board-column-done
-board-column-<slug>-header  -title  -count  -add  -body  (every non-done column carries -add; board-column-working does not)
+board-column-<slug>-header  -title  -count  -wip  -add  -body  (-wip only on a
+WIP-capped column; every column carries -add except version 1's
+board-column-working, which has no --add --stage working)
 board-column-done-show-all
 item-<ID>  item-<ID>-title  item-<ID>-id  item-<ID>-prio
 item-<ID>-tags  item-<ID>-tag-<tag>  item-<ID>-detail-indicator
