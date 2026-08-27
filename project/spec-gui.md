@@ -854,13 +854,21 @@ a broken one.
   <p data-testid="audit-disabled">…</p>      <!-- version 2, audit: false -->
   <p data-testid="audit-empty">…</p>         <!-- version 2, audit: true, no entries yet -->
 
-  <table data-testid="audit-entries">
-    <tr data-testid="audit-entry-0" data-item-id="T-0251" data-field="stage">
-      <td>2026-08-27T14:32:10Z</td><td>T-0251</td><td>stage</td><td>working</td>
-    </tr>
-  </table>
+  <div data-testid="audit-entries">
+    <div data-testid="audit-entry-0" data-item-id="T-0251" data-field="stage">
+      <time>2026-08-27T14:32:10Z</time>
+      <a href="/p/x/item/T-0251">T-0251</a>
+      <span>stage</span>
+      <span>working</span>
+    </div>
+  </div>
 </section>
 ```
+
+Tag names are illustrative, not fixed (§5.1: only `data-testid` and `data-*`
+are). This build renders entries as styled rows rather than a `<table>`,
+matching `report-item`/`check-violation` elsewhere in this document; a
+conforming implementation MAY do either.
 
 Entries render **newest first** — the opposite of `audit.md`'s own on-disk
 append order (§5.7), matching a log viewer's usual convention: what just

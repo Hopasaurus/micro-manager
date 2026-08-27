@@ -2,9 +2,10 @@
 doc: board
 version: 2
 project: micro-manager — Go implementation
-next_id: T-0254
+next_id: T-0255
 updated: 2026-08-27
 wip.working: 4
+audit: true
 ---
 
 # Board
@@ -20,8 +21,6 @@ wip.working: 4
 - [ ] [T-0208] time for code & coffee | stage:someday | prio:med | created:2026-08-07 | tickler:fri@08:30 | tickled:2026-08-21
 - [ ] [T-0209] a single button for board and global settings is confusing | stage:someday | prio:med | tags:needs-refinement,spike | created:2026-08-07
 - [ ] [T-0212] Testing around directories | stage:someday | prio:med | detail:details/T-0212.md | created:2026-08-08
-
-- [ ] [T-0244] tie your shoes | stage:ready | prio:med | created:2026-08-24
 
 - [ ] [T-0216] Reload scan roots into the live UI registry | stage:blocked | prio:high | tags:bug,gui | detail:details/T-0216.md | created:2026-08-19 | started:2026-08-19 | reason:needs review and test
 - [ ] [T-0135] CSS transition polish on swap (fade .htmx-added content) | stage:blocked | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0135.md | created:2026-08-02 | reason:report Phase 3; only if Phase 1 still feels abrupt

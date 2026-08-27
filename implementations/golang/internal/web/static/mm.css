@@ -560,6 +560,9 @@ body {
 .mm-panel__title { margin-top: 0; font-size: var(--mm-font-size-lg); }
 .mm-panel__form { display: flex; flex-direction: column; gap: var(--mm-space-3); }
 
+.mm-link { color: var(--mm-color-accent-base); text-decoration: none; }
+.mm-link:hover { text-decoration: underline; }
+
 .mm-field { display: flex; flex-direction: column; gap: var(--mm-space-1); }
 .mm-field > span { color: var(--mm-color-fg-muted); font-size: var(--mm-font-size-sm); }
 
@@ -734,6 +737,72 @@ body {
 
 .mm-check__invariant { color: var(--mm-color-feedback-danger); font-family: var(--mm-font-family-mono); font-weight: var(--mm-font-weight-bold); }
 .mm-check__where { color: var(--mm-color-fg-muted); font-family: var(--mm-font-family-mono); font-size: var(--mm-font-size-sm); }
+
+/* ------------------------------------------------------------------ audit */
+
+.mm-audit { max-width: 60rem; }
+
+.mm-audit__header { display: flex; align-items: center; gap: var(--mm-space-3); margin-bottom: var(--mm-space-3); }
+.mm-audit__title { font-size: var(--mm-font-size-lg); margin: 0; }
+.mm-audit__count {
+  padding: 0 var(--mm-space-2);
+  border-radius: var(--mm-radius-full);
+  background: var(--mm-color-bg-sunken);
+  color: var(--mm-color-fg-muted);
+  font-size: var(--mm-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.mm-audit__empty {
+  padding: var(--mm-space-2) var(--mm-space-3);
+  border-left: var(--mm-border-width-thick) solid var(--mm-color-border-strong);
+  background: var(--mm-color-bg-raised);
+  color: var(--mm-color-fg-muted);
+}
+
+.mm-audit__entries { display: flex; flex-direction: column; }
+
+.mm-audit__entry {
+  display: grid;
+  grid-template-columns: 11rem 5rem 7rem 1fr;
+  gap: var(--mm-space-3);
+  align-items: baseline;
+  padding: var(--mm-space-2) 0;
+  border-bottom: var(--mm-border-width-thin) solid var(--mm-color-border-default);
+}
+
+.mm-audit__time {
+  font-family: var(--mm-font-family-mono);
+  font-size: var(--mm-font-size-xs);
+  color: var(--mm-color-fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+.mm-audit__id {
+  font-family: var(--mm-font-family-mono);
+  color: var(--mm-color-accent-base);
+  text-decoration: none;
+}
+.mm-audit__id:hover { text-decoration: underline; }
+.mm-audit__field {
+  display: inline-block;
+  width: fit-content;
+  padding: 0 var(--mm-space-2);
+  border-radius: var(--mm-radius-full);
+  background: var(--mm-color-bg-sunken);
+  color: var(--mm-color-fg-muted);
+  font-size: var(--mm-font-size-xs);
+  font-family: var(--mm-font-family-mono);
+}
+.mm-audit__value { word-break: break-word; }
+.mm-audit__blank { color: var(--mm-color-fg-subtle); }
+
+/* removed reads as loss, not just another field - the one entry this list
+   ever needs to distinguish by colour as well as by its (still textual)
+   field name (§11 rule 2). */
+.mm-audit__entry[data-field="removed"] .mm-audit__field {
+  background: transparent;
+  color: var(--mm-color-feedback-danger);
+}
 
 /* ------------------------------------------------------- home and projects */
 

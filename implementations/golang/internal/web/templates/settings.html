@@ -146,13 +146,11 @@
     {{if $d.Audit.Available}}
     <section data-testid="settings-audit" class="mm-settings__section">
       <h2>Audit Log</h2>
-      <div class="mm-field">
-        <label for="audit-enabled">
-          <input data-testid="settings-audit-toggle" id="audit-enabled" name="audit"
-                 type="checkbox" {{if $d.Audit.Enabled}}checked{{end}}>
-          Record a timestamped audit.md of every field change
-        </label>
-      </div>
+      <label class="mm-field mm-field--inline" for="audit-enabled">
+        <input data-testid="settings-audit-toggle" id="audit-enabled" name="audit"
+               type="checkbox" {{if $d.Audit.Enabled}}checked{{end}}>
+        <span>Record a timestamped audit.md of every field change</span>
+      </label>
       {{if $d.Audit.Enabled}}
       <a data-testid="settings-audit-view" class="mm-link"
          href="/p/{{$d.ProjectID}}/audit">View audit log</a>
