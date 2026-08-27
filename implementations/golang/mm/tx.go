@@ -207,8 +207,6 @@ func (t *tx) stageRaw(name string, data []byte) {
 // the report of what would really happen - including a validation failure. An
 // operation that cannot be dry-run does not exist (spec-tools.md §3.4).
 func (t *tx) commit(dryRun bool) (TxResult, error) {
-	res := TxResult{Changes: t.changes, Files: t.ws.Paths(), DryRun: dryRun}
-
 	// Step 3. Compare against what was already wrong at begin(): a pre-existing
 	// violation must not be blamed on this change, and must not block it either.
 	after := t.reparse()
@@ -219,8 +217,20 @@ func (t *tx) commit(dryRun bool) (TxResult, error) {
 		}
 	}
 	if len(introduced) > 0 {
-		return res, &InvariantError{Violations: introduced}
+		return TxResult{Changes: t.changes, Files: t.ws.Paths(), DryRun: dryRun},
+			&InvariantError{Violations: introduced}
 	}
+
+	// audit.md (T-0253): opt-in via board.md's audit: true, version 2 only.
+	// Staged like any other file, so a dry run reports it too and a failed
+	// validation above never reaches here.
+	if t.model.board != nil && t.model.board.stageCfg.AuditEnabled {
+		if content := appendAuditEntries(t.model.auditRaw, t.store.clock(), t.changes); content != nil {
+			t.stageRaw("audit.md", content)
+		}
+	}
+
+	res := TxResult{Changes: t.changes, Files: t.ws.Paths(), DryRun: dryRun}
 
 	if dryRun || t.ws.Empty() {
 		return res, nil

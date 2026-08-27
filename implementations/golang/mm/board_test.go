@@ -154,6 +154,22 @@ func TestParseBoardRejectsItemWithoutStage(t *testing.T) {
 	}
 }
 
+// T-0253: updated: was never actually checked as a DATE anywhere; it now
+// gets the same shape rule as created:/started: (DATE or the optional-time
+// TIMESTAMP form), rather than accepting anything.
+func TestParseBoardValidatesUpdatedShape(t *testing.T) {
+	timed := strings.Replace(v2Board, "updated: 2026-08-20", "updated: 2026-08-20T09:14:00Z", 1)
+	if _, vs := parseBoard("board.md", []byte(timed)); len(vs) != 0 {
+		t.Errorf("a timestamped updated: should validate clean: %v", vs)
+	}
+
+	bad := strings.Replace(v2Board, "updated: 2026-08-20", "updated: not-a-date", 1)
+	_, vs := parseBoard("board.md", []byte(bad))
+	if !hasInvariant(vs, invFormat) {
+		t.Errorf("a malformed updated: should be a format violation, got %v", vs)
+	}
+}
+
 func TestParseBoardIgnoresHeadings(t *testing.T) {
 	board := strings.Replace(v2Board, "# Board\n", "# Board\n\n## Not A Section\n", 1)
 	b, vs := parseBoard("board.md", []byte(board))

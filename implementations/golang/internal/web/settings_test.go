@@ -184,6 +184,56 @@ func TestProjectSettingsViewV2WipRows(t *testing.T) {
 	}
 }
 
+// T-0253: the audit toggle is version-2 only, off by default, and a submit
+// with the checkbox unset turns it back off (an unchecked box submits no
+// field at all).
+func TestProjectSettingsAuditToggle(t *testing.T) {
+	v1ts, v1id := boardServer(t, "clean-full")
+	if body := v1ts.get("/p/" + v1id + "/settings").expectStatus(http.StatusOK).Body; hasTestid(body, "settings-audit-toggle") {
+		t.Error("a version-1 project must not offer the audit toggle")
+	}
+
+	ts, id := boardServer(t, "clean-v2-full")
+	body := ts.get("/p/" + id + "/settings").expectStatus(http.StatusOK).Body
+	toggle := testid(t, body, "settings-audit-toggle")
+	if attrOf(t, toggle, "checked") == "true" || strings.Contains(toggle, "checked") {
+		t.Errorf("audit should be off by default: %s", toggle)
+	}
+	if hasTestid(body, "settings-audit-view") {
+		t.Error("the view-log link should be absent while audit is off")
+	}
+
+	ts.form(http.MethodPost, "/p/"+id+"/settings", url.Values{"audit": {"on"}}).
+		expectStatus(http.StatusOK)
+	store, err := mm.Open(ts.Dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := store.Directory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !dir.StageCfg.AuditEnabled {
+		t.Error("submitting audit=on should enable it")
+	}
+	body = ts.get("/p/" + id + "/settings").expectStatus(http.StatusOK).Body
+	if !strings.Contains(testid(t, body, "settings-audit-toggle"), "checked") {
+		t.Error("the toggle should render checked once enabled")
+	}
+	if !hasTestid(body, "settings-audit-view") {
+		t.Error("the view-log link should appear once audit is on")
+	}
+
+	// No "audit" field at all in this submission - an unchecked checkbox.
+	ts.form(http.MethodPost, "/p/"+id+"/settings", url.Values{"wipLimit": {""}}).
+		expectStatus(http.StatusOK)
+	store, _ = mm.Open(ts.Dirs[0])
+	dir, _ = store.Directory()
+	if dir.StageCfg.AuditEnabled {
+		t.Error("a submission with no audit field should turn it back off")
+	}
+}
+
 func TestSaveProjectSettingsWipLimitV2(t *testing.T) {
 	ts, id := boardServer(t, "clean-v2-full")
 

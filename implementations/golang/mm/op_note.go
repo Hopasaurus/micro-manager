@@ -60,6 +60,13 @@ func (s *Store) Note(id ID, req NoteRequest, today Date) (Item, TxResult, error)
 		t.stage(w.Name)
 		t.record(Change{Kind: ChangeUpdated, ID: id, File: w.Name, After: text})
 	} else {
+		// Captured before preserveNotes, which may attach a detail: field
+		// this item did not carry before (T-0253: writeItemLine below stages
+		// the write but records no Change of its own - the audit log's only
+		// way to see that field actually changed is a Before/After taken
+		// around both calls, the same shape updateInternal uses for --edit).
+		before := RenderItemLine(it)
+
 		// preserveNotes is the same path --pause and --finish use, so a note
 		// written before a pause and one written by the pause end up in the same
 		// place, in the same shape.
@@ -68,9 +75,12 @@ func (s *Store) Note(id ID, req NoteRequest, today Date) (Item, TxResult, error)
 		}
 		// preserveNotes may have attached a detail file, which changes the line.
 		if it.Detail != "" {
-			if _, err := t.writeItemLine(it, today); err != nil {
+			file, err := t.writeItemLine(it, today)
+			if err != nil {
 				return zero, TxResult{}, err
 			}
+			t.record(Change{Kind: ChangeUpdated, ID: id, File: file,
+				Before: before, After: RenderItemLine(it)})
 		}
 	}
 

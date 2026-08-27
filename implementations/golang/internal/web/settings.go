@@ -24,6 +24,7 @@ type settingsData struct {
 	Scan      scanSettingsData
 	Tickler   ticklerSettingsData
 	Wip       wipSettingsData
+	Audit     auditSettingsData
 
 	// NeedsMigration gates settings-migrate's hidden attribute (§5.9):
 	// project scope only, true for a directory below the current format
@@ -85,6 +86,13 @@ type wipStageRow struct {
 	Slug  string
 	Label string
 	Limit string
+}
+
+// auditSettingsData is the project-scope Audit section (T-0253):
+// version-2 only, so Available gates whether the toggle even renders.
+type auditSettingsData struct {
+	Available bool
+	Enabled   bool
 }
 
 // ticklerSettingsData is the system-scope Tickler section (T-0207). It is an
@@ -304,6 +312,15 @@ func (s *Server) saveSettingsProject(c *echo.Context) error {
 			}
 		}
 
+		if dir.Version == 2 {
+			// An unchecked HTML checkbox submits no field at all, not a
+			// false-y value - its absence IS "off".
+			enabled := form("audit") != ""
+			if _, _, err := store.SetAudit(enabled, false); err != nil {
+				return err
+			}
+		}
+
 		if themeID := form("theme"); themeID != "" {
 			cfgPath := mm.ProjectConfigPath(dir.Path)
 			pCfg, _ := mm.LoadConfigFile(cfgPath, mm.ScopeProject)
@@ -390,6 +407,8 @@ func (s *Server) buildProjectSettings(store *mm.Store) (settingsData, error) {
 			}
 			data.Wip.Rows = append(data.Wip.Rows, row)
 		}
+		data.Audit.Available = true
+		data.Audit.Enabled = dir.StageCfg.AuditEnabled
 	} else {
 		data.Wip.Limit = dir.WipLimit
 	}

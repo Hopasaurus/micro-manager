@@ -200,17 +200,19 @@ func (it *Item) setField(file string, lineNo int, key, val string) error {
 	case "detail":
 		it.Detail = val
 	case "created":
-		d, err := ParseDate(val)
+		d, suffix, err := ParseDateOrStamp(val)
 		if err != nil {
-			return parseErrf(file, lineNo, "%s has created:%s (want YYYY-MM-DD)", it.ID, val)
+			return parseErrf(file, lineNo, "%s has created:%s (want YYYY-MM-DD, optionally with a time)", it.ID, val)
 		}
 		it.Created = d
+		it.CreatedTime = suffix
 	case "started":
-		d, err := ParseDate(val)
+		d, suffix, err := ParseDateOrStamp(val)
 		if err != nil {
-			return parseErrf(file, lineNo, "%s has started:%s (want YYYY-MM-DD)", it.ID, val)
+			return parseErrf(file, lineNo, "%s has started:%s (want YYYY-MM-DD, optionally with a time)", it.ID, val)
 		}
 		it.Started = d
+		it.StartedTime = suffix
 	case "done":
 		d, err := ParseDate(val)
 		if err != nil {
@@ -304,9 +306,9 @@ func (it *Item) fieldValue(key string) string {
 	case "detail":
 		return it.Detail
 	case "created":
-		return it.Created.String()
+		return FormatDateOrStamp(it.Created, it.CreatedTime)
 	case "started":
-		return it.Started.String()
+		return FormatDateOrStamp(it.Started, it.StartedTime)
 	case "done":
 		return it.Done.String()
 	case "outcome":

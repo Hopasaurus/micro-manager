@@ -785,6 +785,11 @@ Both `/settings` and `/p/:projectId/settings` use the same skeleton, with
     <p>This board is on an older format version.</p>
     <button data-testid="settings-migrate-run">Migrate</button>
   </section>
+  <!-- version 2 only; absent entirely for a version-1 project -->
+  <section data-testid="settings-audit">
+    <input data-testid="settings-audit-toggle" type="checkbox">
+    <a data-testid="settings-audit-view" href="/p/x/audit">…</a>
+  </section>
   <button data-testid="settings-save">Save</button>
 </section>
 ```
@@ -812,6 +817,14 @@ or command line (§9.6), and a UI control for it MUST NOT exist.
 A root whose path no longer resolves MUST render with `data-missing="true"` and
 MUST NOT be removed automatically.
 
+`settings-audit` is version 2 only — absent entirely for a version-1
+project, the same rule `settings-wip`'s per-stage form already follows,
+rather than rendering a control that would refuse to save. Checking
+`settings-audit-toggle` and saving sets `board.md`'s `audit` key
+(`spec-file-format.md` §5.1.8) to `true`; unchecking and saving sets it to
+`false`. `settings-audit-view` links to the audit log (§5.11) and MUST be
+present only while audit is on — there is nothing to view otherwise.
+
 ### 5.10 Dialogs, toasts, errors
 
 - Dialogs render into `dialog-root` with testid `dialog-<name>`, `role="dialog"`,
@@ -824,6 +837,40 @@ MUST NOT be removed automatically.
   the same three remedies the CLI names.
 - `dialog-conflict` appears on `Concurrent` and MUST offer reload; it MUST NOT
   offer a blind overwrite.
+
+### 5.11 Audit log
+
+`/p/:projectId/audit`: a read-only rendering of `audit.md`
+(`spec-file-format.md` §5.7), reachable from `settings-audit-view` (§5.9).
+Version 2 only, and only meaningful once `audit: true` is set — this route
+still resolves for a version-1 project or one with audit off, rendering an
+explanation rather than a 404, since a stale bookmark or a shared link is not
+a broken one.
+
+```html
+<section data-testid="audit" data-available="true" data-enabled="true">
+  <!-- exactly one of the three below, depending on data-available/data-enabled -->
+  <p data-testid="audit-unavailable">…</p>   <!-- version 1 -->
+  <p data-testid="audit-disabled">…</p>      <!-- version 2, audit: false -->
+  <p data-testid="audit-empty">…</p>         <!-- version 2, audit: true, no entries yet -->
+
+  <table data-testid="audit-entries">
+    <tr data-testid="audit-entry-0" data-item-id="T-0251" data-field="stage">
+      <td>2026-08-27T14:32:10Z</td><td>T-0251</td><td>stage</td><td>working</td>
+    </tr>
+  </table>
+</section>
+```
+
+Entries render **newest first** — the opposite of `audit.md`'s own on-disk
+append order (§5.7), matching a log viewer's usual convention: what just
+happened is what a reader opens the page to see. `audit-entry-<n>` numbers
+that rendered order, not any identifier from the file itself.
+
+This view has no write path of its own: enabling or disabling the log is
+`settings-audit-toggle` (§5.9), and every entry it shows was produced by an
+operation that already exists elsewhere in this document. Nothing here
+mutates the directory.
 
 ## 6. Operation coverage
 
@@ -1562,11 +1609,15 @@ report-group-<key>  report-item-<ID>  report-copy
 
 check  check-run  check-results  check-violation-<n>
 
+audit  audit-unavailable  audit-disabled  audit-empty
+audit-entries  audit-entry-<n>
+
 settings  settings-theme  settings-theme-select  settings-theme-source
 settings-theme-edit  settings-theme-export  settings-theme-import
 settings-theme-clear  settings-lists  settings-recent-count
 settings-favorites-count  settings-wip  settings-wip-row-<slug>
 settings-wip-limit-<slug>  settings-migrate  settings-migrate-run
+settings-audit  settings-audit-toggle  settings-audit-view
 settings-save
 settings-scan  settings-scan-roots  settings-scan-root-<n>
 settings-scan-root-<n>-remove  settings-scan-root-add

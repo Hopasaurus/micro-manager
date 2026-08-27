@@ -202,6 +202,53 @@ func TestParseDate(t *testing.T) {
 	}
 }
 
+// T-0253: created:, started: and updated: MAY carry an optional time
+// (spec-file-format.md §3.3.1's relaxation) - a bare DATE stays valid, and
+// the combined TIMESTAMP form round-trips through the suffix exactly.
+func TestParseDateOrStamp(t *testing.T) {
+	d, suffix, err := ParseDateOrStamp("2026-07-29")
+	if err != nil {
+		t.Fatalf("bare date rejected: %v", err)
+	}
+	if d.String() != "2026-07-29" || suffix != "" {
+		t.Errorf("got date=%s suffix=%q, want 2026-07-29 and no suffix", d, suffix)
+	}
+
+	for _, s := range []string{
+		"2026-07-29T09:14:00Z",
+		"2026-07-29T09:14:00+05:30",
+		"2026-07-29T23:59:59-08:00",
+	} {
+		d, suffix, err := ParseDateOrStamp(s)
+		if err != nil {
+			t.Fatalf("ParseDateOrStamp(%q): %v", s, err)
+		}
+		if d.String() != "2026-07-29" {
+			t.Errorf("ParseDateOrStamp(%q) date = %s, want 2026-07-29", s, d)
+		}
+		if got := FormatDateOrStamp(d, suffix); got != s {
+			t.Errorf("FormatDateOrStamp round-trip = %q, want %q", got, s)
+		}
+	}
+
+	for _, bad := range []string{
+		"2026-07-29T09:14:00",  // no offset (§3.3.1 rule 3: mandatory)
+		"2026-07-29T25:14:00Z", // hour out of range
+		"2026-07-29T09:60:00Z", // minute out of range
+		"2026-07-29T09:14:00X", // not Z and not ±HH:MM
+		"2026-07-29 09:14:00Z", // space instead of T
+		"2026-07-29T9:14:00Z",  // hour not zero-padded
+		"20260729T091400Z",     // basic format
+		"2026-02-31T09:14:00Z", // invalid calendar date
+	} {
+		if _, _, err := ParseDateOrStamp(bad); err == nil {
+			t.Errorf("ParseDateOrStamp(%q) should fail", bad)
+		} else if !errors.Is(err, ErrInvalidArgument) {
+			t.Errorf("ParseDateOrStamp(%q) error is %v, want ErrInvalidArgument", bad, err)
+		}
+	}
+}
+
 // Dates are ISO 8601 calendar dates: the lexical form AND a real day of a real
 // month (spec-file-format.md §3.3.1). A well-formed but impossible date is
 // rejected, and the reference checker rejects the same set.

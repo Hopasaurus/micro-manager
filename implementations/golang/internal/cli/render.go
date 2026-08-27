@@ -490,8 +490,8 @@ func renderShow(env Env, item mm.Item, detail *mm.Detail) {
 	show("prio", string(item.Prio))
 	show("tags", mm.FormatTags(item.Tags))
 	show("detail", item.Detail)
-	show("created", item.Created.String())
-	show("started", item.Started.String())
+	show("created", mm.FormatDateOrStamp(item.Created, item.CreatedTime))
+	show("started", mm.FormatDateOrStamp(item.Started, item.StartedTime))
 	show("tickler", item.Tickler)
 	show("tickled", item.Tickled.String())
 	show("done", item.Done.String())
@@ -631,7 +631,7 @@ func shortItem(it *mm.Item) string {
 	if it.Created.IsZero() {
 		return s
 	}
-	return s + "  (created " + it.Created.String() + ")"
+	return s + "  (created " + mm.FormatDateOrStamp(it.Created, it.CreatedTime) + ")"
 }
 
 // renderNext prints the top of ## Ready exactly as --list would.

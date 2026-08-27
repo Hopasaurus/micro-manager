@@ -116,12 +116,17 @@ func (s *Store) AttachDetail(id ID, req AttachDetailRequest, today Date) (Detail
 	}
 	content := renderDetailFile(it, body, today)
 
+	// Captured before it.Detail is set below, so the Change this records
+	// shows the field actually attached (T-0253's audit log diffs Before
+	// against After; writeItemLine itself stages the write but records
+	// nothing).
+	before := RenderItemLine(it)
 	it.Detail = path
 	file, err := t.writeItemLine(it, today)
 	if err != nil {
 		return zero, TxResult{}, err
 	}
-	t.record(Change{Kind: ChangeUpdated, ID: id, File: file})
+	t.record(Change{Kind: ChangeUpdated, ID: id, File: file, Before: before, After: RenderItemLine(it)})
 	t.stageRaw(path, []byte(content))
 	t.record(Change{Kind: ChangeCreated, ID: id, File: path})
 	t.model.details[path] = mustParseDetail(path, content)

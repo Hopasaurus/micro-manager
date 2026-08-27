@@ -182,8 +182,8 @@ func (s *Server) panelView(c *echo.Context, store *mm.Store, it mm.Item) (view, 
 
 	data := panelData{
 		Item:     s.itemView(it, dir, 1, s.registry.newRefResolver()),
-		Created:  it.Created.String(),
-		Started:  it.Started.String(),
+		Created:  mm.FormatDateOrStamp(it.Created, it.CreatedTime),
+		Started:  mm.FormatDateOrStamp(it.Started, it.StartedTime),
 		Done:     it.Done.String(),
 		Version2: dir.Version == 2,
 	}

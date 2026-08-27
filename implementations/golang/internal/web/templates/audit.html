@@ -1,0 +1,47 @@
+{{define "content" -}}
+{{template "audit" .}}
+{{- end}}
+
+{{/*
+  The audit log view (spec-gui.md §5.11, T-0253): a read-only rendering of
+  audit.md (format spec §5.7), newest entry first. Version 1 has no concept
+  of it at all - audit-unavailable renders instead of an empty table, so a
+  v1 project linked here directly gets an explanation, not a blank page.
+*/}}
+{{define "audit" -}}
+{{$p := .App.Project}}{{$d := .Data}}
+<section data-testid="audit" class="mm-audit" data-available="{{yesno $d.Available}}" data-enabled="{{yesno $d.Enabled}}">
+  <header class="mm-audit__header">
+    <h1 class="mm-audit__title">Audit Log</h1>
+  </header>
+
+  {{if not $d.Available}}
+  <p data-testid="audit-unavailable" class="mm-audit__empty">
+    The audit log is a version-2 feature; this project is on an older format.
+  </p>
+  {{else if not $d.Enabled}}
+  <p data-testid="audit-disabled" class="mm-audit__empty">
+    The audit log is turned off. Enable it from
+    <a href="/p/{{$p.ID}}/settings">Settings</a>.
+  </p>
+  {{else if not $d.Entries}}
+  <p data-testid="audit-empty" class="mm-audit__empty">No entries yet.</p>
+  {{else}}
+  <table data-testid="audit-entries" class="mm-audit__table">
+    <thead>
+      <tr><th>Time</th><th>Item</th><th>Field</th><th>Value</th></tr>
+    </thead>
+    <tbody>
+      {{range $d.Entries}}
+      <tr data-testid="audit-entry-{{.N}}" data-item-id="{{.ID}}" data-field="{{.Field}}">
+        <td class="mm-audit__time">{{.Timestamp}}</td>
+        <td class="mm-audit__id">{{.ID}}</td>
+        <td class="mm-audit__field">{{.Field}}</td>
+        <td class="mm-audit__value">{{.Value}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{end}}
+</section>
+{{- end}}

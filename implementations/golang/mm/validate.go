@@ -396,7 +396,8 @@ func (m *dirModel) checkDetails() []Violation {
 		}
 	}
 
-	for name := range m.details {
+	for name, df := range m.details {
+		vs = append(vs, checkUpdatedFM(name, df.FM)...)
 		switch n := len(claims[name]); {
 		case n == 0:
 			vs = append(vs, Violation{

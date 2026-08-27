@@ -156,6 +156,7 @@ func parseBacklog(name string, data []byte) (*backlogFile, []Violation) {
 			})
 		}
 	}
+	vs = append(vs, checkUpdatedFM(name, fm)...)
 	b := &backlogFile{Name: name, FM: fm, Lines: lines, grammar: g, warnings: gwarns}
 
 	var cur *sectionSpan
@@ -211,6 +212,7 @@ func parseDoneG(name string, data []byte, g IDGrammar) (*doneFile, []Violation) 
 	vs := markerViolations(name, lines)
 	fm, body, hvs := readHeader(name, lines)
 	vs = append(vs, hvs...)
+	vs = append(vs, checkUpdatedFM(name, fm)...)
 	d := &doneFile{Name: name, FM: fm, Lines: lines}
 
 	var cur *monthSpan

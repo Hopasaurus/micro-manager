@@ -140,6 +140,26 @@
       {{end}}
     </section>
 
+    {{/* T-0253: audit.md is version-2 only, so the whole section is absent
+         for a version-1 project rather than rendering a toggle that would
+         refuse to save. */}}
+    {{if $d.Audit.Available}}
+    <section data-testid="settings-audit" class="mm-settings__section">
+      <h2>Audit Log</h2>
+      <div class="mm-field">
+        <label for="audit-enabled">
+          <input data-testid="settings-audit-toggle" id="audit-enabled" name="audit"
+                 type="checkbox" {{if $d.Audit.Enabled}}checked{{end}}>
+          Record a timestamped audit.md of every field change
+        </label>
+      </div>
+      {{if $d.Audit.Enabled}}
+      <a data-testid="settings-audit-view" class="mm-link"
+         href="/p/{{$d.ProjectID}}/audit">View audit log</a>
+      {{end}}
+    </section>
+    {{end}}
+
     {{/* §5.9: present, hidden removed, only for a directory below the
          current format version. settings-migrate-run submits the SAME form
          with action=migrate, so a re-render always follows a successful

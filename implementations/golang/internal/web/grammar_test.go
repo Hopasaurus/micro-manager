@@ -473,7 +473,7 @@ func TestGrammarAPIInit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	it, _, err := store.Add(mm.AddRequest{Title: "Init add"}, mm.Date{})
+	it, _, err := store.Add(mm.AddRequest{Title: "Init add"}, mm.Date{Year: 2026, Month: 1, Day: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

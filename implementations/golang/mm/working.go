@@ -248,11 +248,12 @@ func parseWorkingG(name string, data []byte, g IDGrammar) (*workingFile, []Viola
 		it.Title = fm.Get("title")
 	}
 
-	if d, err := ParseDate(fm.Get("started")); err != nil {
-		bad("started", fmt.Sprintf("started:%s (want YYYY-MM-DD; set when the item starts)",
+	if d, suffix, err := ParseDateOrStamp(fm.Get("started")); err != nil {
+		bad("started", fmt.Sprintf("started:%s (want YYYY-MM-DD, optionally with a time; set when the item starts)",
 			fm.Get("started")))
 	} else {
 		it.Started = d
+		it.StartedTime = suffix
 	}
 
 	// Optional, but validated with the same rules as on an item line - the
@@ -280,10 +281,11 @@ func parseWorkingG(name string, data []byte, g IDGrammar) (*workingFile, []Viola
 		}
 	}
 	if !fm.IsNull("created") {
-		if d, err := ParseDate(fm.Get("created")); err != nil {
-			bad("created", "created:"+fm.Get("created")+" (want YYYY-MM-DD)")
+		if d, suffix, err := ParseDateOrStamp(fm.Get("created")); err != nil {
+			bad("created", "created:"+fm.Get("created")+" (want YYYY-MM-DD, optionally with a time)")
 		} else {
 			it.Created = d
+			it.CreatedTime = suffix
 		}
 	}
 	if !fm.IsNull("detail") {
@@ -377,8 +379,8 @@ func workingFields(it *Item) []Field {
 		{"tags", nz(FormatTags(it.Tags))},
 		{"refs", nz(FormatRefs(it.Refs))},
 		{"detail", nz(it.Detail)},
-		{"created", nz(it.Created.String())},
-		{"started", nz(it.Started.String())},
+		{"created", nz(FormatDateOrStamp(it.Created, it.CreatedTime))},
+		{"started", nz(FormatDateOrStamp(it.Started, it.StartedTime))},
 	}
 	// Unregistered fields ride along as additional keys. §9 makes unknown
 	// frontmatter keys valid and requires readers to ignore them, so this is the

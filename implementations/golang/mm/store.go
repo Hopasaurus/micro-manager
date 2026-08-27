@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Store is an open micro-manager directory.
@@ -22,6 +23,16 @@ import (
 type Store struct {
 	mu   sync.Mutex
 	path string
+
+	// clock returns the wall-clock instant a transaction commits at, used
+	// only for audit.md's timestamp (T-0253) — every mutation elsewhere in
+	// this package is handed its "today" explicitly by the caller (§3.3.1:
+	// the board/done/detail files stay date-granular), so this is the one
+	// place a Store reads the clock itself, the same way it is the one
+	// place a caller cannot reasonably supply the value up front. Defaults
+	// to time.Now; tests may override it directly (unexported, same
+	// package) to assert an exact timestamp.
+	clock func() time.Time
 }
 
 // Open prepares a Store for a directory. It does not read the files: every
@@ -36,7 +47,7 @@ func Open(path string) (*Store, error) {
 	if err != nil || !fi.IsDir() {
 		return nil, fmt.Errorf("%w: not a directory: %s", ErrNotFound, path)
 	}
-	return &Store{path: abs}, nil
+	return &Store{path: abs, clock: time.Now}, nil
 }
 
 // Path returns the absolute directory path.
@@ -73,6 +84,12 @@ type dirModel struct {
 	stamps  map[string]stamp       // path -> as read
 	parseVs []Violation
 	warnVs  []Violation // non-fatal findings, e.g. id_width outside 3-6
+
+	// auditRaw is audit.md's content as read, nil when the file does not
+	// exist (T-0253). It is never parsed into a model — the log is opaque
+	// to validation, like an archive (spec-file-format.md §5.6) — only
+	// appended to at commit time when the directory has audit enabled.
+	auditRaw []byte
 }
 
 // isV2 reports whether this model was loaded as a version-2 (board.md)
@@ -174,6 +191,16 @@ func (s *Store) load() (*dirModel, error) {
 			w, vs := parseWorkingG(name, data, g)
 			m.working = append(m.working, w)
 			m.parseVs = append(m.parseVs, vs...)
+		}
+	}
+
+	// audit.md is version-2 only, opt-in, and never required - reading it
+	// unconditionally (recording its stamp whether or not it exists) is what
+	// lets a later append detect a concurrent writer the same way every
+	// other file in this transaction does (tx.go's stampFor).
+	if m.board != nil {
+		if data, ok := read("audit.md"); ok {
+			m.auditRaw = data
 		}
 	}
 

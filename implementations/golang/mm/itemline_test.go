@@ -99,6 +99,7 @@ func TestParseItemLineErrors(t *testing.T) {
 		{"- [ ] [T-0002] title | prio:high | prio:low", "repeats field prio"},
 		{"- [ ] [T-0002] title | prio:URGENT", "prio:URGENT"},
 		{"- [ ] [T-0002] title | created:29-07-2026", "created:29-07-2026"},
+		{"- [ ] [T-0002] title | created:2026-07-29T09:14:00", "created:2026-07-29T09:14:00"},
 		{"- [ ] [T-0002] title | outcome:done", "outcome:done"},
 		{"- [ ] [T-0002] title | tags:a, b", "malformed tags"},
 	}
@@ -167,6 +168,9 @@ func TestParseRenderRoundTrip(t *testing.T) {
 		"- [ ] [T-0001] Just a title",
 		"- [ ] [T-0002] Blocked one | prio:low | tags:example | created:2026-07-29 | blocked:waiting on a thing",
 		"- [x] [T-0003] Closed | prio:high | tags:a,b | detail:details/T-0003.md | created:2026-01-01 | started:2026-01-02 | done:2026-01-03 | outcome:cancelled",
+		// T-0253: created:/started: MAY carry an optional time, and it must
+		// round-trip exactly rather than being silently dropped.
+		"- [ ] [T-0004] Timestamped | created:2026-07-29T09:14:00Z | started:2026-07-29T09:20:00+02:00",
 	}
 	for _, line := range lines {
 		it := mustParseLine(t, line)

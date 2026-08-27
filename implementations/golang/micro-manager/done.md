@@ -1,7 +1,7 @@
 ---
 doc: done
 version: 2
-updated: 2026-08-26
+updated: 2026-08-27
 ---
 
 # Done
@@ -11,6 +11,7 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-08
 
+- [x] [T-0253] Optional time on created/started/updated; opt-in audit.md action log | detail:details/T-0253.md | created:2026-08-27 | started:2026-08-27 | done:2026-08-27 | outcome:shipped
 - [x] [T-0252] New-item panel: autofocus the title field on open | detail:details/T-0252.md | created:2026-08-26 | started:2026-08-26 | done:2026-08-26 | outcome:shipped
 - [x] [T-0251] Give Working an add control, WIP badge and dimmed-when-full state | detail:details/T-0251.md | created:2026-08-26 | started:2026-08-26 | done:2026-08-26 | outcome:shipped
 - [x] [T-0250] Fix drop position lost + pre-populate reason in the block dialog | prio:high | tags:gui,bug | detail:details/T-0250.md | created:2026-08-26 | started:2026-08-26 | done:2026-08-26 | outcome:shipped

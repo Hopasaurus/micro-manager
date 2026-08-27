@@ -159,6 +159,82 @@ func (d Date) String() string {
 	return fmt.Sprintf("%04d-%02d-%02d", d.Year, d.Month, d.Day)
 }
 
+// ParseDateOrStamp accepts either a bare DATE or the combined TIMESTAMP form
+// (spec-file-format.md §3.3, §3.3.1) — the sanctioned optional-time
+// relaxation for created:, started: and updated:. A DATE is unchanged from
+// ParseDate; a TIMESTAMP additionally returns the "T" + time + offset
+// suffix exactly as written, so a caller can round-trip it without this
+// package ever needing to represent or compare a time of day.
+func ParseDateOrStamp(s string) (Date, string, error) {
+	bad := func() (Date, string, error) {
+		return Date{}, "", fmt.Errorf(
+			"%w: %q is not an ISO 8601 date (YYYY-MM-DD) or timestamp (YYYY-MM-DDTHH:MM:SSZ)",
+			ErrInvalidArgument, s)
+	}
+	if len(s) == 10 {
+		d, err := ParseDate(s)
+		if err != nil {
+			return bad()
+		}
+		return d, "", nil
+	}
+	if len(s) < 20 || s[10] != 'T' {
+		return bad()
+	}
+	d, err := ParseDate(s[:10])
+	if err != nil {
+		return bad()
+	}
+	clock := s[11:]
+	if len(clock) < 9 || clock[2] != ':' || clock[5] != ':' {
+		return bad()
+	}
+	hh, mm, ss := clock[0:2], clock[3:5], clock[6:8]
+	if !isDigits(hh) || !isDigits(mm) || !isDigits(ss) {
+		return bad()
+	}
+	h, _ := strconv.Atoi(hh)
+	mi, _ := strconv.Atoi(mm)
+	se, _ := strconv.Atoi(ss)
+	if h > 23 || mi > 59 || se > 59 {
+		return bad()
+	}
+	offset := clock[8:]
+	validOffset := offset == "Z" ||
+		(len(offset) == 6 && (offset[0] == '+' || offset[0] == '-') && offset[3] == ':' &&
+			isDigits(offset[1:3]) && isDigits(offset[4:6]))
+	if !validOffset {
+		return bad()
+	}
+	return d, "T" + clock, nil
+}
+
+// FormatDateOrStamp reassembles a Date and its optional suffix (from
+// ParseDateOrStamp) back into one field value.
+func FormatDateOrStamp(d Date, suffix string) string {
+	if d.IsZero() && suffix == "" {
+		return ""
+	}
+	return d.String() + suffix
+}
+
+// checkUpdatedFM reports a malformed updated:, when present — the one shape
+// rule that key has ever had (§3.3.1): a DATE or the optional-time TIMESTAMP
+// form, nothing else. Absent is fine; the key has always been optional, and
+// this was previously not checked at all.
+func checkUpdatedFM(name string, fm *Frontmatter) []Violation {
+	if !fm.Has("updated") {
+		return nil
+	}
+	if _, _, err := ParseDateOrStamp(fm.Get("updated")); err != nil {
+		return []Violation{{
+			Invariant: invFormat, At: Location{File: name, Line: fm.Line("updated")},
+			Message: "updated must be an ISO 8601 date or timestamp: " + fm.Get("updated"),
+		}}
+	}
+	return nil
+}
+
 // Month7 returns the YYYY-MM prefix used as a done.md group heading.
 func (d Date) Month7() string {
 	if d.IsZero() {
@@ -314,6 +390,12 @@ type StageConfig struct {
 	// NeedsReason lists stages that require `reason:` (§5.1.5). A stage not
 	// listed does not require it, but MAY still carry one.
 	NeedsReason []Stage
+
+	// AuditEnabled is `audit: true` in board.md frontmatter (§5.1.8,
+	// spec-gui.md's audit log settings toggle). Absent or `false` means
+	// audit.md is neither written nor expected to exist. Opt-in, and
+	// version-2 only.
+	AuditEnabled bool
 }
 
 // IsStage reports whether s is a member of the declared stages.
@@ -557,10 +639,19 @@ type Item struct {
 	Refs    []Ref
 	Detail  string // "details/T-0042.md", or empty
 	Created Date
-	Started Date
-	Done    Date
-	Outcome Outcome
-	Blocked string // version 1's field; required under ## Blocked (I5 v1)
+	// CreatedTime is the optional time-of-day suffix on created: - the
+	// sanctioned relaxation of spec-file-format.md §3.3.1: "T" plus the
+	// TIMESTAMP token's clock and offset (e.g. "T09:14:00Z"), or "" for a
+	// bare date. Carried verbatim purely for round-trip fidelity; every
+	// calculation in this package (reports, stats, cycle time) still reads
+	// only Created, which stays date-granular by design (§10.1) regardless
+	// of whether a time is present.
+	CreatedTime string
+	Started     Date
+	StartedTime string // same shape and purpose as CreatedTime, for started:
+	Done        Date
+	Outcome     Outcome
+	Blocked     string // version 1's field; required under ## Blocked (I5 v1)
 
 	// Reason is version 2's field, renamed from Blocked (spec-file-format.md
 	// §5.1.5, §10): valid on any stage, required only where the directory's

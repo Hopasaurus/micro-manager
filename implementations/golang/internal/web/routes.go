@@ -53,6 +53,7 @@ func (s *Server) routes() {
 	s.echo.GET("/p/:projectId/new", s.newItemPanel)
 	s.echo.GET("/p/:projectId/report", s.report)
 	s.echo.GET("/p/:projectId/check", s.check)
+	s.echo.GET("/p/:projectId/audit", s.auditLog)
 	s.echo.GET("/p/:projectId/settings", s.settingsProject)
 	s.echo.POST("/p/:projectId/settings", s.saveSettingsProject)
 	s.echo.GET("/p/:projectId/dialog/:name", s.dialog)

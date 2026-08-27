@@ -137,12 +137,27 @@ Specifically:
    no epoch seconds, no ordinal dates (`2026-210`), no fractional seconds, no
    leap-second value `60`, no week-with-weekday form (`2026-W30-3`).
 
-`TIME` and `TIMESTAMP` are defined here for the whole system but are **not used
-by the files of §5**. Those are deliberately date-granular: an item's
-`created`, `started` and `done` are dates, and §5.3 groups by month, so nothing
-in the data model needs a clock. A tool MUST NOT introduce a time-of-day field
-into these files without a spec revision — see §10 for what that granularity
-costs and why it is still the right trade.
+`TIME` and `TIMESTAMP` are defined here for the whole system but are used by
+only three fields in the files of §5: `created`, `started`, and a file's own
+`updated` (§6, §5.1–§5.4). Each of those MAY be a plain `DATE` or the combined
+`TIMESTAMP` form — the time is OPTIONAL, never required, and a reader MUST
+accept either shape wherever one of these three fields appears. `done` and
+`tickled` stay `DATE`-only: `done.md` groups by month (§5.3), and neither
+field has ever needed finer precision. A tool MUST NOT introduce a
+time-of-day form on any OTHER field without a spec revision — see §10 for
+what the remaining date-only granularity costs and why it is still the right
+trade there.
+
+A time on `created`/`started`/`updated` is written and read verbatim; nothing
+in this data model *computes* with it. Every calculation this format defines
+— cycle time, flight time, month grouping, sorting — reads the calendar date
+half only and stays exactly as date-granular as before. The time exists for
+provenance (a hand-added "I actually started this at 14:30," a tool that
+knows its own wall clock), not for the format's own arithmetic; a reader MAY
+ignore it entirely and lose nothing §5–§7 requires. A conforming writer
+MUST NOT truncate a time it did not need to change — round-tripping an item
+through any operation preserves whatever precision was already there,
+exactly like an unregistered field (§9).
 
 The `tickler` field is the one sanctioned exception (§3.3, §6): its `SCHEDULE`
 value MAY carry an `@HH:MM` wall time inside the expression. That time is part
@@ -305,12 +320,13 @@ terminal state, which is `done.md` (§5.3). By default that means `someday`,
 | `id_prefix` | one to four uppercase letters — the ID prefix (§3.3.2); absent means `T` | no |
 | `id_width` | one to fifteen ASCII digits — the ID digit width (§3.3.2); absent means `4` | no |
 | `board` | `SLUG` — the board's link identity for cross-board `refs` (§5.1, §6); absent means the directory is not a link target | no |
-| `updated` | `DATE` | no |
+| `updated` | `DATE` or `TIMESTAMP` (§3.3.1) | no |
 | `stages` | comma-separated `STAGE` list, order-significant (§5.1.1); absent means `someday,ready,blocked,working` | no |
 | `stage_labels` | comma-separated `slug:Label` pairs (§5.1.2); absent means every label is derived from its slug | no |
 | `wip.<slug>` | a positive integer WIP cap for stage `<slug>` (§5.1.3); zero or more keys | no |
 | `tickler_stages` | comma-separated `SOURCE->DEST` pairs (§5.1.4); absent means `someday->ready` | no |
 | `needs_reason` | comma-separated `STAGE` list (§5.1.5); absent means `blocked` | no |
+| `audit` | `true` or `false` (§5.1.8); absent means `false` | no |
 
 `project` MUST be non-empty and MUST NOT be `NULL`. It is otherwise free text on
 a single line: no length limit, no character restrictions beyond §4.1's parsing
@@ -480,6 +496,20 @@ can't cap, schedule, route, label, or place an item in a stage it hasn't
 declared. This is I7's `stage:` rule (§7), stated once here because five
 different keys share it rather than repeating it five times.
 
+#### 5.1.8 `audit`: an opt-in action log
+
+`audit` is a boolean (`true` or `false`; absent means `false`) that enables
+`audit.md` (§5.7) for this directory. Version 2 only — the key lives in
+`board.md`, and a version-1 directory has none.
+
+Turning it on does not retroactively construct history: `audit.md` records
+only what happens **after** it is enabled, the same way a server access log
+says nothing about requests before it started. Turning it back off does not
+delete what has already been recorded — it only stops new entries; the
+existing file (and its history) is untouched, exactly like disabling a
+feature never implies erasing its output. `audit.md`'s own presence or
+absence is never `--check`'s business either way (§5.7).
+
 ### 5.2 (retired) — `working.NN.md`
 
 Version 1 held in-progress items in per-slot `working.NN.md` files, one item
@@ -504,7 +534,7 @@ Holds every closed item, newest first.
 |---|---|---|
 | `doc` | `done` | yes |
 | `version` | spec version, currently `2` | yes |
-| `updated` | `DATE` | no |
+| `updated` | `DATE` or `TIMESTAMP` (§3.3.1) | no |
 
 **Body**
 
@@ -538,7 +568,7 @@ item's `ID` plus `.md`.
 | `doc` | `detail` | yes |
 | `id` | `ID`, equal to the filename stem | yes |
 | `title` | byte-identical to the referencing item's title | yes |
-| `updated` | `DATE` | no |
+| `updated` | `DATE` or `TIMESTAMP` (§3.3.1) | no |
 
 The `id` and `title` duplication is deliberate: it is the only mechanism by
 which a detail file that has drifted from its item can be detected.
@@ -645,6 +675,66 @@ detail files to `details-2025/`, whenever the archive is run.
    without being asked: the operation moves data out of the checked set, and
    that is not something to discover after the fact.
 
+### 5.7 `audit.md`: an opt-in, append-only action log
+
+Present only when `board.md`'s `audit` key (§5.1.8) is or has ever been
+`true`. Version 2 only.
+
+**Frontmatter**
+
+| Key | Value | Required |
+|---|---|---|
+| `doc` | `audit` | yes |
+| `version` | spec version, currently `2` | yes |
+
+**Body**
+
+One line per changed field, oldest first, in the order operations produced
+them — an append-only log, never reordered and never rewritten once
+written:
+
+```
+TIMESTAMP " | id:" ID " | field:" FIELD " | value:" VALUE
+```
+
+```
+2026-08-27T14:32:10Z | id:T-0251 | field:stage | value:working
+2026-08-27T14:32:10Z | id:T-0251 | field:started | value:2026-08-27
+2026-08-27T14:35:02Z | id:T-0091 | field:detail | value:
+```
+
+- `TIMESTAMP` is the combined date-time form of §3.3, always carrying an
+  explicit offset (§3.3.1 rule 3) — the moment the write committed, not the
+  item's own `created`/`started`/`updated`, which may carry an entirely
+  different time or none at all.
+- `FIELD` is a field name from the registry (§6) — `stage`, `prio`,
+  `created`, `started`, and so on — one line per field an operation actually
+  changed, not one line per operation. A move that changes both `stage` and
+  `started` (entering `working`) produces two lines with the same
+  `TIMESTAMP` and `ID`. A pure reorder, which changes no field, produces no
+  line at all.
+- `VALUE` is that field's new value after the change, rendered exactly as it
+  would appear on the item line (empty when a field was cleared, e.g. a
+  `reason` dropped by leaving a `needs_reason` stage).
+- **A detail-file body change — a note, an edit to its prose, its creation
+  or removal — logs `field:detail` with `VALUE` left blank.** The body is
+  unstructured Markdown (§5.4); there is no single "new value" to record,
+  only the fact that the file changed. `ID` still names the item the detail
+  file belongs to.
+- **An item's removal logs `field:removed` with `VALUE` left blank**, rather
+  than one line per field trailing off to empty — the item is gone, not
+  edited down to nothing, and that distinction is worth keeping visible.
+- A change with no `ID` — a board-level edit such as a `wip.<slug>` cap or
+  the `audit` key itself — is not an item action and is never logged here.
+
+**Never validated.** `audit.md` is a log, not board state: it carries no
+constraint from §7, `--check` neither requires nor inspects it, and I1–I10
+say nothing about it, the same relationship an archive has to the files it
+came from (§5.6). A conforming reader MUST NOT reject a directory for
+`audit.md`'s absence, presence, or content. A writer MUST NOT rewrite or
+reorder an existing line — appending is the only mutation this file ever
+receives.
+
 ## 6. Field registry
 
 Fields valid on an item line. A reader encountering an unregistered key MUST
@@ -657,8 +747,8 @@ accept it, and a writer moving an item between files MUST preserve it verbatim
 | `prio` | `high` / `med` / `low` | no | all | Absent means `med`. |
 | `tags` | `TAGLIST` | no | all | No spaces. |
 | `refs` | `LINKLIST` | no | all | Cross-board references, §6. Never validated for resolution (§9). |
-| `created` | `DATE` | no | all | When the item was written down. |
-| `started` | `DATE` | no | board, done | Required whenever `stage:working`; survives a later stage change. |
+| `created` | `DATE` or `TIMESTAMP` (§3.3.1) | no | all | When the item was written down. |
+| `started` | `DATE` or `TIMESTAMP` (§3.3.1) | no | board, done | Required whenever `stage:working`; survives a later stage change. |
 | `done` | `DATE` | **yes** in `done.md` | done | |
 | `outcome` | `shipped` / `cancelled` / `obsolete` | **yes** in `done.md` | done | |
 | `reason` | free text, no `|` | **yes** where the item's `stage` is listed in `needs_reason` (§5.1.5) | all | Renamed from version 1's `blocked` (§10). Valid on any stage; required only where `needs_reason` lists it — unlike version 1, NOT forbidden elsewhere. |
@@ -715,12 +805,14 @@ ten; the identifiers match the numbering in `structure.md`.
   §3.3.1 — the lexical form AND a real day of a real month; `prio`, `outcome`, and
   `tags` values are drawn from their vocabularies; no field value contains `|`;
   no key is repeated within an item line. `prio`, `tags`, `created`, and
-  `started` are validated identically wherever they appear. A `tickler` value
-  is checked for shape only — it MUST match the `SCHEDULE` grammar of §3.3 and
-  MUST NOT be evaluated: no clock enters the format, and a schedule can never
-  make a directory invalid because a clock disagrees (§10.1). `tickled` is a
-  valid `DATE` wherever it appears. `board.md` frontmatter carries a
-  non-empty `project` (§5.1).
+  `started` are validated identically wherever they appear; `created`,
+  `started`, and a file's own `updated` MAY additionally carry the optional
+  time §3.3.1 sanctions for those three fields alone (`DATE` or `TIMESTAMP`).
+  A `tickler` value is checked for shape only — it MUST match the `SCHEDULE`
+  grammar of §3.3 and MUST NOT be evaluated: no clock enters the format, and
+  a schedule can never make a directory invalid because a clock disagrees
+  (§10.1). `tickled` and `done` stay `DATE`-only wherever they appear.
+  `board.md` frontmatter carries a non-empty `project` (§5.1).
   Additionally: every item line in `board.md` carries a `stage:` value that is
   a member of the directory's declared `stages` (§5.1.1); `started` is
   required whenever `stage:working` (folded in from version 1's I4);
@@ -809,13 +901,18 @@ what it owes that directory instead.
 Documented deliberately; a second implementation is not expected to fix them
 without a spec revision.
 
-1. **Timestamps are date-granular.** The files of §5 record dates, never
-   times (§3.3.1). Two items finished on the same day have no recorded order
-   beyond their position in the month group, and cycle time is measured in whole
-   days. This is deliberate — a clock in a hand-edited file is a field people get
-   wrong, and month grouping is the only ordering `done.md` actually needs — but
-   it does mean the format cannot answer "which did I finish first" within a day.
-   The tickler keeps the discipline: its schedule expression may name an
+1. **Every calculation stays date-granular, even where a time is allowed.**
+   `created`, `started` and `updated` MAY carry a time (§3.3.1), but `done`
+   and `tickled` never do, and nothing in this format's own arithmetic reads
+   the optional time even where it is present — cycle time, flight time and
+   month grouping all still work in whole days. Two items finished on the
+   same day have no recorded order beyond their position in the month group.
+   This is deliberate — a clock in a hand-edited file is a field people get
+   wrong, and month grouping is the only ordering `done.md` actually needs —
+   but it does mean the format cannot answer "which did I finish first"
+   within a day, and a time on `created`/`started` is provenance a reader MAY
+   ignore, not an input to any rule in §7. The tickler keeps the same
+   discipline one level further in: its schedule expression may name an
    `@HH:MM` wall time (§3.3), but that time lives inside the expression, read
    only by the evaluating process in its own zone. The checker validates the
    schedule's *shape*, never its meaning, so a schedule cannot make a directory

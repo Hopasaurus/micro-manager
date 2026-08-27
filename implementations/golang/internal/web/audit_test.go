@@ -16,6 +16,8 @@ package web
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -252,7 +254,10 @@ func patternInstances(projectID string) map[string][]string {
 		"settings-scan-root-<n>-remove": {"settings-scan-root-0-remove"},
 		"projects-root-<n>":             {"projects-root-0"},
 		// clean-v2-full declares stages: someday,ready,blocked,working,review.
-		"settings-wip-row-<slug>":   {"settings-wip-row-someday", "settings-wip-row-ready", "settings-wip-row-blocked", "settings-wip-row-working", "settings-wip-row-review"},
+		"settings-wip-row-<slug>": {"settings-wip-row-someday", "settings-wip-row-ready", "settings-wip-row-blocked", "settings-wip-row-working", "settings-wip-row-review"},
+		// starting T-0001 logs two fields (stage, started), rendered newest
+		// first as entry-0 and entry-1.
+		"audit-entry-<n>":           {"audit-entry-0", "audit-entry-1"},
 		"settings-wip-limit-<slug>": {"settings-wip-limit-someday", "settings-wip-limit-ready", "settings-wip-limit-blocked", "settings-wip-limit-working", "settings-wip-limit-review"},
 	}
 }
@@ -296,6 +301,24 @@ func TestAuditTestids(t *testing.T) {
 		"HX-Request", "true").expectStatus(200)
 	all += "\n" + v2ts.post("/p/"+v2id+"/items/T-0002/start", "{}",
 		"HX-Request", "true").expectStatus(409).Body
+
+	// The audit log (§5.11, T-0253): audit-unavailable on version 1,
+	// audit-disabled and settings-audit (without -view) on a v2 project with
+	// audit off, then settings-audit-view/audit-empty/audit-entries/
+	// audit-entry-<n> on a THIRD v2 fixture with audit turned on and one
+	// item touched - kept separate from v2ts above so enabling audit here
+	// does not interact with its own WIP-limit-dialog scenario.
+	all += "\n" + ts.get("/p/"+id+"/audit").expectStatus(200).Body
+	all += "\n" + v2ts.get("/p/"+v2id+"/audit").expectStatus(200).Body
+
+	auditTs, auditID := boardServer(t, "clean-v2-full")
+	auditTs.form(http.MethodPost, "/p/"+auditID+"/settings", url.Values{"audit": {"on"}}).
+		expectStatus(200)
+	all += "\n" + auditTs.get("/p/"+auditID+"/settings").expectStatus(200).Body
+	all += "\n" + auditTs.get("/p/"+auditID+"/audit").expectStatus(200).Body
+	auditTs.post("/p/"+auditID+"/items/T-0001/start", "{}",
+		"HX-Request", "true").expectStatus(200)
+	all += "\n" + auditTs.get("/p/"+auditID+"/audit").expectStatus(200).Body
 
 	instances := patternInstances(id)
 

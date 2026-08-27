@@ -59,6 +59,7 @@ func parseBoard(name string, data []byte) (*boardFile, []Violation) {
 			})
 		}
 	}
+	vs = append(vs, checkUpdatedFM(name, fm)...)
 
 	cfg, cvs := parseStageConfig(name, fm)
 	vs = append(vs, cvs...)
@@ -207,6 +208,20 @@ func parseStageConfig(name string, fm *Frontmatter) (StageConfig, []Violation) {
 		}
 	} else {
 		cfg.NeedsReason = []Stage{"blocked"}
+	}
+
+	if fm.Has("audit") {
+		switch fm.Get("audit") {
+		case "true":
+			cfg.AuditEnabled = true
+		case "false":
+			cfg.AuditEnabled = false
+		default:
+			vs = append(vs, Violation{
+				Invariant: invFormat, At: Location{File: name, Line: fm.Line("audit")},
+				Message: "audit must be true or false: " + fm.Get("audit"),
+			})
+		}
 	}
 
 	return cfg, vs

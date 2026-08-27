@@ -406,6 +406,12 @@ func (s *Store) finishV2(t *tx, id ID, req FinishRequest, outcome Outcome, when 
 func (s *Store) moveV2(t *tx, id ID, req MoveRequest, today Date) (Item, TxResult, error) {
 	var zero Item
 	it := t.model.find(id)
+	// Captured before ANY field on it is touched below (started, reason,
+	// tickler), not just before the stage change - T-0253's audit log diffs
+	// this against the final rendered line to find every field an operation
+	// actually changed, and a snapshot taken partway through would hide
+	// whichever fields this function had already mutated by then.
+	before := RenderItemLine(it)
 
 	b, e, err := t.board()
 	if err != nil {
@@ -457,7 +463,6 @@ func (s *Store) moveV2(t *tx, id ID, req MoveRequest, today Date) (Item, TxResul
 		it.TicklerDest = ""
 	}
 
-	before := RenderItemLine(it)
 	b.RemoveItem(e, it)
 	dest := b.StageItems(to)
 	index, err := resolveIndexV2(req, dest, from == to)

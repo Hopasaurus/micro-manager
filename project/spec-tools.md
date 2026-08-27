@@ -431,7 +431,13 @@ Allocates the ID from `next_id`, writes the item line, increments `next_id`.
   spec I7), not `--start`'s alone to set, so `--add --stage working` MUST
   stamp it to today when adding directly onto it (§5.1.7's own note on
   `--move --stage working` applies here verbatim).
-- `--created` defaults to today. It exists for backfilling.
+- `--created` defaults to today and takes a bare `DATE`; it exists for
+  backfilling, not for recording a time of day. `created:`, `started:` and a
+  file's own `updated:` MAY carry the optional time format spec §3.3.1
+  sanctions for those three fields (`DATE` or `TIMESTAMP`) — a value already
+  on disk with one is read and preserved exactly, and `--edit --set
+  created:VALUE` / `--set started:VALUE` (§5.1.5) accept the full form for
+  a caller that wants to set one directly.
 - `--tickler SCHEDULE` schedules the item (a SCHEDULE expression,
   spec-file-format §3.3). It REQUIRES `--stage` to name a `SOURCE` in the
   directory's `tickler_stages` (format spec §5.1.4; default `someday`) — I7
@@ -813,6 +819,15 @@ The finding counts toward the exit code like any other.
 
 This MUST be the same validation code the mutating operations run before
 committing (§8). Two implementations of the invariants will diverge.
+
+`--check` does not read `audit.md` (format spec §5.7): it is a log, not board
+state, and carries no invariant of its own. `audit.md` is written
+automatically, as a side effect of any mutating operation, on a directory
+whose `board.md` sets `audit: true` — there is no dedicated `--audit`
+switch, the same way there is no switch for `updated:` maintenance. A caller
+that wants it off writes `audit: false` (or removes the key) by hand, or
+through whatever front end offers the toggle (`spec-gui.md`'s settings
+page).
 
 Errors: none; violations are results, not errors.
 

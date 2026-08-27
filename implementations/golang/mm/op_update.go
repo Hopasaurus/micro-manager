@@ -239,19 +239,24 @@ func setAnyField(it *Item, key, value string, m *dirModel) error {
 			return err
 		}
 		it.Refs = refs
-	case "created", "started", "done":
+	case "created", "started":
+		d, suffix, err := ParseDateOrStamp(value)
+		if err != nil {
+			return err
+		}
+		if key == "created" {
+			it.Created = d
+			it.CreatedTime = suffix
+		} else {
+			it.Started = d
+			it.StartedTime = suffix
+		}
+	case "done":
 		d, err := ParseDate(value)
 		if err != nil {
 			return err
 		}
-		switch key {
-		case "created":
-			it.Created = d
-		case "started":
-			it.Started = d
-		case "done":
-			it.Done = d
-		}
+		it.Done = d
 	case "outcome":
 		o, err := ParseOutcome(value)
 		if err != nil {
