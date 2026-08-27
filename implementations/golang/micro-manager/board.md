@@ -2,7 +2,7 @@
 doc: board
 version: 2
 project: micro-manager — Go implementation
-next_id: T-0255
+next_id: T-0256
 updated: 2026-08-27
 wip.working: 4
 audit: true

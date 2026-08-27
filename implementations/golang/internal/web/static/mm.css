@@ -764,7 +764,7 @@ body {
 
 .mm-audit__entry {
   display: grid;
-  grid-template-columns: 11rem 5rem 7rem 1fr;
+  grid-template-columns: 11rem 5rem minmax(0, 16rem) 7rem 1fr;
   gap: var(--mm-space-3);
   align-items: baseline;
   padding: var(--mm-space-2) 0;
@@ -783,6 +783,13 @@ body {
   text-decoration: none;
 }
 .mm-audit__id:hover { text-decoration: underline; }
+.mm-audit__desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--mm-color-fg-muted);
+  cursor: default;
+}
 .mm-audit__field {
   display: inline-block;
   width: fit-content;

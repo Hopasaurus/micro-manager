@@ -40,6 +40,7 @@
          data-field="{{.Field}}" role="listitem">
       <time class="mm-audit__time">{{.Timestamp}}</time>
       <a class="mm-audit__id" href="/p/{{$p.ID}}/item/{{.ID}}">{{.ID}}</a>
+      <span class="mm-audit__desc" title="{{.Title}}">{{if .Title}}{{.Title}}{{else}}<span class="mm-audit__blank">—</span>{{end}}</span>
       <span class="mm-audit__field">{{.Field}}</span>
       <span class="mm-audit__value">{{if .Value}}{{.Value}}{{else}}<span class="mm-audit__blank">—</span>{{end}}</span>
     </div>

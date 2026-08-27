@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"regexp"
 	"testing"
 )
 
@@ -50,6 +51,37 @@ func TestAuditViewListsEntriesNewestFirst(t *testing.T) {
 	first := testid(t, body, "audit-entry-0")
 	if attrOf(t, first, "data-item-id") != "T-0001" {
 		t.Errorf("entry 0 item = %q, want T-0001:\n%s", attrOf(t, first, "data-item-id"), body)
+	}
+}
+
+// The item's title sits between id and field, truncated with a title=
+// attribute carrying the full text for hover (UI-only - audit.md itself
+// never records a title, per format spec §5.7).
+func TestAuditViewShowsItemTitle(t *testing.T) {
+	ts, id := boardServer(t, "clean-v2-full")
+	ts.form(http.MethodPost, "/p/"+id+"/settings", url.Values{"audit": {"on"}}).
+		expectStatus(http.StatusOK)
+	ts.post("/p/"+id+"/items/T-0001/start", "{}", "HX-Request", "true").
+		expectStatus(http.StatusOK)
+
+	body := ts.get("/p/" + id + "/audit").expectStatus(http.StatusOK).Body
+	if !regexp.MustCompile(`class="mm-audit__desc" title="Fix the deploy script">Fix the deploy script<`).MatchString(body) {
+		t.Errorf("entry should show T-0001's title, truncatable, with the full text in title=:\n%s", body)
+	}
+}
+
+// A removed item has no title to show; the description cell falls back to
+// the same blank placeholder every other empty value uses.
+func TestAuditViewBlankTitleForARemovedItem(t *testing.T) {
+	ts, id := boardServer(t, "clean-v2-full")
+	ts.form(http.MethodPost, "/p/"+id+"/settings", url.Values{"audit": {"on"}}).
+		expectStatus(http.StatusOK)
+	ts.form(http.MethodDelete, "/p/"+id+"/items/T-0001?force=true", nil).
+		expectStatus(http.StatusOK)
+
+	body := ts.get("/p/" + id + "/audit").expectStatus(http.StatusOK).Body
+	if !regexp.MustCompile(`data-item-id="T-0001"[^>]*>[\s\S]*?class="mm-audit__desc" title=""><span class="mm-audit__blank">`).MatchString(body) {
+		t.Errorf("a removed item's description should render the blank placeholder:\n%s", body)
 	}
 }
 

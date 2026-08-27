@@ -24,6 +24,7 @@ type auditEntryData struct {
 	N         int
 	Timestamp string
 	ID        string
+	Title     string // the item's current title, "" if it no longer exists (e.g. removed)
 	Field     string
 	Value     string
 }
@@ -63,11 +64,30 @@ func (s *Server) buildAudit(store *mm.Store) (auditData, error) {
 	if err != nil {
 		return auditData{}, err
 	}
+
+	// Looked up once per distinct ID, not once per entry - the same item
+	// commonly appears across several consecutive lines. A UI-only lookup:
+	// audit.md itself never carries a title (spec-file-format.md §5.7 keeps
+	// it to id/field/value), so this is purely a display convenience, not a
+	// field the log format has any opinion about.
+	titles := map[string]string{}
+	titleFor := func(id string) string {
+		if t, ok := titles[id]; ok {
+			return t
+		}
+		t := ""
+		if it, err := store.Get(mm.ID(id)); err == nil {
+			t = it.Title
+		}
+		titles[id] = t
+		return t
+	}
+
 	for i := len(entries) - 1; i >= 0; i-- {
 		e := entries[i]
 		data.Entries = append(data.Entries, auditEntryData{
 			N: len(data.Entries), Timestamp: e.Timestamp, ID: string(e.ID),
-			Field: e.Field, Value: e.Value,
+			Title: titleFor(string(e.ID)), Field: e.Field, Value: e.Value,
 		})
 	}
 	return data, nil
