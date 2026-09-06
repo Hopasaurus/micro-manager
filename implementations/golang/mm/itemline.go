@@ -1,6 +1,7 @@
 package mm
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -18,6 +19,56 @@ import (
 // from its fields, and its fields from each other. The spaces are significant:
 // a bare '|' inside a value does not split.
 const fieldSep = " | "
+
+// validFieldKey reports whether key matches spec-file-format.md §4.2. Parsing
+// intentionally does not call it: readers preserve legacy malformed fields so
+// an unrelated edit can round-trip them. Writers use it before introducing or
+// replacing a field.
+func validFieldKey(key string) bool {
+	if key == "" {
+		return false
+	}
+	for _, r := range key {
+		if !((r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') ||
+			(r >= '0' && r <= '9') || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// reservedExtensionKey implements the reservation in spec-file-format.md §9.
+// wip. cannot pass validFieldKey today, but remains explicit here so the policy
+// stays complete if the lexical grammar ever changes.
+func reservedExtensionKey(key string) bool {
+	switch key {
+	case "id", "status", "next_id", "doc", "version", "id_prefix", "id_width",
+		"board", "stage", "stages", "stage_labels", "tickler_stages", "needs_reason":
+		return true
+	}
+	return strings.HasPrefix(key, "wip.")
+}
+
+func validateExtraField(f Field) error {
+	if !validFieldKey(f.Key) {
+		return fmt.Errorf("%w: malformed field key %q; use only ASCII letters, digits, _ or -",
+			ErrInvalidArgument, f.Key)
+	}
+	if reservedExtensionKey(f.Key) {
+		return fmt.Errorf("%w: field key %q is reserved and cannot be used by an extension",
+			ErrInvalidArgument, f.Key)
+	}
+	for _, key := range fieldOrder {
+		if f.Key == key {
+			return fmt.Errorf("%w: registered field %q must use its typed request field",
+				ErrInvalidArgument, f.Key)
+		}
+	}
+	if strings.Contains(f.Value, "|") {
+		return fmt.Errorf("%w: field %s may not contain %q", ErrInvalidArgument, f.Key, "|")
+	}
+	return nil
+}
 
 // itemLineOffsets locates the box, ID and title of a candidate item line by
 // token, returning false when the line does not match

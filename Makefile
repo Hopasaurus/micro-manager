@@ -41,12 +41,15 @@
 GO       ?= go
 INSTALL  ?= install
 GO_DIR   := implementations/golang
+VERSION  := $(shell cat VERSION)
+VERSION_LDFLAGS := -X github.com/Hopasaurus/micro-manager/internal/cli.Version=$(VERSION) \
+                   -X github.com/Hopasaurus/micro-manager/internal/web.Version=$(VERSION)
 
 PREFIX   ?= $(HOME)/.local
 DESTDIR  ?=
 BINDIR   := $(DESTDIR)$(PREFIX)/bin
 
-.PHONY: all help build build-ui build-all \
+.PHONY: all help build build-ui build-all version-check version-test \
         install install-ui install-all \
         uninstall uninstall-ui uninstall-all \
         test vet check clean
@@ -59,6 +62,8 @@ help:
 	@echo "  build           build implementations/golang/bin/mm"
 	@echo "  build-ui        build implementations/golang/bin/mm-ui"
 	@echo "  build-all       build both"
+	@echo "  version-check   verify every product-version mirror"
+	@echo "  version-test    test bumps, prereleases, and drift detection"
 	@echo "  install         build mm and install it to \$$(BINDIR) [$(BINDIR)]"
 	@echo "  install-ui      build mm-ui and install it to \$$(BINDIR)"
 	@echo "  install-all     install both"
@@ -75,14 +80,22 @@ help:
 
 ## build: build the mm CLI to implementations/golang/bin/mm
 build:
-	cd $(GO_DIR) && $(GO) build -o bin/mm ./cmd/mm
+	cd $(GO_DIR) && $(GO) build -ldflags "$(VERSION_LDFLAGS)" -o bin/mm ./cmd/mm
 
 ## build-ui: build the GUI service to implementations/golang/bin/mm-ui
 build-ui:
-	cd $(GO_DIR) && $(GO) build -o bin/mm-ui ./cmd/mm-ui
+	cd $(GO_DIR) && $(GO) build -ldflags "$(VERSION_LDFLAGS)" -o bin/mm-ui ./cmd/mm-ui
 
 ## build-all: build both mm and mm-ui
 build-all: build build-ui
+
+## version-check: verify product-version mirrors against VERSION
+version-check:
+	./version.sh check
+
+## version-test: exercise versioning safely in a temporary repository
+version-test:
+	./version_test.sh
 
 ## install: build mm and install it to $(BINDIR)
 install: build
@@ -115,7 +128,7 @@ uninstall-ui:
 uninstall-all: uninstall uninstall-ui
 
 ## test: go test ./... in the Go implementation
-test:
+test: version-check version-test
 	cd $(GO_DIR) && $(GO) test ./...
 
 ## vet: go vet ./... in the Go implementation

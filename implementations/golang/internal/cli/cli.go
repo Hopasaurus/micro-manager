@@ -25,10 +25,13 @@ const (
 	ExitIO                 = 6 // filesystem or environment failure
 )
 
-// Version is the tool version, and the format spec version it implements.
+// Version is replaced from the repository VERSION file by supported builds.
+// Direct go build/go run invocations deliberately identify themselves as dev.
+var Version = "0.0.0-dev"
+
+// FormatSpecVersion is the data format compatibility version implemented.
 const (
-	Version           = "0.2.0"
-	FormatSpecVersion = "1"
+	FormatSpecVersion = "2"
 )
 
 // Env carries everything the wrapper is allowed to know about the process that

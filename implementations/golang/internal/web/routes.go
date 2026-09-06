@@ -50,6 +50,7 @@ func (s *Server) routes() {
 	s.echo.GET("/p/:projectId/status", s.status) // SSE refresh, internal (§4.5)
 	s.echo.GET("/p/:projectId/shell", s.shell)   // SSE theme refresh, internal (§4.5)
 	s.echo.GET("/p/:projectId/item/:itemId", s.itemPanel)
+	s.echo.GET("/p/:projectId/item/:itemId/freshness", s.itemFreshness) // panel freshness, internal
 	s.echo.GET("/p/:projectId/new", s.newItemPanel)
 	s.echo.GET("/p/:projectId/report", s.report)
 	s.echo.GET("/p/:projectId/check", s.check)

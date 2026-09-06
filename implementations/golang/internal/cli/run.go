@@ -118,8 +118,30 @@ func dispatch(env Env, in *Invocation) error {
 		return runStats(env, in, store)
 	case OpTick:
 		return runTick(env, in, store)
+	case OpRefreshStructure:
+		return runRefreshStructure(env, in, store)
 	}
 	return usagef("--%s is not implemented", in.Op)
+}
+
+func runRefreshStructure(env Env, in *Invocation, s *mm.Store) error {
+	result, tx, err := s.RefreshStructure(mm.RefreshStructureRequest{DryRun: in.DryRun}, env.Today)
+	if err != nil {
+		return err
+	}
+	env.json.setChanges(tx)
+	env.json.setResult(result)
+	action := "unchanged"
+	if result.Created {
+		action = "created"
+	} else if result.Updated {
+		action = "updated"
+	}
+	env.porcelain.row(result.Path, action)
+	if !in.Quiet {
+		out(env, "%sstructure.md %s\n", prefix(in), action)
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -596,6 +618,10 @@ func runEdit(env Env, in *Invocation, s *mm.Store, g mm.IDGrammar) error {
 	id, err := subjectID(in, "--edit", g)
 	if err != nil {
 		return err
+	}
+	if in.Has("stage") {
+		return usagef("--stage does not apply to --edit; move the item with --move %s --stage %s",
+			id, in.Value("stage"))
 	}
 	req := mm.UpdateRequest{
 		AddTags:    in.Tags,

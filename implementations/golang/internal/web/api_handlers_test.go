@@ -82,6 +82,7 @@ func projectIDOf(t *testing.T, ts *testServer, path string) string {
 	var env struct {
 		OK     bool `json:"ok"`
 		Result struct {
+			Revision    string `json:"revision"`
 			Directories []struct {
 				Path      string `json:"path"`
 				ProjectID string `json:"projectId"`
@@ -298,7 +299,8 @@ func TestAPIShowAndEditItem(t *testing.T) {
 	var show struct {
 		OK     bool `json:"ok"`
 		Result struct {
-			Item struct {
+			Revision string `json:"revision"`
+			Item     struct {
 				ID    string `json:"id"`
 				Title string `json:"title"`
 			} `json:"item"`
@@ -311,6 +313,9 @@ func TestAPIShowAndEditItem(t *testing.T) {
 	if show.Result.Detail.Body == "" {
 		t.Fatal("show did not include the detail body")
 	}
+	if show.Result.Revision == "" {
+		t.Fatal("show did not include an edit revision")
+	}
 
 	// PATCH edits title and prio.
 	var edited struct {
@@ -322,10 +327,36 @@ func TestAPIShowAndEditItem(t *testing.T) {
 			} `json:"item"`
 		} `json:"result"`
 	}
-	ts.patchJSON("/api/v1/projects/"+id+"/items/T-0001",
-		`{"title":"Renamed by API","prio":"low"}`).expectStatus(200).json(&edited)
+	payload, _ := json.Marshal(map[string]any{"title": "Renamed by API", "prio": "low", "expectedRevision": show.Result.Revision, "detail": "API detail"})
+	ts.patchJSON("/api/v1/projects/"+id+"/items/T-0001", string(payload)).expectStatus(200).json(&edited)
 	if edited.Result.Item.Title != "Renamed by API" || edited.Result.Item.Prio != "low" {
 		t.Fatalf("edit result = %+v", edited.Result.Item)
+	}
+}
+
+func TestAPIEditRejectsStaleRevision(t *testing.T) {
+	ts := newTestServer(t, "clean-v2-full")
+	id := projectIDOf(t, ts, ts.Dirs[0])
+	store, err := ts.registry.resolve(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision, err := store.ItemRevision("T-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	today, _ := mm.ParseDate("2026-09-05")
+	if _, err := store.SetDetailBody("T-0001", "remote", false, today); err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]any{"title": "mine", "detail": "mine", "expectedRevision": revision.String()})
+	res := ts.patchJSON("/api/v1/projects/"+id+"/items/T-0001", string(payload))
+	if res.Status != 409 || res.errorCode() != "Concurrent" {
+		t.Fatalf("status %d code %q", res.Status, res.errorCode())
+	}
+	item, _ := store.Get("T-0001")
+	if item.Title == "mine" {
+		t.Error("stale JSON edit was written")
 	}
 }
 

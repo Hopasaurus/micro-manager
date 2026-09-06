@@ -30,6 +30,26 @@ make install
 mm --version
 ```
 
+## Product version
+
+The repository-wide product version is the bare SemVer value in `VERSION`.
+It is separate from the integer compatibility versions declared by the format,
+tools, GUI, and TUI specifications. The pi plugin has its own package lifecycle
+and is deliberately excluded.
+
+```bash
+./version.sh current
+./version.sh check
+./version.sh bump patch
+./version.sh bump patch beta.1   # optional prerelease
+```
+
+The bump command updates validated mirrors but does not commit, tag, publish,
+or create a release. Supported Makefile builds inject `VERSION` into `mm` and
+`mm-ui`; a direct `go build` or `go run` intentionally reports `0.0.0-dev`.
+Implementation placeholders with no committed executable version surface are
+not mirrors yet; they must consume `VERSION` when their CLI or UI is built.
+
 (`make install PREFIX=/usr/local` for a system-wide install instead — see
 `make help` for every target, and *Building and installing the CLI* below for
 what `make install` does under the hood.)

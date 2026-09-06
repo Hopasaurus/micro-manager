@@ -1,5 +1,6 @@
 # micro-manager — user interface specification
 
+    Product version: 0.2.1
     Spec version: 2
     Date:         2026-08-20
     Status:       draft
@@ -78,6 +79,15 @@ correctly with polling alone; an event stream is an optimization.
 When the fingerprint changes, the client MUST re-read and re-render, and MUST
 surface a non-blocking notice if the change affected an item the user is
 currently editing.
+
+An open item form MUST NOT be replaced automatically. The client compares an
+opaque, content-based revision covering that item's complete item line and
+exact detail-file state; a coarse project change merely wakes this targeted
+comparison. If the revision changed, the client preserves the form, surfaces
+the notice accessibly, and offers an explicit reload. Any local input makes the
+form dirty, and an explicit reload MUST warn before discarding it. A removed or
+temporarily unreadable item MUST produce a distinct notice. This targeted
+check MUST also participate in the polling fallback when SSE is unavailable.
 
 ### 2.4 The tickler service
 
@@ -228,6 +238,15 @@ removing the field in the same transaction as the rest of the form. The
 grammar lives in one place: the server composes, the library validates on
 write, and a composed value the library rejects is `InvalidArgument` (400) —
 the controls cannot produce one, a hand-crafted request can.
+
+`GET /items/:itemId` returns an opaque `revision` covering the complete item
+line and exact detail-file state. `PATCH /items/:itemId` accepts that value as
+`expectedRevision` and an optional `detail` string. The editable fields and
+detail body MUST commit in one library transaction. If the current revision
+differs, the endpoint returns `409 Concurrent` without writing either file.
+Clients SHOULD send `expectedRevision`; omission retains compatibility with
+older clients by using a revision read immediately before the preconditioned
+transaction.
 
 ### 4.3 Error mapping
 

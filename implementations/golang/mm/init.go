@@ -93,7 +93,7 @@ func Init(path string, req InitRequest, today Date) (*Store, TxResult, error) {
 	}
 	order := []string{"board.md", "done.md", templateName}
 	if writeStructure {
-		files["structure.md"] = renderInitStructureV2(project, today, req.Description)
+		files["structure.md"] = renderManagedStructureV2(project, today, req.Description, g, defaultStructureNotes())
 		order = append(order, "structure.md")
 	}
 

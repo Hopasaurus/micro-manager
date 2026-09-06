@@ -153,8 +153,8 @@ func applyAddField(req *AddRequest, lineNo int, key, val string) error {
 		return addLineErrf(lineNo,
 			"%s: belongs to an item that has been started or closed; --add-many creates backlog items", key)
 	default:
-		if key == "" {
-			return addLineErrf(lineNo, "a field has no key")
+		if err := validateExtraField(Field{Key: key, Value: val}); err != nil {
+			return addLineErrf(lineNo, "%v", err)
 		}
 		// Unregistered, and preserved verbatim: the format's extension point
 		// (spec-file-format.md §9) does not stop at the boundary of a bulk add.

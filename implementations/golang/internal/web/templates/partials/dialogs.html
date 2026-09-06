@@ -55,6 +55,28 @@
 </div>
 {{- end}}
 
+{{define "item-edit-conflict" -}}
+{{$d := .Data}}
+<div hx-swap-oob="innerHTML:[data-testid='dialog-root']">
+  <div data-testid="x-item-edit-conflict" class="mm-dialog" role="dialog" aria-modal="true"
+       aria-labelledby="x-item-edit-conflict-title" data-code="{{$d.Code}}">
+    <h2 data-testid="x-item-edit-conflict-title" id="x-item-edit-conflict-title">This item changed elsewhere</h2>
+    <p>{{$d.Message}}</p>
+    {{if $d.Values}}
+    <table data-testid="x-item-edit-comparison">
+      <thead><tr><th>Field</th><th>Base</th><th>Mine</th><th>Current</th></tr></thead>
+      <tbody>{{range $d.Values}}<tr><th>{{.Field}}</th><td><pre>{{.Base}}</pre></td><td><pre>{{.Local}}</pre></td><td><pre>{{.Current}}</pre></td></tr>{{end}}</tbody>
+    </table>
+    {{end}}
+    <div class="mm-dialog__buttons">
+      <button data-testid="x-item-edit-conflict-reload" class="mm-button mm-button--primary" type="button"
+              hx-get="/p/{{$d.ProjectID}}/item/{{$d.ItemID}}" hx-target="#item-panel-root" hx-swap="innerHTML">Reload and discard mine</button>
+      <button data-testid="x-item-edit-conflict-keep" class="mm-button" type="button" data-dismiss>Keep editing</button>
+    </div>
+  </div>
+</div>
+{{- end}}
+
 {{/*
   §7.2: moving into blocked MUST prompt for a reason, and cancelling aborts.
   I5 requires the reason too, so this is the format's rule surfacing as a prompt.

@@ -1,5 +1,6 @@
 # micro-manager — data file format specification
 
+    Product version: 0.2.1
     Spec version: 2
     Date:         2026-08-20
     Status:       draft
@@ -284,6 +285,10 @@ Parsing rules:
 6. A repeated key within one item line is an error.
 7. Field order is NOT significant. Writers SHOULD use the canonical order in
    §6.1; readers MUST NOT depend on it.
+8. A reader MAY tolerate and retain a legacy unregistered key that does not
+   match the `key` grammar, so the item remains readable and the field can be
+   removed. A writer MUST NOT introduce or replace such a key, but an unrelated
+   mutation MAY preserve it verbatim.
 
 The title MUST NOT contain `|`. See §10 for the one case where violating this
 is not reliably detected.
@@ -888,6 +893,8 @@ Forward compatibility rules:
   `stage`, `stages`, `stage_labels`, `tickler_stages`, `needs_reason`, and
   the `wip.` key prefix. `status` is retired alongside `working.NN.md` (§5.2)
   but stays reserved rather than becoming available for reuse.
+  A reader MAY preserve a legacy item-line field using one of these names so it
+  can be removed; a writer MUST NOT introduce or replace one.
 
 A reader encountering `version` greater than the version it implements SHOULD
 report a version mismatch rather than parse the file speculatively. A reader

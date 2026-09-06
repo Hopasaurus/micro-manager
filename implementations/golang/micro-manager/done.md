@@ -1,13 +1,25 @@
 ---
 doc: done
 version: 2
-updated: 2026-08-27
+updated: 2026-09-06
 ---
 
 # Done
 
 Closed items, newest month first, newest item first within a month. Cancelled
 work stays here too — see [structure.md](structure.md).
+
+## 2026-09
+
+- [x] [T-0135] CSS transition polish on swap (fade .htmx-added content) | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0135.md | created:2026-08-02 | reason:report Phase 3; only if Phase 1 still feels abrupt | done:2026-09-06 | outcome:cancelled
+- [x] [T-0216] Reload scan roots into the live UI registry | prio:high | tags:bug,gui | detail:details/T-0216.md | created:2026-08-19 | started:2026-08-19 | reason:needs review and test | done:2026-09-06 | outcome:shipped
+- [x] [T-0246] A second blocked one | created:2026-08-26 | reason:stacking test | done:2026-09-05 | outcome:shipped
+- [x] [T-0134] Per-column fragment routes and hx-triggers (gated on T-0131) | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0134.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead | done:2026-09-05 | outcome:cancelled
+- [x] [T-0133] Broker: publish per-column events from a per-file diff; detail-body edits fire nothing | prio:med | tags:gui,flicker-fix,phase-2 | detail:details/T-0133.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead | done:2026-09-05 | outcome:cancelled
+- [x] [T-0132] Library: expose per-file stamps for region-level change detection | prio:med | tags:library,flicker-fix,phase-2 | detail:details/T-0132.md | created:2026-08-02 | reason:NO-GO from T-0131 (2026-08-02): premise unmet - idle traffic is 100% backstop, 0 events; doneLimit caps payload. Do T-0139 (D2) instead | done:2026-09-05 | outcome:cancelled
+- [x] [T-0258] time for code & coffee | prio:med | created:2026-09-04 | done:2026-09-05 | outcome:shipped
+- [x] [T-0256] time for code & coffee | prio:med | created:2026-08-28 | done:2026-09-05 | outcome:shipped
+- [x] [T-0257] tie your shoes | prio:med | created:2026-09-01 | done:2026-09-05 | outcome:shipped
 
 ## 2026-08
 

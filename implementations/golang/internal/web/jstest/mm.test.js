@@ -111,8 +111,9 @@ const COLLAPSED_HTML = BOARD_HTML.replace(
 function panelHTML(kind = 'never', stage = 'ready') {
   const hide = (k) => (k === kind ? '' : 'hidden');
   const panel = `
-  <aside data-testid="item-panel" class="mm-panel">
+  <aside data-testid="item-panel" class="mm-panel" data-new="no" data-dirty="false">
     <form data-testid="item-form">
+      <input data-testid="item-field-title" name="title" value="First">
       <select data-testid="item-field-stage" name="stage">
         <option value="ready" ${stage === 'ready' ? 'selected' : ''}>Ready</option>
         <option value="someday" ${stage === 'someday' ? 'selected' : ''}>Someday</option>
@@ -141,7 +142,12 @@ function panelHTML(kind = 'never', stage = 'ready') {
           <input data-testid="tickler-time" type="time" name="tickler-time">
         </div>
       </fieldset>
+      <button data-testid="item-save" type="submit">Save</button>
     </form>
+    <div data-testid="x-item-freshness" hx-get="/p/x/item/T-0001/freshness?revision=abc"
+         hx-trigger="sse:item from:body" hx-swap="morph">
+      <a data-testid="x-item-freshness-reload" href="/p/x/item/T-0001">Reload item</a>
+    </div>
   </aside>
 `;
   return BOARD_HTML.replace('<div data-testid="toast-region"', panel + '  <div data-testid="toast-region"');
@@ -1202,4 +1208,39 @@ test('the theme shell is not polled', (t) => {
 
   assert.ok(htmx.calls.every((c) => c.url !== '/p/x/shell'), 'the shell is not polled');
   assert.equal(htmx.calls.length, 4, 'only the board and status regions poll');
+});
+
+test('item freshness polling preserves input and dirty reload asks first', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const { win, htmx } = load(t, panelHTML());
+  const title = byTestid(win, 'item-field-title');
+  title.value = 'local edit';
+  title.dispatchEvent(new win.Event('input', { bubbles: true }));
+  assert.equal(byTestid(win, 'item-panel').getAttribute('data-dirty'), 'true');
+
+  title.value = 'First';
+  title.dispatchEvent(new win.Event('input', { bubbles: true }));
+  assert.equal(byTestid(win, 'item-panel').getAttribute('data-dirty'), 'false',
+    'reverting to the rendered values makes the form clean');
+  title.value = 'local edit';
+  title.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  htmx.fire('htmx:sseError');
+  assert.ok(htmx.calls.some((c) => c.url.includes('/freshness?revision=abc')),
+    'SSE-down polling includes the targeted item probe');
+  assert.equal(title.value, 'local edit', 'polling does not replace the form');
+
+  win.confirm = () => false;
+  const click = new win.MouseEvent('click', { bubbles: true, cancelable: true });
+  byTestid(win, 'x-item-freshness-reload').dispatchEvent(click);
+  assert.equal(click.defaultPrevented, true, 'declining confirmation preserves local input');
+
+  const freshness = byTestid(win, 'x-item-freshness');
+  freshness.setAttribute('data-state', 'changed');
+  title.focus();
+  htmx.fire('htmx:afterSwap', { target: freshness });
+  htmx.fire('htmx:afterSwap', { target: freshness });
+  assert.equal(byTestid(win, 'item-save').disabled, true, 'stale save is disabled as guidance');
+  assert.equal(win.document.activeElement, title, 'repeated notices do not steal focus');
+  assert.equal(title.value, 'local edit', 'repeated notices preserve local input');
 });

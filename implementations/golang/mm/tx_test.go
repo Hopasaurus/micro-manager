@@ -104,6 +104,10 @@ func TestAddValidation(t *testing.T) {
 		{"bad tag", AddRequest{Title: "x", Tags: []string{"a b"}}, "malformed tag"},
 		{"pipe in reason", AddRequest{Title: "x", Blocked: "a|b"}, "may not contain"},
 		{"unknown section", AddRequest{Title: "x", Section: "Later"}, "unknown section"},
+		{"malformed extra key", AddRequest{Title: "x", Extra: []Field{{"bad key", "value"}}}, "malformed field key"},
+		{"reserved extra key", AddRequest{Title: "x", Extra: []Field{{"id", "value"}}}, "reserved"},
+		{"registered key in extra", AddRequest{Title: "x", Extra: []Field{{"prio", "high"}}}, "typed request field"},
+		{"pipe in extra value", AddRequest{Title: "x", Extra: []Field{{"owner", "a|b"}}}, "may not contain"},
 	}
 	for _, c := range cases {
 		_, _, err := testAddV1(s, c.req, today)

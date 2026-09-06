@@ -432,10 +432,10 @@ func TestGrammarSSE(t *testing.T) {
 	ts.post("/api/v1/projects/"+id+"/items",
 		`{"title":"SSE grammar probe"}`, apiHeaders()...).expectStatus(201)
 
-	events := nextEvents(t, res, "board", "status", "check")
+	events := nextEvents(t, res, "board", "status", "check", "item")
 	for _, name := range events {
 		switch name {
-		case "board", "status", "check":
+		case "board", "status", "check", "item":
 		default:
 			t.Fatalf("unexpected event name %q", name)
 		}

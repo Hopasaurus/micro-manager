@@ -481,6 +481,56 @@ func TestHelpAndVersion(t *testing.T) {
 	}
 }
 
+func TestHelpWarnsAboutShellInterpolation(t *testing.T) {
+	r := runner{}
+	help := r.run("--help")
+	for _, want := range []string{"command substitutions", "$()", "`date`", "single-quote", "behavior, not mm parsing or validation"} {
+		if !strings.Contains(help.Stdout, want) {
+			t.Errorf("general help missing %q:\n%s", want, help.Stdout)
+		}
+	}
+}
+
+func TestInitHelpExplainsPermanentPrefixWithExample(t *testing.T) {
+	r := runner{}
+	help := r.run("--help", "--init")
+	for _, want := range []string{"--prefix P", "only while creating", "permanent", `mm --init --project "Garden" --prefix G`, "G-0001"} {
+		if !strings.Contains(help.Stdout, want) {
+			t.Errorf("init help missing %q:\n%s", want, help.Stdout)
+		}
+	}
+}
+
+func TestEditHelpDirectsStageChangesToMove(t *testing.T) {
+	help := (runner{}).run("--help", "--edit")
+	for _, want := range []string{"--stage is not valid with --edit", "mm --move T-0042 --stage review"} {
+		if !strings.Contains(help.Stdout, want) {
+			t.Errorf("edit help missing %q:\n%s", want, help.Stdout)
+		}
+	}
+}
+
+func TestEditStageFailsLoudlyAndPointsToMove(t *testing.T) {
+	r, _ := v2Project(t)
+	if got := r.run("--add", "Needs review"); got.Code != ExitOK {
+		t.Fatalf("add: %s", got)
+	}
+
+	got := r.run("--edit", "T-0001", "--stage", "review")
+	if got.Code != ExitUsage {
+		t.Fatalf("--edit --stage exit = %d, want %d; output:\n%s", got.Code, ExitUsage, got)
+	}
+	if !strings.Contains(got.Stderr, "--move T-0001 --stage review") {
+		t.Errorf("error should name the supported transition command:\n%s", got.Stderr)
+	}
+
+	// The rejected edit must not move the item.
+	show := r.run("--show", "T-0001", "--json")
+	if show.Code != ExitOK || !strings.Contains(show.Stdout, `"stage": "ready"`) {
+		t.Errorf("rejected edit changed the item:\n%s", show)
+	}
+}
+
 // F1 (code-review-007): --help and --version are answers, not operation
 // output, so a machine mode must not swallow them. An empty stdout with exit
 // 0 would look exactly like a successful run that produced nothing.

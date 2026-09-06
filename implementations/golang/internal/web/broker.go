@@ -178,7 +178,7 @@ func (b *broker) poll(ctx context.Context, projectID string) {
 			fp, err := store.Fingerprint()
 			if err == nil && fp != last {
 				last = fp
-				// The data files are the input to all three regions: column
+				// The data files are the input to all coarse refresh signals:
 				// counts, WIP and the validation result are computed from the
 				// same lines, so a change to any of them invalidates all three
 				// at once.
@@ -186,6 +186,7 @@ func (b *broker) poll(ctx context.Context, projectID string) {
 					api.Event{Name: "board"},
 					api.Event{Name: "status"},
 					api.Event{Name: "check"},
+					api.Event{Name: "item"},
 				)
 			}
 			// Any KNOWN change to the theme file is an event: written,

@@ -26,33 +26,34 @@ import (
 type Op string
 
 const (
-	OpNone    Op = ""
-	OpInit    Op = "init"
-	OpAdd     Op = "add"
-	OpAddMany Op = "add-many"
-	OpList    Op = "list"
-	OpShow    Op = "show"
-	OpEdit    Op = "edit"
-	OpRemove  Op = "remove"
-	OpMove    Op = "move"
-	OpStart   Op = "start"
-	OpPause   Op = "pause"
-	OpFinish  Op = "finish"
-	OpReport  Op = "report"
-	OpCheck   Op = "check"
-	OpWip     Op = "wip"
-	OpFind    Op = "find"
-	OpBlock   Op = "block"
-	OpUnblock Op = "unblock"
-	OpNote    Op = "note"
-	OpStatus  Op = "status"
-	OpNext    Op = "next"
-	OpSearch  Op = "search"
-	OpFix     Op = "fix"
-	OpArchive Op = "archive"
-	OpMigrate Op = "migrate"
-	OpStats   Op = "stats"
-	OpTick    Op = "tick"
+	OpNone             Op = ""
+	OpInit             Op = "init"
+	OpAdd              Op = "add"
+	OpAddMany          Op = "add-many"
+	OpList             Op = "list"
+	OpShow             Op = "show"
+	OpEdit             Op = "edit"
+	OpRemove           Op = "remove"
+	OpMove             Op = "move"
+	OpStart            Op = "start"
+	OpPause            Op = "pause"
+	OpFinish           Op = "finish"
+	OpReport           Op = "report"
+	OpCheck            Op = "check"
+	OpWip              Op = "wip"
+	OpFind             Op = "find"
+	OpBlock            Op = "block"
+	OpUnblock          Op = "unblock"
+	OpNote             Op = "note"
+	OpStatus           Op = "status"
+	OpNext             Op = "next"
+	OpSearch           Op = "search"
+	OpFix              Op = "fix"
+	OpArchive          Op = "archive"
+	OpMigrate          Op = "migrate"
+	OpStats            Op = "stats"
+	OpTick             Op = "tick"
+	OpRefreshStructure Op = "refresh-structure"
 )
 
 // takesValue reports whether an operation switch consumes the argument after it
@@ -87,7 +88,8 @@ var operations = map[string]Op{
 	"archive": OpArchive, "migrate": OpMigrate, "stats": OpStats,
 	// §5.3.3: the tickler, on the directory --dir resolves. No subject: the
 	// schedule being evaluated lives on the items, not in the invocation.
-	"tick": OpTick,
+	"tick":              OpTick,
+	"refresh-structure": OpRefreshStructure,
 }
 
 // Invocation is one parsed command line.

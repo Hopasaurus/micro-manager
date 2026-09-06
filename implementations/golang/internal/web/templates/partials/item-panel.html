@@ -15,6 +15,7 @@
 {{$p := .App.Project}}{{$d := .Data}}{{$i := .Data.Item}}
 <aside data-testid="item-panel" class="mm-panel"
        {{if not $d.New}}data-item-id="{{$i.ID}}"{{end}}
+       {{if not $d.New}}data-revision="{{$d.Revision}}" data-dirty="false"{{end}}
        data-state="ready" data-new="{{yesno $d.New}}"
        role="dialog" aria-modal="false" aria-labelledby="item-panel-title">
 
@@ -30,6 +31,8 @@
     {{if $d.New}}New item{{else}}{{$i.ID}} — {{$i.Title}}{{end}}
   </h2>
 
+  {{if not $d.New}}{{template "item-freshness" dict "Data" (dict "ProjectID" $p.ID "ItemID" $i.ID "Baseline" $d.Revision "State" "unchanged")}}{{end}}
+
   {{/* outerHTML, NOT morph (T-0138): morphing the board from outside it leaks
        an htmx polling chain per mutation. See partials/dialogs.html for the
        mechanism; the board's own refresh still morphs. */}}
@@ -40,6 +43,14 @@
         hx-patch="/p/{{$p.ID}}/items/{{$i.ID}}"
         {{end}}
         hx-target="[data-testid='board']" hx-swap="morph" hx-ext="morph">
+    {{if not $d.New}}
+    <input type="hidden" name="expectedRevision" value="{{$d.Revision}}">
+    <input type="hidden" name="base-title" value="{{$i.Title}}">
+    <input type="hidden" name="base-prio" value="{{$i.Prio}}">
+    <input type="hidden" name="base-tags" value="{{$i.TagList}}">
+    <input type="hidden" name="base-reason" value="{{$i.Reason}}">
+    <textarea name="base-detail" hidden>{{$d.Detail}}</textarea>
+    {{end}}
       <input data-testid="item-field-title" name="title" type="text"
              value="{{$i.Title}}" required autocomplete="off"{{if $d.New}} autofocus{{end}}>
     </label>
@@ -203,4 +214,23 @@
   </section>
   {{end}}
 </aside>
+{{- end}}
+
+{{define "item-freshness" -}}
+{{$d := .Data}}
+<div data-testid="x-item-freshness" data-state="{{$d.State}}"
+     hx-get="/p/{{$d.ProjectID}}/item/{{$d.ItemID}}/freshness?revision={{$d.Baseline}}"
+     hx-trigger="sse:item from:body" hx-target="this" hx-swap="morph" hx-ext="morph"
+     role="status" aria-live="polite">
+  {{if eq $d.State "changed"}}
+  <span>This item changed elsewhere.</span>
+  <a data-testid="x-item-freshness-reload" class="mm-button"
+     href="/p/{{$d.ProjectID}}/item/{{$d.ItemID}}"
+     hx-get="/p/{{$d.ProjectID}}/item/{{$d.ItemID}}" hx-target="#item-panel-root" hx-swap="innerHTML">Reload item</a>
+  {{else if eq $d.State "missing"}}
+  <span>This item was finished, moved out of this board, or removed.</span>
+  {{else if eq $d.State "unavailable"}}
+  <span>Could not check whether this item is current.</span>
+  {{end}}
+</div>
 {{- end}}

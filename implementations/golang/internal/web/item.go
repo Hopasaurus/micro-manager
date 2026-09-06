@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -28,13 +29,14 @@ type itemPageData struct {
 
 // panelData is the item panel view model.
 type panelData struct {
-	Item    itemData
-	Detail  string
-	Notes   []noteLine
-	Plan    []subtask
-	Created string
-	Started string
-	Done    string
+	Item     itemData
+	Revision string
+	Detail   string
+	Notes    []noteLine
+	Plan     []subtask
+	Created  string
+	Started  string
+	Done     string
 
 	// New marks the add-item panel, which is the same position and the same
 	// form with nothing filled in (§4.1, /p/:id/new).
@@ -107,12 +109,12 @@ func (s *Server) itemPanel(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	it, err := store.Get(id)
+	snapshot, err := store.ItemSnapshot(id)
 	if err != nil {
 		return err
 	}
 
-	v, err := s.panelView(c, store, it)
+	v, err := s.panelView(c, store, snapshot)
 	if err != nil {
 		return err
 	}
@@ -171,7 +173,8 @@ func (s *Server) newItemPanel(c *echo.Context) error {
 }
 
 // panelView builds the panel for one item.
-func (s *Server) panelView(c *echo.Context, store *mm.Store, it mm.Item) (view, error) {
+func (s *Server) panelView(c *echo.Context, store *mm.Store, snapshot mm.ItemSnapshot) (view, error) {
+	it := snapshot.Item
 	dir, err := store.Directory()
 	if err != nil {
 		return view{}, err
@@ -182,6 +185,7 @@ func (s *Server) panelView(c *echo.Context, store *mm.Store, it mm.Item) (view, 
 
 	data := panelData{
 		Item:     s.itemView(it, dir, 1, s.registry.newRefResolver()),
+		Revision: snapshot.Revision.String(),
 		Created:  mm.FormatDateOrStamp(it.Created, it.CreatedTime),
 		Started:  mm.FormatDateOrStamp(it.Started, it.StartedTime),
 		Done:     it.Done.String(),
@@ -209,10 +213,8 @@ func (s *Server) panelView(c *echo.Context, store *mm.Store, it mm.Item) (view, 
 	}
 
 	// The long-form description, when the item has one.
-	if it.Detail != "" {
-		if d, err := store.Detail(it.ID); err == nil {
-			data.Detail = d.Body
-		}
+	if snapshot.Detail != nil {
+		data.Detail = snapshot.Detail.Body
 	}
 
 	// For an item in a slot, item-plan renders subtasks as subtask-<n>
@@ -221,6 +223,45 @@ func (s *Server) panelView(c *echo.Context, store *mm.Store, it mm.Item) (view, 
 		data.Plan, data.Notes = s.slotBody(store, it)
 	}
 	return s.withBoard(c, store, v, data)
+}
+
+type itemFreshnessData struct {
+	ProjectID string
+	ItemID    string
+	Baseline  string
+	Current   string
+	State     string
+}
+
+// itemFreshness checks only the open item after a coarse project-change signal.
+func (s *Server) itemFreshness(c *echo.Context) error {
+	store, err := s.project(c)
+	if store == nil {
+		return err
+	}
+	id, err := s.itemID(c, store)
+	if err != nil {
+		return err
+	}
+	baseline := c.QueryParam("revision")
+	current, err := store.ItemRevision(id)
+	state := "unchanged"
+	if errors.Is(err, mm.ErrNotFound) {
+		// ItemRevision also reports ErrNotFound for a dangling detail
+		// reference. Distinguish that temporarily unreadable snapshot from an
+		// item which actually left the directory.
+		if _, itemErr := store.Get(id); itemErr == nil {
+			state = "unavailable"
+		} else {
+			state = "missing"
+		}
+	} else if err != nil {
+		state = "unavailable"
+	} else if baseline == "" || current.String() != baseline {
+		state = "changed"
+	}
+	v := view{Data: itemFreshnessData{ProjectID: c.Param("projectId"), ItemID: id.String(), Baseline: baseline, Current: current.String(), State: state}}
+	return s.renderFragmentAlways(c, http.StatusOK, "item", "item-freshness", v)
 }
 
 // slotBody reads the working file's ## Plan and ## Notes sections.
@@ -604,23 +645,71 @@ func (s *Server) editItem(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	it, _, err := store.Update(id, req, today)
+	var detailBody *string
+	if body, ok := formValue(c, "detail"); ok {
+		detailBody = &body
+	}
+	expected := mm.ItemRevision(c.Request().FormValue("expectedRevision"))
+	if expected == "" {
+		expected, err = store.ItemRevision(id)
+		if err != nil {
+			return err
+		}
+	}
+	it, _, err := store.Edit(id, mm.EditRequest{
+		Update: req, DetailBody: detailBody,
+		ExpectedRevision: expected,
+	}, today)
+	if errors.Is(err, mm.ErrConcurrent) {
+		return s.itemEditConflict(c, store, id, err)
+	}
 	if err != nil {
 		return err
 	}
 
-	// The detail body is a separate file and a separate write (§4.2).
-	if body, ok := formValue(c, "detail"); ok && body != "" {
-		if it.Detail == "" {
-			if _, _, err := store.AttachDetail(it.ID, mm.AttachDetailRequest{Body: body}, today); err != nil {
-				return err
-			}
-		} else if _, err := store.SetDetailBody(it.ID, body, false, today); err != nil {
-			return err
-		}
-	}
-
 	return s.afterMutation(c, store, mutationResult{Item: &it, Message: string(id) + " saved"}, req.DryRun)
+}
+
+type comparisonValue struct{ Field, Base, Local, Current string }
+type itemEditConflictData struct {
+	Code      string
+	Message   string
+	ProjectID string
+	ItemID    string
+	Values    []comparisonValue
+}
+
+func (s *Server) itemEditConflict(c *echo.Context, store *mm.Store, id mm.ID, conflict error) error {
+	snapshot, currentErr := store.ItemSnapshot(id)
+	data := itemEditConflictData{Code: "Concurrent", Message: conflict.Error(), ProjectID: c.Param("projectId"), ItemID: id.String()}
+	fields := []struct{ name, label, current string }{
+		{"title", "Title", snapshot.Item.Title},
+		{"prio", "Priority", string(snapshot.Item.Prio.Effective())},
+		{"tags", "Tags", strings.Join(snapshot.Item.Tags, ",")},
+		{"reason", "Reason", itemReason(snapshot.Item)},
+	}
+	if currentErr != nil {
+		data.Message = "The item was removed, moved away, or is temporarily unreadable."
+	} else {
+		for _, f := range fields {
+			data.Values = append(data.Values, comparisonValue{Field: f.label, Base: c.Request().FormValue("base-" + f.name), Local: c.Request().FormValue(f.name), Current: f.current})
+		}
+		currentDetail := ""
+		if snapshot.Detail != nil {
+			currentDetail = snapshot.Detail.Body
+		}
+		data.Values = append(data.Values, comparisonValue{Field: "Detail", Base: c.Request().FormValue("base-detail"), Local: c.Request().FormValue("detail"), Current: currentDetail})
+	}
+	v := s.newView(c, "Edit conflict", store)
+	v.Data = data
+	return s.renderFragmentAlways(c, http.StatusConflict, "item", "item-edit-conflict", v)
+}
+
+func itemReason(it mm.Item) string {
+	if it.State == mm.StateBoard {
+		return it.Reason
+	}
+	return it.Blocked
 }
 
 // addItem is the add-item panel's save (§5.6, --add).

@@ -49,10 +49,124 @@ func TestItemPanel(t *testing.T) {
 	if got := attrOf(t, panel, "data-item-id"); got != "T-0001" {
 		t.Errorf("data-item-id = %q", got)
 	}
+	if attrOf(t, panel, "data-revision") == "" {
+		t.Error("item-panel carries no baseline revision")
+	}
+	fresh := testid(t, body, "x-item-freshness")
+	if got := attrOf(t, fresh, "hx-trigger"); got != "sse:item from:body" {
+		t.Errorf("freshness trigger = %q", got)
+	}
 
 	meta := testid(t, body, "item-meta")
 	if attrOf(t, meta, "data-created") == "" {
 		t.Error("item-meta carries no data-created")
+	}
+}
+
+func TestItemFreshnessIsTargetedAndReportsChanges(t *testing.T) {
+	ts, projectID := boardServer(t, "clean-full")
+	panel := ts.get("/p/" + projectID + "/item/T-0001").Body
+	revision := attrOf(t, testid(t, panel, "item-panel"), "data-revision")
+	path := "/p/" + projectID + "/item/T-0001/freshness?revision=" + revision
+	unchanged := ts.get(path).expectStatus(http.StatusOK).Body
+	if got := attrOf(t, testid(t, unchanged, "x-item-freshness"), "data-state"); got != "unchanged" {
+		t.Fatalf("initial freshness state = %q", got)
+	}
+
+	store, err := ts.registry.resolve(projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	today, _ := mm.ParseDate("2026-09-05")
+	if _, err := store.SetDetailBody("T-0001", "changed elsewhere\n", false, today); err != nil {
+		t.Fatal(err)
+	}
+	changed := ts.get(path).expectStatus(http.StatusOK).Body
+	if got := attrOf(t, testid(t, changed, "x-item-freshness"), "data-state"); got != "changed" {
+		t.Fatalf("changed freshness state = %q", got)
+	}
+	if !hasTestid(changed, "x-item-freshness-reload") {
+		t.Error("changed item has no explicit reload")
+	}
+}
+
+func TestItemFreshnessReportsRemoval(t *testing.T) {
+	ts, projectID := boardServer(t, "clean-v2-full")
+	panel := ts.get("/p/" + projectID + "/item/T-0001").Body
+	revision := attrOf(t, testid(t, panel, "item-panel"), "data-revision")
+	store, err := ts.registry.resolve(projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	today, _ := mm.ParseDate("2026-09-05")
+	if _, _, err := store.Remove("T-0001", mm.RemoveRequest{Force: true, WithDetail: true}, today); err != nil {
+		t.Fatal(err)
+	}
+	body := ts.get("/p/" + projectID + "/item/T-0001/freshness?revision=" + revision).expectStatus(http.StatusOK).Body
+	if got := attrOf(t, testid(t, body, "x-item-freshness"), "data-state"); got != "missing" {
+		t.Fatalf("removed freshness state = %q", got)
+	}
+}
+
+func TestStaleItemEditReturnsComparisonWithoutOverwriting(t *testing.T) {
+	ts, projectID := boardServer(t, "clean-v2-full")
+	panel := ts.get("/p/" + projectID + "/item/T-0001").Body
+	revision := attrOf(t, testid(t, panel, "item-panel"), "data-revision")
+	store, err := ts.registry.resolve(projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	today, _ := mm.ParseDate("2026-09-05")
+	if _, err := store.SetDetailBody("T-0001", "remote detail", false, today); err != nil {
+		t.Fatal(err)
+	}
+
+	r := ts.form(http.MethodPatch, "/p/"+projectID+"/items/T-0001", url.Values{
+		"expectedRevision": {revision}, "title": {"my title"}, "detail": {"my detail"},
+		"base-title": {"Fix the deploy script"}, "base-detail": {"base detail"},
+	}, "HX-Request", "true")
+	if r.Status != http.StatusConflict {
+		t.Fatalf("status = %d, want 409: %s", r.Status, r.Body)
+	}
+	for _, id := range []string{"x-item-edit-conflict", "x-item-edit-comparison", "x-item-edit-conflict-reload", "x-item-edit-conflict-keep"} {
+		if !hasTestid(r.Body, id) {
+			t.Errorf("conflict response missing %s", id)
+		}
+	}
+	for _, value := range []string{"base detail", "my detail", "remote detail"} {
+		if !strings.Contains(r.Body, value) {
+			t.Errorf("comparison missing %q", value)
+		}
+	}
+	if strings.Contains(strings.ToLower(r.Body), "overwrite") {
+		t.Error("conflict offers blind overwrite")
+	}
+	current, err := store.Get("T-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Title == "my title" {
+		t.Error("stale local title was written")
+	}
+}
+
+func TestCurrentItemEditCommitsFieldsAndDetailTogether(t *testing.T) {
+	ts, projectID := boardServer(t, "clean-v2-full")
+	panel := ts.get("/p/" + projectID + "/item/T-0001").Body
+	revision := attrOf(t, testid(t, panel, "item-panel"), "data-revision")
+	r := ts.form(http.MethodPatch, "/p/"+projectID+"/items/T-0001", url.Values{
+		"expectedRevision": {revision}, "title": {"saved together"}, "detail": {"new body"},
+	})
+	if r.Status != http.StatusOK {
+		t.Fatalf("status = %d: %s", r.Status, r.Body)
+	}
+	store, _ := ts.registry.resolve(projectID)
+	snapshot, err := store.ItemSnapshot("T-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Item.Title != "saved together" || snapshot.Detail == nil || snapshot.Detail.Title != "saved together" || !strings.Contains(snapshot.Detail.Body, "new body") {
+		t.Fatalf("snapshot after save = %+v", snapshot)
 	}
 }
 

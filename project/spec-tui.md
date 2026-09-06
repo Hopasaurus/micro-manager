@@ -1,5 +1,6 @@
 # micro-manager — terminal user interface specification
 
+    Product version: 0.2.1
     Spec version: 2
     Date:         2026-08-20
     Status:       draft

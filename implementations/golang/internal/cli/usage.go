@@ -46,6 +46,7 @@ Operations:
                             (legacy repairs, then the versioned chain)
   --stats                   throughput, cycle time, work in flight, tags
   --tick                    fire due someday schedules (tickler)
+  --refresh-structure       explicitly refresh managed structure.md guidance
   --help, --version
 
 Global modifiers:
@@ -72,7 +73,19 @@ Environment:
                             under --quiet, --json, --porcelain, --dry-run,
                             --no-edit, or when there is no terminal
 
+Shell quoting:
+  Your shell expands command substitutions before mm sees an argument. On
+  POSIX shells, single-quote literal text containing $() or backticks:
+
+    mm --note T-0042 'Investigate $(hostname) and ` + "`date`" + ` literally'
+
+  PowerShell and other shells have different quoting rules; use the literal
+  quoting syntax for the shell you are running. This expansion is shell
+  behavior, not mm parsing or validation.
+
 Run 'mm --help --OPERATION' for one operation's switches.
+For the on-disk layout and safe manual-editing rules, read structure.md in the
+board directory.
 `
 
 // operationUsage is the per-operation help. The key is the operation switch.
@@ -87,10 +100,15 @@ Creates board.md, done.md and details/_template.md at version 2. Without
   --wip-limit N             caps the working stage (absent means uncapped)
                             (not --wip: that is the operation that changes it)
   --prefix P                the ID prefix: one to four uppercase letters (T).
-                            Declared once, read by every other operation
+                            Choose it only while creating the board; it is
+                            permanent because every item ID uses it
   --id-width N              digits in item IDs (4; 3-6 recommended)
   --description TEXT        seeds structure.md's first paragraph; writes
                             structure.md even if it would otherwise be skipped
+
+Example: create a Garden board whose IDs begin G-0001, G-0002, and so on:
+
+  mm --init --project "Garden" --prefix G
 `,
 	OpAdd: `mm --add TITLE [--prio P] [--tag T]... [--section S] [--top]
               [--blocked REASON] [--created DATE] [--tickler SCHEDULE]
@@ -178,6 +196,9 @@ Prints every field, where the item lives, and with --detail the detail file body
 
 Changes fields in place. Position is --move; state is --start/--pause/--finish.
 --set and --unset reach any key, including ones this tool does not know.
+--stage is not valid with --edit. Move an item to a custom stage explicitly:
+
+  mm --move T-0042 --stage review
 `,
 	OpRemove: `mm --remove ID --force [--with-detail]
 
@@ -448,8 +469,8 @@ of fire, decided by the schedule value:
   15@08:00, last@08:00)     spawned with the title, prio and tags only — no
                             detail, no refs — under a new ID from next_id
 
-The default is manual, like every operation; a scheduled run is a cron entry
-(` + "`mm --tick --dir ...`" + ` from a timer). Fires live entirely in backlog.md, so
+The default is manual, like every operation; a scheduled run invokes
+mm --tick --dir PATH from a timer. Fires live entirely in backlog.md, so
 the run is safe to overlap with the UI service's own ticker (spec-gui.md §2.4):
 the tickled stamp and pre-commit validation keep two runners from firing one
 item twice.
@@ -475,6 +496,19 @@ would otherwise silently search only its first word.
   --field title|tags|detail narrow where to look; repeats (default: all three)
   --state backlog|working|done
   --limit N                 cap the number of hits
+`,
+	OpRefreshStructure: `mm --refresh-structure [--dry-run]
+
+Explicitly regenerates the managed parts of structure.md for a version-2 board.
+A missing file is created. An existing file is updated only when it contains
+exactly one checked refresh marker and one valid user-notes boundary pair.
+
+The board description and every byte inside the user-notes area are preserved.
+Uncheck or delete the refresh marker to protect an existing file. To keep a
+protected file and create a fresh managed guide, rename it first and run this
+command again. --migrate never performs this refresh implicitly.
+
+Porcelain columns: file action
 `,
 }
 

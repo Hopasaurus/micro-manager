@@ -171,6 +171,11 @@ func buildNewItem(req AddRequest, today Date) (*Item, error) {
 	if strings.ContainsAny(req.Blocked, "|") {
 		return nil, fmt.Errorf("%w: a blocked: reason may not contain %q", ErrInvalidArgument, "|")
 	}
+	for _, f := range req.Extra {
+		if err := validateExtraField(f); err != nil {
+			return nil, err
+		}
+	}
 
 	created := req.Created
 	if created.IsZero() {

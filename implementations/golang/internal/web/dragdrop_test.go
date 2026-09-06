@@ -336,8 +336,11 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 	// refusal (a reorder within version 2's working is legal, not the
 	// illegal transition version 1's slot files made it) — for 1010. T-0252
 	// added the new-item panel's autofocus, which the server cannot do once
-	// the panel is swapped in client-side — for 1030.
-	if lines := strings.Count(js, "\n"); lines > 1030 {
+	// the panel is swapped in client-side — for 1030. T-0265 added dirty-form
+	// tracking and confirmation before an explicit stale-panel reload — for
+	// 1050. T-0266 made dirty state value-based and stale saves advisory-disabled
+	// while retaining the server precondition — for 1080.
+	if lines := strings.Count(js, "\n"); lines > 1080 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }

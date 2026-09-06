@@ -135,6 +135,8 @@ func TestParseAddLineRejections(t *testing.T) {
 		{"a pasted done line", "- [x] [T-0042] Fix it | outcome:shipped", "remove the [T-0042]"},
 		{"a field with no colon", "Fix it | prio high", "not key:value"},
 		{"a repeated field", "Fix it | prio:high | prio:low", "repeats field prio"},
+		{"a malformed custom key", "Fix it | bad key:value", "malformed field key"},
+		{"a reserved custom key", "Fix it | id:value", "reserved"},
 		{"a bad prio", "Fix it | prio:urgent", "not high, med or low"},
 		{"a bad date", "Fix it | created:2026-02-31", "not a date"},
 		{"a bad schedule", "Fix it | tickler:whenever", "not a schedule"},

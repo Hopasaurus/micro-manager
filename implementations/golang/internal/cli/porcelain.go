@@ -57,7 +57,8 @@ var porcelainFields = map[Op][]string{
 	// move (a one-shot fired), spawn (a recurring schedule fired and created
 	// spawned), or error. spawned and tickled are empty on an error row,
 	// message on the other two — one record type per operation, never a mix.
-	OpTick: {"id", "outcome", "spawned", "tickled", "message"},
+	OpTick:             {"id", "outcome", "spawned", "tickled", "message"},
+	OpRefreshStructure: {"file", "action"},
 }
 
 // porcelainOut accumulates records, for the same reason the JSON envelope does:

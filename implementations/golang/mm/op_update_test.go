@@ -152,6 +152,51 @@ func TestUpdateSetUnsetUnregisteredFields(t *testing.T) {
 	}
 }
 
+func TestUpdateRejectsMalformedAndReservedSetKeys(t *testing.T) {
+	dir := newDir(t, nil)
+	s := mustOpen(t, dir)
+	before := readDirFile(t, dir, "backlog.md")
+
+	for _, key := range []string{"", "bad key", "owner.name", "naïve", "id", "next_id", "status"} {
+		_, _, err := testUpdateV1(s, "T-0001", UpdateRequest{
+			Set: []Field{{Key: key, Value: "value"}},
+		}, today)
+		if !errors.Is(err, ErrInvalidArgument) {
+			t.Errorf("--set %q: want ErrInvalidArgument, got %v", key, err)
+		}
+	}
+	if got := readDirFile(t, dir, "backlog.md"); got != before {
+		t.Errorf("rejected sets changed the file:\n%s", got)
+	}
+}
+
+func TestUpdatePreservesAndCanUnsetLegacyInvalidExtras(t *testing.T) {
+	src := strings.Replace(dirBacklog,
+		"- [ ] [T-0001] First | prio:med | tags:example | created:2026-07-29",
+		"- [ ] [T-0001] First | prio:med | tags:example | created:2026-07-29 | bad key:legacy | id:legacy", 1)
+	dir := newDir(t, map[string]string{"backlog.md": src})
+	s := mustOpen(t, dir)
+
+	// A reader and an unrelated writer preserve legacy data, even though a new
+	// --set of either key is now refused.
+	if _, _, err := testUpdateV1(s, "T-0001", UpdateRequest{Prio: priop(PrioLow)}, today); err != nil {
+		t.Fatal(err)
+	}
+	if got := readDirFile(t, dir, "backlog.md"); !strings.Contains(got, "| bad key:legacy | id:legacy") {
+		t.Fatalf("unrelated edit did not preserve legacy extras:\n%s", got)
+	}
+
+	// --unset remains the escape hatch for cleaning up either form.
+	if _, _, err := testUpdateV1(s, "T-0001", UpdateRequest{
+		Unset: []string{"bad key", "id"},
+	}, today); err != nil {
+		t.Fatal(err)
+	}
+	if got := readDirFile(t, dir, "backlog.md"); strings.Contains(got, "bad key:") || strings.Contains(got, "id:legacy") {
+		t.Fatalf("--unset did not remove legacy extras:\n%s", got)
+	}
+}
+
 // An edit of one field must not drop unregistered fields it never touched.
 func TestUpdatePreservesUnregisteredFieldsAcrossAnEdit(t *testing.T) {
 	src := strings.Replace(dirBacklog,
@@ -345,8 +390,13 @@ func TestUpdateNoOp(t *testing.T) {
 
 	if _, res, err := testUpdateV1(s, "T-0001", UpdateRequest{Prio: priop(PrioMed)}, today); err != nil {
 		t.Fatal(err)
-	} else if len(res.Files) != 0 {
-		t.Errorf("a no-op should touch no files, got %v", res.Files)
+	} else {
+		if len(res.Files) != 0 {
+			t.Errorf("a no-op should touch no files, got %v", res.Files)
+		}
+		if len(res.Changes) != 0 {
+			t.Errorf("a no-op should report no changes, got %+v", res.Changes)
+		}
 	}
 	if readDirFile(t, dir, "backlog.md") != before {
 		t.Error("a no-op update rewrote the file")

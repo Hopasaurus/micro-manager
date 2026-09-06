@@ -1,5 +1,6 @@
 # micro-manager — tooling specification
 
+    Product version: 0.2.1
     Spec version: 2
     Date:         2026-08-20
     Status:       draft
@@ -522,6 +523,9 @@ that is `--move`. State is not changed — that is `--start`/`--pause`/`--finish
 - `--set`/`--unset` reach any field, including unregistered ones (format spec
   §9). A tool MUST allow setting a key it does not know, and MUST validate the
   keys it does know.
+- If the same key is named by both switches in one invocation, `--unset` wins,
+  regardless of their command-line order. A successful edit whose resulting
+  item is byte-identical reports no `Change` and writes nothing.
 - Changing `--title` on an item with a detail file MUST update that file's
   frontmatter `title` in the same transaction, or I9 breaks. This is the single
   most important coupling in the operation set.
@@ -953,6 +957,7 @@ MAY be provided.
 | `--top-up` | Interactive triage over the `someday` stage (or whichever stages a directory's `tickler_stages` treats that way), promoting items to `ready`. |
 | `--describe TEXT` | Write or replace the first paragraph of `structure.md` — the board description (§5.3.2). |
 | `--tick [--dry-run]` | Run the tickler once: evaluate every tickler-eligible item's `tickler:` schedule against today and fire the due ones — one-shot items move to their destination stage with the schedule consumed; recurring items are prototypes that spawn a new item there on each fire (§5.3.3). MUST report what fired and what errored. |
+| `--refresh-structure [--dry-run]` | Explicitly regenerate managed version-2 `structure.md` guidance while preserving its description and delimited user notes (§5.3.5). |
 
 #### 5.3.1 `--archive` in detail
 
@@ -1167,6 +1172,46 @@ implement, or one older than the directory's current version), `Conflict`
 one worth distinguishing so a script can tell "nothing to do" from
 "something went wrong").
 
+#### 5.3.5 `--refresh-structure` in detail
+
+`--refresh-structure` is the explicit operation for replacing the generated
+guidance in a version-2 `structure.md`. Migration MUST NOT invoke it
+implicitly. A missing `structure.md` is considered updatable and the operation
+creates the current managed guide.
+
+An existing file opts in with exactly one line:
+
+```markdown
+- [x] Allow `mm --refresh-structure` to update generated documentation.
+```
+
+The checked marker MUST be present exactly once. Unchecking it, deleting it,
+duplicating it, or otherwise making it malformed protects the file: the
+operation fails with `PreconditionFailed` and changes no bytes. A user who
+wants to retain a protected guide and generate a new one can rename the old
+file and run the operation again.
+
+The managed guide MUST contain exactly one ordered pair of user-note boundary
+lines:
+
+```markdown
+<!-- mm:user-notes:begin -->
+<!-- mm:user-notes:end -->
+```
+
+The operation preserves byte-for-byte everything between those boundary
+lines, and preserves the board description (the first prose paragraph after
+frontmatter and headings, §5.3.2). It replaces all other generated content
+with the implementation's current concise guide. Missing, duplicated,
+reversed, or malformed boundaries protect the file and raise
+`PreconditionFailed` without writing.
+
+The operation follows §3.4 and §7: `--dry-run` reports the same change without
+writing; an already-current file is a true no-op; a changed file is committed
+atomically and a stale read raises `Concurrent`. JSON reports `path`, `created`,
+and `updated`. Porcelain columns are `file action`, where action is `created`,
+`updated`, or `unchanged`.
+
 ## 6. Library API
 
 Notation is pseudo-code: `name(params) -> Result<T, Error>`. Implementations map
@@ -1262,10 +1307,12 @@ Store.directory()               -> Directory
 Store.fingerprint()             -> Fingerprint     # §2.4, cheap staleness poll
 Store.list(Filter)              -> [Item]
 Store.get(ID)                   -> Item
+Store.itemSnapshot(ID)          -> ItemSnapshot    # item + detail + opaque revision
 Store.add(AddRequest)           -> Item
 Store.addMany([AddRequest])     -> [Item]          # --add-many (§5.2.1), ONE transaction
 Store.parseAddLine(string)      -> AddRequest      # the §5.2.1 line grammar
 Store.update(ID, UpdateRequest) -> Item
+Store.edit(ID, EditRequest)     -> Item            # expected revision; fields + detail atomically
 Store.remove(ID, RemoveOptions) -> Change
 Store.move(ID, Destination)     -> Item            # Destination carries an optional target Stage
 Store.start(ID)                 -> Item
@@ -1278,6 +1325,7 @@ Store.setDescription(text)      -> Directory   # --describe (§5.3.2)
 Store.ticklers(now DATE)        -> [Tickler]   # read-only (§5.3.3)
 Store.tick(now DATE, dryRun bool) -> TickResult  # --tick (§5.3.3)
 Store.migrate(toVersion int|null, dryRun bool) -> [MigrationResult]  # --migrate (§5.3.4)
+Store.refreshStructure(dryRun bool) -> RefreshStructureResult  # §5.3.5
 discover(DiscoveryOptions)      -> DiscoveryResult
 ```
 
@@ -1540,6 +1588,7 @@ mm --migrate --dir ~/old-project/micro-manager
 | `--tick` | `board.md` | I2 (a spawn bumps `next_id`) |
 | `--archive` | `done.md`, `done-YYYY.md`, `details/`, `details-YYYY/` | I1, I2 (items leave the pool); **I9 (a detail file left behind in `details/`)** |
 | `--migrate` | every file the target step touches | none, by construction — every step validates against the target version before writing (§5.3.4) |
+| `--refresh-structure` | `structure.md` | — (non-authoritative documentation; §5.3.5) |
 | `--report`, `--list`, `--show`, `--check` | nothing | — |
 
 Bold entries are the ones where a partial write loses data rather than producing
@@ -1554,7 +1603,8 @@ required     --init --add --list --show --edit --remove --move
              --start --pause --finish --report --check
 recommended  --block --unblock --note --wip --status --next --search
              --find --detail --subtask --subtask-done
-optional     --archive --describe --migrate --stats --export --top-up --tick
+optional     --archive --describe --migrate --refresh-structure --stats
+             --export --top-up --tick
 ```
 
 Global modifiers, valid everywhere:

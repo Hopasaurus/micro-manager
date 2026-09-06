@@ -134,6 +134,11 @@ func buildNewItemV2(req AddRequest, cfg StageConfig, today Date) (*Item, error) 
 			return nil, fmt.Errorf("%w: malformed ref %q", ErrInvalidArgument, ref.String())
 		}
 	}
+	for _, f := range req.Extra {
+		if err := validateExtraField(f); err != nil {
+			return nil, err
+		}
+	}
 
 	created := req.Created
 	if created.IsZero() {

@@ -1018,5 +1018,53 @@
   document.body.addEventListener('htmx:sseError', startPolling);
   document.body.addEventListener('htmx:sseOpen', stopPolling);
 
+  /* Dirty means different from the originally rendered form, not merely that
+     an input event occurred. Browser/programmatic initialization therefore
+     stays clean, and reverting every value makes the form clean again. */
+  const itemPanelBaselines = new WeakMap();
+  function itemFormValue(form) {
+    const FormDataCtor = form.ownerDocument.defaultView.FormData;
+    return new URLSearchParams(new FormDataCtor(form)).toString();
+  }
+  function initializeItemPanel(root) {
+    const panels = root.matches && root.matches('[data-testid="item-panel"]') ? [root] :
+      Array.from(root.querySelectorAll ? root.querySelectorAll('[data-testid="item-panel"]') : []);
+    panels.forEach((panel) => {
+      const form = panel.querySelector('[data-testid="item-form"]');
+      if (form && panel.getAttribute('data-new') === 'no') itemPanelBaselines.set(form, itemFormValue(form));
+    });
+  }
+  function updateItemPanelDirty(event) {
+    const form = event.target.closest && event.target.closest('[data-testid="item-form"]');
+    const panel = form && form.closest('[data-testid="item-panel"][data-new="no"]');
+    if (!panel) return;
+    if (!itemPanelBaselines.has(form)) itemPanelBaselines.set(form, itemFormValue(form));
+    panel.setAttribute('data-dirty', itemFormValue(form) === itemPanelBaselines.get(form) ? 'false' : 'true');
+  }
+  function applyItemFreshness(root) {
+    const region = root.closest && root.closest('[data-testid="x-item-freshness"]');
+    if (!region || region.getAttribute('data-state') === 'unchanged') return;
+    const panel = region.closest('[data-testid="item-panel"]');
+    const save = panel && panel.querySelector('[data-testid="item-save"]');
+    if (save) { save.disabled = true; save.setAttribute('aria-disabled', 'true'); }
+  }
+  initializeItemPanel(document);
+  document.body.addEventListener('htmx:afterSwap', (event) => {
+    initializeItemPanel(event.detail && event.detail.target || event.target);
+    applyItemFreshness(event.detail && event.detail.target || event.target);
+  });
+  document.body.addEventListener('input', updateItemPanelDirty);
+  document.body.addEventListener('change', updateItemPanelDirty);
+  document.body.addEventListener('click', (event) => {
+    const reload = event.target.closest && event.target.closest('[data-testid="x-item-freshness-reload"], [data-testid="x-item-edit-conflict-reload"]');
+    if (!reload) return;
+    const panel = reload.closest('[data-testid="item-panel"]') || document.querySelector('[data-testid="item-panel"]');
+    if (panel && panel.getAttribute('data-dirty') === 'true' &&
+        !window.confirm('Discard your local changes and reload this item?')) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+
   setBusy();
 })();

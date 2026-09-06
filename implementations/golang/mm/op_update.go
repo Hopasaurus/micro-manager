@@ -67,36 +67,45 @@ func (s *Store) Update(id ID, req UpdateRequest, today Date) (Item, TxResult, er
 // Update no longer reaches this code for a v1 directory.
 func (s *Store) updateInternal(t *tx, it *Item, req UpdateRequest, today Date) (Item, TxResult, error) {
 	var zero Item
+	if err := stageUpdate(t, it, req, today); err != nil {
+		return zero, TxResult{}, err
+	}
+	res, err := t.commit(req.DryRun)
+	if err != nil {
+		return zero, res, err
+	}
+	return *it, res, nil
+}
+
+func stageUpdate(t *tx, it *Item, req UpdateRequest, today Date) error {
 	id := it.ID
 	before := RenderItemLine(it)
 	oldTitle := it.Title
 
 	if err := applyUpdate(it, req, t.model); err != nil {
-		return zero, TxResult{}, err
+		return err
 	}
 
 	// Write the item back to whichever file holds it.
 	file, err := t.writeItemLine(it, today)
 	if err != nil {
-		return zero, TxResult{}, err
+		return err
 	}
-	t.record(Change{Kind: ChangeUpdated, ID: id, File: file,
-		Before: before, After: RenderItemLine(it)})
+	after := RenderItemLine(it)
+	if before != after {
+		t.record(Change{Kind: ChangeUpdated, ID: id, File: file,
+			Before: before, After: after})
+	}
 
 	// A retitled item drags its detail file with it, or I9 breaks. This is the
 	// sharpest coupling in the operation set and the easiest to forget, because
 	// the item write succeeds perfectly well on its own.
 	if it.Title != oldTitle && it.Detail != "" {
 		if err := t.syncDetailTitle(it, today); err != nil {
-			return zero, TxResult{}, err
+			return err
 		}
 	}
-
-	res, err := t.commit(req.DryRun)
-	if err != nil {
-		return zero, res, err
-	}
-	return *it, res, nil
+	return nil
 }
 
 // applyUpdate mutates an item per the request, validating as it goes. m is
@@ -199,8 +208,9 @@ func applyUpdate(it *Item, req UpdateRequest, m *dirModel) error {
 // verbatim. m is the transaction's model - only "tickler" reads it, for the
 // directory's declared tickler_stages.
 func setAnyField(it *Item, key, value string, m *dirModel) error {
-	if key == "" {
-		return fmt.Errorf("%w: a field needs a key", ErrInvalidArgument)
+	if !validFieldKey(key) {
+		return fmt.Errorf("%w: malformed field key %q; use only ASCII letters, digits, _ or -",
+			ErrInvalidArgument, key)
 	}
 	if strings.ContainsAny(value, "|") {
 		return fmt.Errorf("%w: field %s may not contain %q", ErrInvalidArgument, key, "|")
@@ -304,6 +314,10 @@ func setAnyField(it *Item, key, value string, m *dirModel) error {
 		}
 		it.Detail = value
 	default:
+		if reservedExtensionKey(key) {
+			return fmt.Errorf("%w: field key %q is reserved and cannot be used by an extension",
+				ErrInvalidArgument, key)
+		}
 		setExtra(it, key, value)
 	}
 	return nil
@@ -365,6 +379,16 @@ func unsetAnyField(it *Item, key string) error {
 			it.Outcome = OutcomeNone
 		}
 	case "id", "title":
+		// The real id and title are structural, not item-line fields. A legacy
+		// reader may nevertheless have preserved a reserved extra with this
+		// key; --unset is allowed to clean that extra up without touching the
+		// structural value.
+		for _, f := range it.Extra {
+			if f.Key == key {
+				removeExtra(it, key)
+				return nil
+			}
+		}
 		return fmt.Errorf("%w: %s cannot be removed from an item", ErrInvalidArgument, key)
 	default:
 		removeExtra(it, key)

@@ -83,18 +83,20 @@ func (s *Server) addItem(c *echo.Context) error {
 // same contract as mm.UpdateRequest, which is why the decode lands directly in
 // it.
 type editItemRequest struct {
-	Title      *string    `json:"title"`
-	Prio       *string    `json:"prio"`
-	Blocked    *string    `json:"blocked"`
-	Created    *string    `json:"created"`
-	Started    *string    `json:"started"`
-	Tags       []string   `json:"tags"`
-	SetTags    bool       `json:"setTags"`
-	AddTags    []string   `json:"addTags"`
-	RemoveTags []string   `json:"removeTags"`
-	Set        []mm.Field `json:"set"`
-	Unset      []string   `json:"unset"`
-	DryRun     bool       `json:"dryRun"`
+	ExpectedRevision string     `json:"expectedRevision"`
+	Detail           *string    `json:"detail"`
+	Title            *string    `json:"title"`
+	Prio             *string    `json:"prio"`
+	Blocked          *string    `json:"blocked"`
+	Created          *string    `json:"created"`
+	Started          *string    `json:"started"`
+	Tags             []string   `json:"tags"`
+	SetTags          bool       `json:"setTags"`
+	AddTags          []string   `json:"addTags"`
+	RemoveTags       []string   `json:"removeTags"`
+	Set              []mm.Field `json:"set"`
+	Unset            []string   `json:"unset"`
+	DryRun           bool       `json:"dryRun"`
 }
 
 // editItem serves PATCH /api/v1/projects/:projectId/items/:itemId (--edit).
@@ -149,7 +151,17 @@ func (s *Server) editItem(c *echo.Context) error {
 		ur.Started = &d
 	}
 
-	it, res, err := store.Update(id, ur, s.today())
+	expected := mm.ItemRevision(req.ExpectedRevision)
+	if expected == "" {
+		expected, err = store.ItemRevision(id)
+		if err != nil {
+			return err
+		}
+	}
+	it, res, err := store.Edit(id, mm.EditRequest{
+		Update: ur, DetailBody: req.Detail,
+		ExpectedRevision: expected,
+	}, s.today())
 	if err != nil {
 		return err
 	}
@@ -210,21 +222,20 @@ func (s *Server) showItem(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	it, err := store.Get(id)
+	snapshot, err := store.ItemSnapshot(id)
 	if err != nil {
 		return err
 	}
-
-	out := map[string]any{"item": toJSONItem(it)}
-	if detail, err := store.Detail(id); err == nil {
+	it := snapshot.Item
+	out := map[string]any{"item": toJSONItem(it), "revision": snapshot.Revision.String()}
+	if snapshot.Detail != nil {
+		detail := *snapshot.Detail
 		out["detail"] = map[string]any{
 			"path":  detail.Path,
 			"id":    string(detail.ID),
 			"title": detail.Title,
 			"body":  detail.Body,
 		}
-	} else if !isNotFound(err) {
-		return err
 	}
 	return ok(c, out)
 }
