@@ -359,8 +359,24 @@ func (b *boardFile) RemoveItem(e *fileEdit, it *Item) {
 	renumber(b.StageItems(it.Stage))
 }
 
-// regroupBoard rewrites board.md's item lines into contiguous,
-// blank-line-separated blocks in stages: order — spec-file-format.md §5.1.6
+const undeclaredStageComment = "<!-- stage:undeclared -->"
+
+func stageComment(stage Stage) string {
+	return "<!-- stage:" + string(stage) + " -->"
+}
+
+func isStageComment(line string) bool {
+	const prefix = "<!-- stage:"
+	const suffix = " -->"
+	if !strings.HasPrefix(line, prefix) || !strings.HasSuffix(line, suffix) {
+		return false
+	}
+	return validSlug(strings.TrimSuffix(strings.TrimPrefix(line, prefix), suffix)) || line == undeclaredStageComment
+}
+
+// regroupBoard rewrites board.md's item lines into contiguous blocks in
+// stages: order, each introduced by an informational stage comment —
+// spec-file-format.md §5.1.6
 // explicitly permits physically grouping items by stage ("a writer MAY still
 // group items physically... for a human reading the raw file"); this makes
 // that the standing layout, reapplied by every mutation (tx.stage), rather
@@ -389,6 +405,16 @@ func regroupBoard(b *boardFile, e *fileEdit) {
 	// one trailing run of blank lines so the regrouped section controls its
 	// own single separating blank line.
 	head := append([]string(nil), e.lines[:firstLine-1]...)
+	// Generated comments for empty stages can precede the first item. They
+	// belong to the managed stage area, not the preserved introduction; cut
+	// from the first such marker so repeated mutations replace rather than
+	// accumulate the markers.
+	for i, line := range head {
+		if isStageComment(line) {
+			head = head[:i]
+			break
+		}
+	}
 	for len(head) > 0 && head[len(head)-1] == "" {
 		head = head[:len(head)-1]
 	}
@@ -396,13 +422,11 @@ func regroupBoard(b *boardFile, e *fileEdit) {
 	lines := append(head, "")
 	wrote := false
 	written := map[*Item]bool{}
-	emit := func(items []*Item) {
-		if len(items) == 0 {
-			return
-		}
+	emit := func(comment string, items []*Item) {
 		if wrote {
 			lines = append(lines, "")
 		}
+		lines = append(lines, comment)
 		for _, it := range items {
 			it.Source.Line = len(lines) + 1
 			lines = append(lines, RenderItemLine(it))
@@ -411,7 +435,7 @@ func regroupBoard(b *boardFile, e *fileEdit) {
 		wrote = true
 	}
 	for _, stage := range b.stageCfg.Stages {
-		emit(b.StageItems(stage))
+		emit(stageComment(stage), b.StageItems(stage))
 	}
 	// Defensive: an item on a stage outside stages: is a pre-existing
 	// violation (I4) this must preserve, not silently delete.
@@ -421,7 +445,9 @@ func regroupBoard(b *boardFile, e *fileEdit) {
 			stray = append(stray, it)
 		}
 	}
-	emit(stray)
+	if len(stray) > 0 {
+		emit(undeclaredStageComment, stray)
+	}
 
 	lines = append(lines, "")
 	e.lines = lines

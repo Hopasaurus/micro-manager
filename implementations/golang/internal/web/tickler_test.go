@@ -319,6 +319,38 @@ func TestWakeUpComposition(t *testing.T) {
 	}
 }
 
+func TestWakeUpPauseAndResume(t *testing.T) {
+	ts, id := pinnedServer(t, "clean-v2-full")
+	panel := ts.get("/p/" + id + "/item/T-0005").Body
+	if !hasTestid(panel, "tickler-paused") {
+		t.Fatal("scheduled item panel has no pause control")
+	}
+
+	ts.form(http.MethodPatch, "/p/"+id+"/items/T-0005", url.Values{
+		"tickler-kind": {"one-time"}, "tickler-date": {"2026-09-01"},
+		"tickler-pause-present": {"1"}, "tickler-paused": {"true"},
+	}).expectStatus(http.StatusOK)
+	store, _ := ts.registry.resolve(id)
+	it, _ := store.Get("T-0005")
+	if !it.TicklerPaused {
+		t.Fatal("pause checkbox did not persist tickler_paused:true")
+	}
+	board := ts.get("/p/" + id + "/board").Body
+	card := testid(t, board, "item-T-0005")
+	if attrOf(t, card, "data-tickler-paused") != "true" || badgeText(board, "item-T-0005-tickler") != "paused" {
+		t.Fatal("paused schedule is not identified on the board")
+	}
+
+	ts.form(http.MethodPatch, "/p/"+id+"/items/T-0005", url.Values{
+		"tickler-kind": {"one-time"}, "tickler-date": {"2026-09-01"},
+		"tickler-pause-present": {"1"},
+	}).expectStatus(http.StatusOK)
+	it, _ = store.Get("T-0005")
+	if it.TicklerPaused || it.Tickled.IsZero() {
+		t.Fatalf("resume = paused:%v baseline:%s, want false and a resume baseline", it.TicklerPaused, it.Tickled)
+	}
+}
+
 // The service (§2.4): tickHeld fires every held board's due schedules on the
 // registry's clock and logs what fired.
 func TestTicklerServiceFiresHeldBoards(t *testing.T) {

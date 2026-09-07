@@ -1,6 +1,6 @@
 # micro-manager — tooling specification
 
-    Product version: 0.2.1
+    Product version: 0.2.2
     Spec version: 2
     Date:         2026-08-20
     Status:       draft
@@ -1040,7 +1040,11 @@ Errors: none specific to the value — free prose cannot be invalid.
 Runs the tickler once: every item whose current stage is a `SOURCE` named in
 the directory's `tickler_stages` (format spec §5.1.4; default `someday`) and
 that carries `tickler:` (format spec §6) is evaluated against today, and the
-due ones fire. Firing is a mutation like any other — it accepts `--dry-run`
+due ones fire. An item carrying `tickler_paused:true` is skipped without losing
+its schedule. Removing that field resumes it and stamps `tickled:<today>` as a
+new baseline, so occurrences missed during the pause are not replayed; a
+past-due one-shot is therefore spent rather than fired late. Firing is a
+mutation like any other — it accepts `--dry-run`
 and runs the §7 transaction machinery. The default is manual, like every
 operation; a scheduled run is the cron/systemd surface (`mm --tick --dir …`
 from a timer, with `Persistent=true` so a missed run fires on boot).
@@ -1237,7 +1241,8 @@ Item {
   reason        string | null   # format spec §6; required where needs_reason lists `stage`
   tickler       string | null   # SCHEDULE; valid only where `stage` is a tickler_stages SOURCE
   tickler_dest  Stage | null    # overrides the fire destination for this item (format spec §5.1.4)
-  tickled       date | null     # last tickler fire (format spec §6)
+  tickler_paused bool           # true suppresses this item's schedule; absent is false
+  tickled       date | null     # last fire or resume baseline (format spec §6)
   extra         map<string,string>   # unregistered fields, preserved verbatim
   source        Location             # file + line, for diagnostics
 }
@@ -1283,7 +1288,7 @@ Schedule    — immutable value type (format spec §3.3 SCHEDULE)
   fireDate()             -> DATE|null   # a one-shot's date; null when recurring
   next(after DATE)       -> DATE|null   # smallest fire instant strictly after;
                                         # null when it will never fire again
-Tickler     { id ID, schedule string, dest Stage, last DATE|null, next DATE|null }
+Tickler     { id ID, schedule string, dest Stage, last DATE|null, next DATE|null, paused bool }
                                         # read-only; last = tickled; next =
                                         # Schedule.next(last ?? created) against
                                         # the caller's "now" (§5.3.3)

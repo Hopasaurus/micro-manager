@@ -224,6 +224,14 @@ func renderInitBoard(project string, today Date, g IDGrammar, wip int) string {
 
 Everything not started or done, in stage order. See structure.md for the
 line format.
+
+` + stageComment("someday") + `
+
+` + stageComment("ready") + `
+
+` + stageComment("blocked") + `
+
+` + stageComment("working") + `
 `
 }
 
@@ -284,14 +292,17 @@ never move, so the long text survives every transition.
   source (default: ` + "`someday`" + `) |
 | ` + "`tickler_dest`" + ` | overrides where a fired schedule lands, instead of that
   stage's ` + "`tickler_stages`" + ` default |
+| ` + "`tickler_paused`" + ` | ` + "`true`" + ` suppresses this item's schedule until resumed |
 
 ## board.md
 
 Frontmatter carries ` + "`project`" + ` and ` + "`next_id`" + `, the ID to hand out next. The
 body is a **flat, order-significant list** — no ` + "`## `" + ` sections; where an item
 sits is entirely its own ` + "`stage:`" + ` field, not its position in the file. A
-writer MAY group items by stage for a human reading the raw file but is not
-required to.
+writer groups items under informational ` + "`<!-- stage:SLUG -->`" + ` comments for a
+human reading the raw file, including comments for empty stages. The comments
+do not determine stage membership: the item line's ` + "`stage:`" + ` field remains
+authoritative.
 
 Per-stage WIP caps are declared as ` + "`wip.<slug>`" + ` frontmatter keys (absent
 means uncapped); a fresh board only ever declares ` + "`wip.working`" + `, and only

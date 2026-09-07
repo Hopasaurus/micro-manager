@@ -41,6 +41,9 @@ import (
 // plus its time; a one-shot shows its date, with the time appended; a null
 // next fire reads "due" — the next tick fires it.
 func ticklerBadge(it mm.Item, today mm.Date) (text, next string) {
+	if it.TicklerPaused {
+		return "paused", ""
+	}
 	sched, err := mm.ParseSchedule(it.Tickler)
 	if err != nil {
 		// I7 shape-only validation means a someday item can carry a schedule
@@ -98,6 +101,7 @@ func weekdayName(wd time.Weekday) string {
 // with everything empty (not Present).
 type ticklerGroupData struct {
 	Present bool // the item carries a tickler:
+	Paused  bool // the item carries tickler_paused:true
 	Kind    string
 	Date    string // one-time
 	Weekday string // weekly, mon..sun
@@ -126,7 +130,7 @@ func prefillTickler(it mm.Item) ticklerGroupData {
 	if err != nil {
 		return ticklerGroupData{Kind: "never"}
 	}
-	g := ticklerGroupData{Present: true}
+	g := ticklerGroupData{Present: true, Paused: it.TicklerPaused}
 	hour, minute, hasTime := sched.Time()
 	if hasTime {
 		g.Time = fmt.Sprintf("%02d:%02d", hour, minute)

@@ -27,7 +27,8 @@
          data-position="{{$i.Position}}"
          {{if $i.Slot}}data-slot="{{$i.Slot}}"{{end}}
          {{if $i.Outcome}}data-outcome="{{$i.Outcome}}"{{end}}
-         {{if $i.Tickler}}data-tickler="{{$i.Tickler}}"{{end}}>
+         {{if $i.Tickler}}data-tickler="{{$i.Tickler}}"{{end}}
+         {{if $i.TicklerPaused}}data-tickler-paused="true"{{end}}>
 
   <h3 data-testid="item-{{$i.ID}}-title" class="mm-item__title">
     <a href="{{with $p}}/p/{{.ID}}/item/{{$i.ID}}{{end}}"

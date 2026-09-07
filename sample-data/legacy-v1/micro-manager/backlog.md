@@ -2,8 +2,8 @@
 doc: backlog
 version: 1
 project: micro-manager — Go implementation
-next_id: T-0241
-updated: 2026-09-04
+next_id: T-0242
+updated: 2026-09-07
 ---
 
 # Backlog
@@ -29,6 +29,7 @@ thing that can be started.
 - [ ] [T-0238] time for code & coffee | prio:med | created:2026-08-28
 - [ ] [T-0239] tie your shoes | prio:med | created:2026-09-01
 - [ ] [T-0240] time for code & coffee | prio:med | created:2026-09-04
+- [ ] [T-0241] tie your shoes | prio:med | created:2026-09-07
 
 ## Blocked
 
@@ -46,7 +47,7 @@ thing that can be started.
 - [ ] [T-0190] Need a way to make drag scroll down | prio:med | detail:details/T-0190.md | created:2026-08-06
 - [ ] [T-0195] slim down the skill | prio:med | tags:needs-refinement | detail:details/T-0195.md | created:2026-08-06
 - [ ] [T-0196] think about removing the spec from the project files | prio:med | tags:needs-refinement | detail:details/T-0196.md | created:2026-08-06
-- [ ] [T-0199] tie your shoes | prio:med | created:2026-08-06 | tickler:mon@07:00 | tickled:2026-09-01
+- [ ] [T-0199] tie your shoes | prio:med | created:2026-08-06 | tickler:mon@07:00 | tickled:2026-09-07
 - [ ] [T-0201] make sure ui is local and storage is time zoned | prio:med | created:2026-08-06
 - [ ] [T-0192] Investigate caching, was: Make sure the UI has a place to enter the time when setting a wakeup type. | prio:med | detail:details/T-0192.md | created:2026-08-06
 - [ ] [T-0208] time for code & coffee | prio:med | created:2026-08-07 | tickler:fri@08:30 | tickled:2026-09-04

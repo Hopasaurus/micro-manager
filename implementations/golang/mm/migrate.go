@@ -299,9 +299,18 @@ func (s *Store) migrateOneToTwo(dryRun bool, today Date) (MigrationResult, error
 
 	var body strings.Builder
 	body.WriteString("\n# Board\n\n")
-	for _, it := range boardItems {
-		body.WriteString(RenderItemLine(it))
+	for i, stage := range DefaultStages() {
+		if i > 0 {
+			body.WriteString("\n")
+		}
+		body.WriteString(stageComment(stage))
 		body.WriteString("\n")
+		for _, it := range boardItems {
+			if it.Stage == stage {
+				body.WriteString(RenderItemLine(it))
+				body.WriteString("\n")
+			}
+		}
 	}
 	boardContent := boardFM.Render() + body.String()
 

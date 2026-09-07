@@ -93,5 +93,12 @@
     </select>
   </label>
   {{end}}
+
+  <input type="hidden" name="tickler-pause-present" value="1">
+  <label class="mm-field" data-kind="time" {{if eq $g.Kind "never"}}hidden{{end}}>
+    <input data-testid="tickler-paused" type="checkbox" name="tickler-paused" value="true"
+           {{if $g.Paused}}checked{{end}}>
+    <span>Pause this schedule</span>
+  </label>
 </fieldset>
 {{- end}}

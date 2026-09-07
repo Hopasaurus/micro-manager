@@ -1,7 +1,7 @@
 ---
 doc: done
 version: 2
-updated: 2026-09-06
+updated: 2026-09-07
 ---
 
 # Done
@@ -11,6 +11,13 @@ work stays here too — see [structure.md](structure.md).
 
 ## 2026-09
 
+- [x] [T-0262] Vet changing an existing board ID prefix from the CLI | prio:med | tags:spike,cli,migration | detail:details/T-0262.md | created:2026-09-04 | started:2026-09-05 | done:2026-09-07 | outcome:shipped
+- [x] [T-0266] Phase 2: prevent stale item-panel saves and resolve conflicts | prio:high | tags:gui,concurrency,phase-2 | detail:details/T-0266.md | created:2026-09-05 | started:2026-09-05 | done:2026-09-07 | outcome:shipped
+- [x] [T-0265] Phase 1: detect external changes in the open item panel | prio:high | tags:gui,concurrency,phase-1 | detail:details/T-0265.md | created:2026-09-05 | started:2026-09-05 | done:2026-09-07 | outcome:shipped
+- [x] [T-0261] Vet live updates and conflict handling in the UI item detail view | prio:med | tags:spike,gui,concurrency | detail:details/T-0261.md | created:2026-09-04 | started:2026-09-05 | done:2026-09-07 | outcome:shipped
+- [x] [T-0260] Vet declared-stage transition support and silent edit behavior | prio:high | tags:spike,cli,bug | detail:details/T-0260.md | created:2026-09-04 | started:2026-09-05 | done:2026-09-07 | outcome:shipped
+- [x] [T-0259] Vet arbitrary custom-field mutation support | prio:med | tags:spike,cli | detail:details/T-0259.md | created:2026-09-04 | started:2026-09-05 | done:2026-09-07 | outcome:shipped
+- [x] [T-0268] tie your shoes | prio:med | created:2026-09-07 | done:2026-09-07 | outcome:shipped
 - [x] [T-0135] CSS transition polish on swap (fade .htmx-added content) | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0135.md | created:2026-08-02 | reason:report Phase 3; only if Phase 1 still feels abrupt | done:2026-09-06 | outcome:cancelled
 - [x] [T-0216] Reload scan roots into the live UI registry | prio:high | tags:bug,gui | detail:details/T-0216.md | created:2026-08-19 | started:2026-08-19 | reason:needs review and test | done:2026-09-06 | outcome:shipped
 - [x] [T-0246] A second blocked one | created:2026-08-26 | reason:stacking test | done:2026-09-05 | outcome:shipped

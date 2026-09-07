@@ -230,6 +230,11 @@ func (it *Item) setField(file string, lineNo int, key, val string) error {
 		it.Reason = val
 	case "tickler_dest":
 		it.TicklerDest = Stage(val)
+	case "tickler_paused":
+		if val != "true" {
+			return parseErrf(file, lineNo, "%s has tickler_paused:%s (want true)", it.ID, val)
+		}
+		it.TicklerPaused = true
 	case "prio":
 		p, err := ParsePrio(val)
 		if err != nil {
@@ -302,7 +307,7 @@ func (it *Item) setField(file string, lineNo int, key, val string) error {
 // Readers must not depend on it; it exists so that lines a writer touches come
 // out consistent.
 var fieldOrder = []string{"stage", "prio", "tags", "refs", "detail", "created", "started",
-	"blocked", "reason", "tickler", "tickler_dest", "tickled", "done", "outcome"}
+	"blocked", "reason", "tickler", "tickler_dest", "tickler_paused", "tickled", "done", "outcome"}
 
 // RenderItemLine serialises an item back to one line.
 //
@@ -348,6 +353,10 @@ func (it *Item) fieldValue(key string) string {
 		return it.Reason
 	case "tickler_dest":
 		return string(it.TicklerDest)
+	case "tickler_paused":
+		if it.TicklerPaused {
+			return "true"
+		}
 	case "prio":
 		return string(it.Prio)
 	case "tags":

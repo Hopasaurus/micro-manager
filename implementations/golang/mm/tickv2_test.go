@@ -149,6 +149,45 @@ func TestTickV2RecurringSpawnsOnStageDefaultWithNoCopiedExtras(t *testing.T) {
 	}
 }
 
+func TestTickV2PausedItemSkipsMissedOccurrencesOnResume(t *testing.T) {
+	_, s := tickV2Dir(t)
+	if _, _, err := s.Update("T-0003", UpdateRequest{
+		Set: []Field{{Key: "tickler_paused", Value: "true"}},
+	}, Date{2026, 8, 1}); err != nil {
+		t.Fatal(err)
+	}
+	listed, err := s.Ticklers(Date{2026, 8, 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paused *Tickler
+	for i := range listed {
+		if listed[i].ID == "T-0003" {
+			paused = &listed[i]
+		}
+	}
+	if paused == nil || !paused.Paused || paused.Due {
+		t.Fatalf("paused listing = %+v, want paused and not due", paused)
+	}
+	if res, err := s.Tick(Date{2026, 8, 3}, false); err != nil || len(res.Fired) != 2 {
+		// The two due one-shots still fire; the paused recurring item does not.
+		t.Fatalf("paused tick fired %d items, err=%v; want only two one-shots", len(res.Fired), err)
+	}
+	if _, _, err := s.Update("T-0003", UpdateRequest{Unset: []string{"tickler_paused"}}, Date{2026, 8, 3}); err != nil {
+		t.Fatal(err)
+	}
+	it, _ := s.Get("T-0003")
+	if it.TicklerPaused || it.Tickled != (Date{2026, 8, 3}) {
+		t.Fatalf("resumed item = paused:%v tickled:%s, want false/2026-08-03", it.TicklerPaused, it.Tickled)
+	}
+	if res, err := s.Tick(Date{2026, 8, 3}, false); err != nil || len(res.Fired) != 0 {
+		t.Fatalf("resume replayed a missed occurrence: fired=%v err=%v", res.Fired, err)
+	}
+	if res, err := s.Tick(Date{2026, 8, 10}, false); err != nil || len(res.Fired) != 1 || res.Fired[0].ID != "T-0003" {
+		t.Fatalf("next future occurrence did not fire: fired=%v err=%v", res.Fired, err)
+	}
+}
+
 func TestTicklersV2ListingReportsDest(t *testing.T) {
 	_, s := tickV2Dir(t)
 	tks, err := s.Ticklers(Date{2026, 8, 3})

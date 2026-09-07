@@ -81,9 +81,13 @@ func stageUpdate(t *tx, it *Item, req UpdateRequest, today Date) error {
 	id := it.ID
 	before := RenderItemLine(it)
 	oldTitle := it.Title
+	wasTicklerPaused := it.TicklerPaused
 
 	if err := applyUpdate(it, req, t.model); err != nil {
 		return err
+	}
+	if wasTicklerPaused && !it.TicklerPaused && it.Tickler != "" {
+		it.Tickled = today
 	}
 
 	// Write the item back to whichever file holds it.
@@ -283,6 +287,11 @@ func setAnyField(it *Item, key, value string, m *dirModel) error {
 		it.Reason = value
 	case "tickler_dest":
 		it.TicklerDest = Stage(value)
+	case "tickler_paused":
+		if value != "true" {
+			return fmt.Errorf("%w: tickler_paused must be true", ErrInvalidArgument)
+		}
+		it.TicklerPaused = true
 	case "tickler":
 		if _, err := ParseSchedule(value); err != nil {
 			return err
@@ -363,8 +372,11 @@ func unsetAnyField(it *Item, key string) error {
 		it.Reason = ""
 	case "tickler_dest":
 		it.TicklerDest = ""
+	case "tickler_paused":
+		it.TicklerPaused = false
 	case "tickler":
 		it.Tickler = ""
+		it.TicklerPaused = false
 	case "tickled":
 		it.Tickled = Date{}
 	case "done", "outcome":

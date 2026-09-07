@@ -23,51 +23,53 @@ import (
 // formatted "slug:ID" elements: the API carries the DATA, resolution stays
 // with whatever client has the tree-wide view.
 type jsonItem struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title"`
-	State       string            `json:"state"`
-	Section     string            `json:"section,omitempty"` // version 1
-	Stage       string            `json:"stage,omitempty"`   // version 2
-	Slot        int               `json:"slot,omitempty"`
-	Position    int               `json:"position,omitempty"`
-	Prio        string            `json:"prio,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
-	Refs        []string          `json:"refs,omitempty"`
-	Detail      string            `json:"detail,omitempty"`
-	Created     string            `json:"created,omitempty"`
-	Started     string            `json:"started,omitempty"`
-	Done        string            `json:"done,omitempty"`
-	Outcome     string            `json:"outcome,omitempty"`
-	Blocked     string            `json:"blocked,omitempty"` // version 1
-	Reason      string            `json:"reason,omitempty"`  // version 2
-	TicklerDest string            `json:"ticklerDest,omitempty"`
-	Extra       map[string]string `json:"extra,omitempty"`
-	File        string            `json:"file,omitempty"`
-	Line        int               `json:"line,omitempty"`
+	ID            string            `json:"id"`
+	Title         string            `json:"title"`
+	State         string            `json:"state"`
+	Section       string            `json:"section,omitempty"` // version 1
+	Stage         string            `json:"stage,omitempty"`   // version 2
+	Slot          int               `json:"slot,omitempty"`
+	Position      int               `json:"position,omitempty"`
+	Prio          string            `json:"prio,omitempty"`
+	Tags          []string          `json:"tags,omitempty"`
+	Refs          []string          `json:"refs,omitempty"`
+	Detail        string            `json:"detail,omitempty"`
+	Created       string            `json:"created,omitempty"`
+	Started       string            `json:"started,omitempty"`
+	Done          string            `json:"done,omitempty"`
+	Outcome       string            `json:"outcome,omitempty"`
+	Blocked       string            `json:"blocked,omitempty"` // version 1
+	Reason        string            `json:"reason,omitempty"`  // version 2
+	TicklerDest   string            `json:"ticklerDest,omitempty"`
+	TicklerPaused bool              `json:"ticklerPaused,omitempty"`
+	Extra         map[string]string `json:"extra,omitempty"`
+	File          string            `json:"file,omitempty"`
+	Line          int               `json:"line,omitempty"`
 }
 
 func toJSONItem(it mm.Item) jsonItem {
 	out := jsonItem{
-		ID:          string(it.ID),
-		Title:       it.Title,
-		State:       string(it.State),
-		Section:     string(it.Section),
-		Stage:       string(it.Stage),
-		Slot:        it.Slot,
-		Position:    it.Pos,
-		Prio:        string(it.Prio),
-		Tags:        it.Tags,
-		Refs:        make([]string, 0, len(it.Refs)),
-		Detail:      it.Detail,
-		Created:     mm.FormatDateOrStamp(it.Created, it.CreatedTime),
-		Started:     mm.FormatDateOrStamp(it.Started, it.StartedTime),
-		Done:        it.Done.String(),
-		Outcome:     string(it.Outcome),
-		Blocked:     it.Blocked,
-		Reason:      it.Reason,
-		TicklerDest: string(it.TicklerDest),
-		File:        it.Source.File,
-		Line:        it.Source.Line,
+		ID:            string(it.ID),
+		Title:         it.Title,
+		State:         string(it.State),
+		Section:       string(it.Section),
+		Stage:         string(it.Stage),
+		Slot:          it.Slot,
+		Position:      it.Pos,
+		Prio:          string(it.Prio),
+		Tags:          it.Tags,
+		Refs:          make([]string, 0, len(it.Refs)),
+		Detail:        it.Detail,
+		Created:       mm.FormatDateOrStamp(it.Created, it.CreatedTime),
+		Started:       mm.FormatDateOrStamp(it.Started, it.StartedTime),
+		Done:          it.Done.String(),
+		Outcome:       string(it.Outcome),
+		Blocked:       it.Blocked,
+		Reason:        it.Reason,
+		TicklerDest:   string(it.TicklerDest),
+		TicklerPaused: it.TicklerPaused,
+		File:          it.Source.File,
+		Line:          it.Source.Line,
 	}
 	if len(it.Extra) > 0 {
 		out.Extra = make(map[string]string, len(it.Extra))

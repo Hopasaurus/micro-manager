@@ -732,7 +732,7 @@ func TestBlockUnblockNote(t *testing.T) {
 		t.Fatalf("unblock: %s", got)
 	}
 	board = readFileAt(t, dir, "board.md")
-	if strings.Contains(board, "stage:blocked") {
+	if strings.Contains(board, "[T-0001] Something | stage:blocked") {
 		t.Errorf("unblocking must move off blocked:\n%s", board)
 	}
 

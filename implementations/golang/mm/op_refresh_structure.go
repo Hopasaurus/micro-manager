@@ -173,6 +173,11 @@ are supported, but `+"`mm`"+` is safer because it preserves cross-file invariant
 Open items use `+"`- [ ]`"+`; done items use `+"`- [x]`"+`. Fields are
 `+"` | `"+`-separated `+"`key:value`"+` pairs. Unknown fields are legal and must survive
 moves. Stages and any `+"`wip.<stage>`"+` caps are declared in `+"`board.md`"+` frontmatter.
+Comments shaped like `+"`<!-- stage:ready -->`"+` make stage runs easier to see in
+the raw file, but are informational only; the item line's `+"`stage:`"+` field is
+authoritative.
+An item with both `+"`tickler:`"+` and `+"`tickler_paused:true`"+` keeps its schedule
+but does not fire until resumed.
 
 ## Safe manual edits
 

@@ -29,6 +29,7 @@ type Tickler struct {
 	Last     Date   // tickled:, zero when never fired
 	Next     Date   // Schedule.next(last ?? created), zero when the schedule is spent
 	Due      bool   // the run's own due test at the listing's now: due on or before it
+	Paused   bool   // true when tickler_paused suppresses firing
 }
 
 // FiredTickler reports one item a tick run fired.
@@ -112,7 +113,8 @@ func (s *Store) Ticklers(now Date) ([]Tickler, error) {
 			Schedule: it.Tickler,
 			Last:     it.Tickled,
 			Next:     sch.Next(after),
-			Due:      sch.Due(now, it.Tickled, it.Created),
+			Due:      !it.TicklerPaused && sch.Due(now, it.Tickled, it.Created),
+			Paused:   it.TicklerPaused,
 		}
 		if m.board != nil {
 			dest, ok := m.board.stageCfg.TicklerDestOf(it.Stage)
@@ -182,7 +184,7 @@ func (s *Store) tickLoopV1(now Date, dryRun bool) (TickResult, error) {
 		// same sequence, dry run and real run alike.
 		var due *Item
 		for _, it := range sec.Items {
-			if done[it.ID] || it.Tickler == "" {
+			if done[it.ID] || it.Tickler == "" || it.TicklerPaused {
 				continue
 			}
 			sch, perr := ParseSchedule(it.Tickler)
@@ -235,6 +237,7 @@ func fireOne(t *tx, b *backlogFile, e *fileEdit, it *Item, now Date, dryRun bool
 		}
 		before := RenderItemLine(it)
 		it.Tickler = ""
+		it.TicklerPaused = false
 		it.Tickled = now
 		b.RemoveItem(e, it)
 		dest := b.Section(SectionReady)

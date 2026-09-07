@@ -99,9 +99,10 @@ type itemData struct {
 	// article, and the next-fire badge. TicklerNext is the computed data-next
 	// date, empty when the schedule is spent or already due; TicklerText is
 	// what the badge reads. Only a someday card carrying tickler: sets them.
-	Tickler     string
-	TicklerNext string
-	TicklerText string
+	Tickler       string
+	TicklerPaused bool
+	TicklerNext   string
+	TicklerText   string
 }
 
 // actionData is one entry in an item's menu.
@@ -616,6 +617,7 @@ func (s *Server) itemView(it mm.Item, dir mm.Directory, position int, resolver *
 		today, err := mm.ParseDate(mm.NewTimestamp(s.registry.now()).String()[:10])
 		if err == nil {
 			d.Tickler = it.Tickler
+			d.TicklerPaused = it.TicklerPaused
 			d.TicklerText, d.TicklerNext = ticklerBadge(it, today)
 		}
 	}

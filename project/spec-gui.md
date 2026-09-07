@@ -1,6 +1,6 @@
 # micro-manager — user interface specification
 
-    Product version: 0.2.1
+    Product version: 0.2.2
     Spec version: 2
     Date:         2026-08-20
     Status:       draft
@@ -686,6 +686,10 @@ panels, rendered inside `item-form`:
   differs from that default — leaving it at the default keeps the field
   absent, so a board that never overrides a destination writes no extra
   data.
+- `tickler-paused` is a checkbox shown whenever a schedule kind other than
+  `never` is selected. Checking it preserves the schedule but suppresses its
+  fires. Unchecking a previously paused item resumes from today, skipping
+  occurrences missed during the pause.
 
 The kind select chooses the shape; the matching input is shown and the others
 hidden. The server composes the `tickler:` value from the controls:

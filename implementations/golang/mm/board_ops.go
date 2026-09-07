@@ -165,17 +165,18 @@ func buildNewItemV2(req AddRequest, cfg StageConfig, today Date) (*Item, error) 
 	}
 
 	it := &Item{
-		Title:       title,
-		State:       StateBoard,
-		Stage:       stage,
-		Prio:        req.Prio,
-		Tags:        req.Tags,
-		Refs:        req.Refs,
-		Reason:      req.Reason,
-		Tickler:     req.Tickler,
-		TicklerDest: req.TicklerDest,
-		Created:     created,
-		Extra:       req.Extra,
+		Title:         title,
+		State:         StateBoard,
+		Stage:         stage,
+		Prio:          req.Prio,
+		Tags:          req.Tags,
+		Refs:          req.Refs,
+		Reason:        req.Reason,
+		Tickler:       req.Tickler,
+		TicklerDest:   req.TicklerDest,
+		TicklerPaused: req.TicklerPaused,
+		Created:       created,
+		Extra:         req.Extra,
 	}
 	if stage == "working" {
 		it.Started = today
@@ -466,6 +467,7 @@ func (s *Store) moveV2(t *tx, id ID, req MoveRequest, today Date) (Item, TxResul
 	if _, ok := b.stageCfg.TicklerDestOf(to); !ok {
 		it.Tickler = ""
 		it.TicklerDest = ""
+		it.TicklerPaused = false
 	}
 
 	b.RemoveItem(e, it)
@@ -570,7 +572,7 @@ func (s *Store) tickLoopV2(now Date, dryRun bool) (TickResult, error) {
 		// same sequence, dry run and real run alike.
 		var due *Item
 		for _, it := range b.Items {
-			if done[it.ID] || it.Tickler == "" {
+			if done[it.ID] || it.Tickler == "" || it.TicklerPaused {
 				continue
 			}
 			sch, perr := ParseSchedule(it.Tickler)
@@ -654,6 +656,7 @@ func fireOneV2(t *tx, b *boardFile, e *fileEdit, it *Item, now Date, dryRun bool
 		before := RenderItemLine(it)
 		it.Tickler = ""
 		it.TicklerDest = ""
+		it.TicklerPaused = false
 		it.Tickled = now
 		b.RemoveItem(e, it)
 		b.InsertItem(e, dest, len(b.StageItems(dest)), it)

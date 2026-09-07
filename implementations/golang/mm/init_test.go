@@ -66,6 +66,11 @@ func TestInitCreatesAValidDirectory(t *testing.T) {
 	if strings.Contains(b, "## Ready") || strings.Contains(b, "## Blocked") || strings.Contains(b, "## Someday") {
 		t.Errorf("board.md must carry no version-1 sections:\n%s", b)
 	}
+	for _, stage := range DefaultStages() {
+		if !strings.Contains(b, stageComment(stage)) {
+			t.Errorf("fresh board is missing the empty %s stage marker:\n%s", stage, b)
+		}
+	}
 
 	// And the directory is immediately usable, through the real public API -
 	// no bypass needed, since a fresh Init is version 2 and the guarded

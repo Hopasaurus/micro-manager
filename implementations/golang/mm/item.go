@@ -664,9 +664,12 @@ type Item struct {
 	// TicklerDest overrides a version-2 item's own fire destination
 	// (§5.1.4), in place of its stage's TicklerStages entry. Empty means
 	// "use the stage's default." Not used by a version-1 item.
-	TicklerDest Stage
+	TicklerDest   Stage
+	TicklerPaused bool // tickler_paused:true suppresses fires until explicitly resumed
 
-	Tickled Date // the last tickler fire, the at-most-once guard (spec-tools.md §5.3.3)
+	// Tickled is the last fire or resume date. A resume stamps today so missed
+	// recurring occurrences are skipped rather than replayed.
+	Tickled Date
 
 	// Extra holds fields this implementation does not recognise, in the order
 	// they appeared. Unregistered keys are the format's extension point

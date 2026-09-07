@@ -1,6 +1,6 @@
 # micro-manager — data file format specification
 
-    Product version: 0.2.1
+    Product version: 0.2.2
     Spec version: 2
     Date:         2026-08-20
     Status:       draft
@@ -475,6 +475,12 @@ file, but SHOULD keep `## ` headings out of it entirely — §4.3's heading
 mechanism is retained for `done.md`'s month groups (§5.3), not reused here,
 and any `## ` line found in `board.md` is ordinary non-item content.
 
+A writer that groups items by stage SHOULD introduce every declared stage,
+including an empty one, with an informational comment of the exact form
+`<!-- stage:SLUG -->`. The comment is a visual delimiter only. It MUST NOT be
+used to infer or override an item's stage; if it disagrees with an item line,
+the item's `stage:` field remains authoritative.
+
 Every item line in this file MUST have box `" "` (open) and MUST carry a
 `stage:` field whose value is a member of `stages` (§5.1.1). Order within a
 stage is the file's own order; a writer appends a newly-started or
@@ -759,7 +765,8 @@ accept it, and a writer moving an item between files MUST preserve it verbatim
 | `reason` | free text, no `|` | **yes** where the item's `stage` is listed in `needs_reason` (§5.1.5) | all | Renamed from version 1's `blocked` (§10). Valid on any stage; required only where `needs_reason` lists it — unlike version 1, NOT forbidden elsewhere. |
 | `tickler` | `SCHEDULE` | no | a `SOURCE` stage named in `tickler_stages` (§5.1.4) only | Fires when the schedule's next instant arrives — a bare date is one-shot; a weekday or monthday spec recurs, making the item a prototype that spawns a new item on each fire. Placement, the `created` requirement, and where a fire lands: §5.1.4. |
 | `tickler_dest` | `STAGE` | no | same stages as `tickler` | Overrides that item's default fire destination from `tickler_stages` (§5.1.4), for both a one-shot move and a recurring spawn. |
-| `tickled` | `DATE` | no | all | Date the item's `tickler` last fired. Audit trail; harmless after a manual move. |
+| `tickler_paused` | `true` | no | same stages as `tickler`; requires `tickler` | Suppresses this item's schedule without removing it. Absence means active. |
+| `tickled` | `DATE` | no | all | Date the item's `tickler` last fired or was resumed. It is the schedule baseline and prevents replaying occurrences missed while paused. |
 | `detail` | `DETAILPATH` | no | all | MUST equal `details/<this item's ID>.md`. In an archived file it is `details-YYYY/<ID>.md` instead (§5.6); archived files are not validated. |
 
 `refs` names items in *other* directories — each element is a target board's
@@ -776,7 +783,7 @@ ambiguous link never invalidates a directory.
 Writers SHOULD emit fields in this order. Readers MUST NOT require it.
 
 ```
-stage, prio, tags, refs, detail, created, started, reason, tickler, tickler_dest, tickled, done, outcome, <unregistered...>
+stage, prio, tags, refs, detail, created, started, reason, tickler, tickler_dest, tickler_paused, tickled, done, outcome, <unregistered...>
 ```
 
 ## 7. Cross-file constraints

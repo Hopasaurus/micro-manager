@@ -268,6 +268,12 @@ func (m *dirModel) checkTicklerV2() []Violation {
 	var vs []Violation
 	cfg := m.board.stageCfg
 	for _, it := range m.items() {
+		if it.TicklerPaused && it.Tickler == "" {
+			vs = append(vs, Violation{
+				Invariant: "I7", At: it.Source,
+				Message: fmt.Sprintf("%s carries tickler_paused:true but has no tickler: schedule", it.ID),
+			})
+		}
 		if it.Tickler == "" {
 			continue
 		}

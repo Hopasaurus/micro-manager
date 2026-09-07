@@ -568,12 +568,14 @@ func TestMoveRegroupsBoardByStage(t *testing.T) {
 		t.Errorf("file order = %v, want stages: order %v", got, want)
 	}
 
-	// Exactly one blank line at every group boundary: the existing one
-	// between the heading/prose and the first group (unchanged from the
-	// fixture's own convention), plus one between each of the five stage
-	// groups (someday/ready/blocked/working/review) and the next.
-	if n := strings.Count(body, "\n\n- ["); n != 5 {
-		t.Errorf("found %d blank-line-then-item boundaries, want 5:\n%s", n, body)
+	// Every declared stage gets an ordered marker, including empty stages.
+	last := -1
+	for _, stage := range []Stage{"someday", "ready", "blocked", "working", "review"} {
+		at := strings.Index(body, stageComment(stage))
+		if at < 0 || at <= last {
+			t.Errorf("stage comment for %s missing or out of order:\n%s", stage, body)
+		}
+		last = at
 	}
 
 	if vs, _ := s.Validate(); len(vs) != 0 {
@@ -581,19 +583,49 @@ func TestMoveRegroupsBoardByStage(t *testing.T) {
 	}
 }
 
-// An empty stage contributes no group and no orphaned blank line.
-func TestRegroupSkipsEmptyStagesCleanly(t *testing.T) {
+// An empty stage keeps its visual delimiter without producing excess whitespace.
+func TestRegroupMarksEmptyStagesCleanly(t *testing.T) {
 	dir, s := v2Dir(t)
 	// Empty out "review" by finishing its one occupant.
 	if _, _, err := s.Finish("T-0007", FinishRequest{}, today); err != nil {
 		t.Fatalf("finish: %v", err)
 	}
 	body := readFile(t, dir, "board.md")
+	if !strings.Contains(body, stageComment("review")) {
+		t.Errorf("empty review stage has no comment:\n%s", body)
+	}
 	if strings.Contains(body, "\n\n\n") {
 		t.Errorf("an emptied stage left a double-blank gap:\n%s", body)
 	}
 	if strings.HasSuffix(strings.TrimRight(body, "\n"), "\n") {
 		t.Errorf("trailing blank line left after the last group:\n%q", body)
+	}
+}
+
+func TestRegroupReplacesRatherThanAccumulatesStageComments(t *testing.T) {
+	dir, s := v2Dir(t)
+	if _, _, err := s.Move("T-0003", MoveRequest{Stage: "ready"}, today); err != nil {
+		t.Fatalf("first move: %v", err)
+	}
+	if _, _, err := s.Move("T-0003", MoveRequest{Stage: "blocked", Reason: "again"}, today); err != nil {
+		t.Fatalf("second move: %v", err)
+	}
+	body := readFile(t, dir, "board.md")
+	for _, stage := range []Stage{"someday", "ready", "blocked", "working", "review"} {
+		if got := strings.Count(body, stageComment(stage)); got != 1 {
+			t.Errorf("%s comment count = %d, want 1:\n%s", stage, got, body)
+		}
+	}
+}
+
+func TestStageCommentsAreInformationalOnly(t *testing.T) {
+	board := strings.Replace(v2Board, "# Board\n", "# Board\n\n<!-- stage:blocked -->\n", 1)
+	b, vs := parseBoard("board.md", []byte(board))
+	if len(vs) != 0 {
+		t.Fatalf("informational comment caused violations: %v", vs)
+	}
+	if got := b.StageItems("ready"); len(got) != 2 {
+		t.Fatalf("comment changed stage membership: ready has %d items, want 2", len(got))
 	}
 }
 

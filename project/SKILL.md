@@ -175,7 +175,8 @@ Regex to recognize one:
 | `blocked` | free text | required in `## Blocked`, forbidden elsewhere |
 | `detail` | `details/T-0042.md` | must match the item's own ID |
 | `tickler` | `2026-09-01` `mon@08:00` `first-mon@08:00` `15@08:00` `last@08:00` | a wake-up schedule; **`## Someday` only**, and the item must carry `created` |
-| `tickled` | `YYYY-MM-DD` | when the schedule last fired; audit trail |
+| `tickler_paused` | `true` | preserve but temporarily suppress this item's schedule |
+| `tickled` | `YYYY-MM-DD` | when the schedule last fired or resumed; scheduling baseline |
 
 ## The files
 

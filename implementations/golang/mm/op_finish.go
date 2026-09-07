@@ -132,6 +132,7 @@ func (s *Store) finishV1(t *tx, it *Item, req FinishRequest, outcome Outcome, wh
 	// The tickler is Someday-only (I7); finishing a scheduled item retires its
 	// prototype. tickled: is history and travels, like created:.
 	it.Tickler = ""
+	it.TicklerPaused = false
 
 	// InsertItem sets State to done, which is what flips the box to [x]: the box
 	// is a function of the file an item lives in, not a field of its own.

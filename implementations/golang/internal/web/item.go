@@ -645,6 +645,17 @@ func (s *Server) editItem(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
+	// Pausing preserves the schedule. Resuming advances its baseline to today,
+	// so occurrences missed while paused are skipped instead of replayed.
+	if c.Request().FormValue("tickler-pause-present") == "1" {
+		if schedule == "" {
+			req.Unset = append(req.Unset, "tickler_paused")
+		} else if c.Request().FormValue("tickler-paused") == "true" {
+			req.Set = append(req.Set, mm.Field{Key: "tickler_paused", Value: "true"})
+		} else {
+			req.Unset = append(req.Unset, "tickler_paused")
+		}
+	}
 	var detailBody *string
 	if body, ok := formValue(c, "detail"); ok {
 		detailBody = &body
@@ -798,6 +809,9 @@ func (s *Server) addItem(c *echo.Context) error {
 	today, err := mm.ParseDate(mm.NewTimestamp(s.registry.now()).String()[:10])
 	if err != nil {
 		return err
+	}
+	if schedule != "" && c.Request().FormValue("tickler-paused") == "true" {
+		req.TicklerPaused = true
 	}
 	it, _, err := store.Add(req, today)
 	if err != nil {

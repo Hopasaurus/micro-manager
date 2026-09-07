@@ -235,6 +235,14 @@ func TestMigrateOneToTwoProducesAValidBoard(t *testing.T) {
 	if !strings.Contains(boardText, "owner: dana") {
 		t.Error("board.md should carry the unregistered owner: key through from backlog.md")
 	}
+	lastComment := -1
+	for _, stage := range DefaultStages() {
+		at := strings.Index(boardText, stageComment(stage))
+		if at < 0 || at <= lastComment {
+			t.Errorf("migrated board stage comment for %s is missing or out of order:\n%s", stage, boardText)
+		}
+		lastComment = at
+	}
 
 	ready, err := s.Get("T-0001")
 	if err != nil {

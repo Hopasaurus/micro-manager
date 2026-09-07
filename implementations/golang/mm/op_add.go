@@ -25,7 +25,8 @@ type AddRequest struct {
 	Reason string
 	// TicklerDest overrides this item's fire destination (§5.1.4). Only
 	// meaningful alongside Tickler.
-	TicklerDest Stage
+	TicklerDest   Stage
+	TicklerPaused bool
 
 	Prio    Prio
 	Tags    []string
