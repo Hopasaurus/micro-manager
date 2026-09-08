@@ -375,6 +375,33 @@ test('real CodeMirror bundle enhances, synchronizes, previews, and tears down', 
   assert.equal(byTestid(loaded.win, 'x-item-detail-codemirror'), null);
 });
 
+test('existing item: first switch to edit creates a real editor with a finite selection', (t) => {
+  // Regression: an existing item opens in view mode with no CodeMirror
+  // instance yet, so the pre-edit selection is captured off the plain
+  // textarea (an {anchor, head, scrollTop} triple) rather than via
+  // editor.capture(). The first click on "Edit detail" then creates the
+  // real editor and immediately restores that captured selection into it.
+  // Before the fix, the captured value was a [start, end, scroll] array,
+  // so `saved.anchor`/`saved.head` were undefined and the restored
+  // selection silently became {anchor: NaN, head: NaN} — which is what
+  // sent the real bundle into the lineAt/lineBlockAt crash loop the user
+  // saw on scroll.
+  const loaded = load(t, markdownPanelHTML(false, '# Heading\n\nSome detail.'), {codemirror: true});
+  const group = byTestid(loaded.win, 'x-item-detail-markdown');
+  assert.equal(group.getAttribute('data-mode'), 'view');
+
+  click(loaded.win, byTestid(loaded.win, 'x-item-detail-edit'));
+
+  const textarea = byTestid(loaded.win, 'item-field-detail');
+  const editor = textarea._mmCodeMirror;
+  assert.ok(editor, 'real bundle created an editor on first edit');
+  const selection = editor.view.state.selection.main;
+  assert.ok(Number.isFinite(selection.anchor), 'anchor must not be NaN');
+  assert.ok(Number.isFinite(selection.head), 'head must not be NaN');
+  assert.equal(selection.anchor, 0);
+  assert.equal(selection.head, 0);
+});
+
 test('CodeMirror failure and large source retain the native textarea', (t) => {
   let loaded = load(t, markdownPanelHTML(true, 'fallback'));
   loaded.win.mmCodeMirror = {create() { throw new Error('failed'); }};

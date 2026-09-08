@@ -1068,7 +1068,7 @@
 
     if (mode === 'view') {
       group._mmDetailSelection = textarea._mmCodeMirror ? textarea._mmCodeMirror.capture() :
-        [textarea.selectionStart, textarea.selectionEnd, textarea.scrollTop];
+        {anchor: textarea.selectionStart, head: textarea.selectionEnd, scrollTop: textarea.scrollTop};
     }
     group.setAttribute('data-mode', mode);
     editor.hidden = mode === 'view';
@@ -1080,10 +1080,10 @@
       if (textarea._mmCodeMirror) {
         textarea._mmCodeMirror.restore(group._mmDetailSelection);
         textarea._mmCodeMirror.focus();
-      } else if (Array.isArray(group._mmDetailSelection)) {
-        const [start, end, scroll] = group._mmDetailSelection;
-        textarea.setSelectionRange(start, end);
-        textarea.scrollTop = scroll;
+      } else if (group._mmDetailSelection) {
+        const {anchor, head, scrollTop} = group._mmDetailSelection;
+        textarea.setSelectionRange(anchor, head);
+        textarea.scrollTop = scrollTop;
         textarea.focus();
       }
     }
