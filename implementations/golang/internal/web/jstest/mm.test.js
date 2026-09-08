@@ -29,6 +29,8 @@ const path = require('node:path');
 const { JSDOM } = require('jsdom');
 
 const MM_JS = fs.readFileSync(path.join(__dirname, '..', 'static', 'mm.js'), 'utf8');
+const MARKDOWN_IT = require(path.join(__dirname, '..', 'static', 'markdown-it.min.js'));
+const CODEMIRROR_JS = fs.readFileSync(path.join(__dirname, '..', 'static', 'codemirror.min.js'), 'utf8');
 
 // The board fixture. Minimal, but faithful to the real render: the app root
 // carries data-project-id and the sse/morph extensions; the board, status and
@@ -193,6 +195,23 @@ function load(t, html = BOARD_HTML, opts = {}) {
   global.MouseEvent = win.MouseEvent;
   global.KeyboardEvent = win.KeyboardEvent;
   global.Event = win.Event;
+  global.Node = win.Node;
+  global.Window = win.Window;
+  global.MutationObserver = win.MutationObserver;
+  global.ResizeObserver = win.ResizeObserver || class { observe() {} unobserve() {} disconnect() {} };
+  // CodeMirror schedules layout measurement here. jsdom has no layout, so a
+  // never-fired frame is more faithful than letting stale callbacks escape a
+  // completed test into the next document.
+  global.requestAnimationFrame = () => 0;
+  global.cancelAnimationFrame = () => {};
+  win.requestAnimationFrame = global.requestAnimationFrame;
+  win.cancelAnimationFrame = global.cancelAnimationFrame;
+
+  if (opts.markdownit !== false) win.markdownit = opts.markdownit || MARKDOWN_IT;
+  if (opts.codemirror) {
+    // Exercise the actual checked-in bundle, not a facsimile of its API.
+    (0, eval)(CODEMIRROR_JS);
+  }
 
   if (opts.clipboard) {
     win.navigator.clipboard = opts.clipboard;
@@ -205,6 +224,28 @@ function load(t, html = BOARD_HTML, opts = {}) {
   // eslint-disable-next-line no-eval
   (0, eval)(MM_JS);
   return { win, dom, htmx };
+}
+
+function markdownPanelHTML(isNew = false, source = '# Heading\n\nSome **detail**.') {
+  const escaped = source.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  const panel = `
+  <aside data-testid="item-panel" data-new="${isNew ? 'yes' : 'no'}">
+    <form data-testid="item-form">
+      <section data-testid="x-item-detail-markdown" data-initial-mode="${isNew ? 'edit' : 'view'}" data-mode="edit">
+        <div data-testid="x-item-detail-preview" hidden></div>
+        <p data-testid="x-item-detail-empty" hidden>No detail yet.</p>
+        <label data-testid="x-item-detail-editor">
+          <textarea data-testid="item-field-detail" name="detail">${escaped}</textarea>
+        </label>
+        <div data-testid="x-item-detail-mode-controls" hidden>
+          <button data-testid="x-item-detail-edit" type="button">Edit detail</button>
+          <button data-testid="x-item-detail-preview-button" type="button">Preview detail</button>
+        </div>
+      </section>
+      <button data-testid="item-save" type="submit">Save</button>
+    </form>
+  </aside>`;
+  return BOARD_HTML.replace('<div data-testid="toast-region"', panel + '<div data-testid="toast-region"');
 }
 
 // Fake dataTransfer, as jsdom events have none (a real drag carries one).
@@ -247,6 +288,111 @@ function stubLayout(win, height = 40) {
 
 const byTestid = (win, id) => win.document.querySelector(`[data-testid="${id}"]`);
 const click = (win, el) => el.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+/* ------------------------------------------------ Markdown detail viewer */
+
+test('existing detail opens rendered and edit-preview preserves unsaved source', (t) => {
+  const source = '# Heading\n\nSome **detail**.\n\n<img src=x onerror=alert(1)>\n\n[bad](javascript:alert(1))';
+  const { win } = load(t, markdownPanelHTML(false, source));
+  const group = byTestid(win, 'x-item-detail-markdown');
+  const preview = byTestid(win, 'x-item-detail-preview');
+  const editor = byTestid(win, 'x-item-detail-editor');
+  const textarea = byTestid(win, 'item-field-detail');
+
+  assert.equal(group.getAttribute('data-mode'), 'view');
+  assert.equal(editor.hidden, true);
+  assert.ok(preview.querySelector('h1'));
+  assert.ok(preview.querySelector('strong'));
+  assert.equal(preview.querySelector('img'), null, 'source HTML stays inert');
+  assert.equal(preview.querySelector('a'), null, 'unsafe protocols do not become links');
+
+  click(win, byTestid(win, 'x-item-detail-edit'));
+  textarea.value = '**unsaved preview**';
+  textarea.setSelectionRange(2, 9);
+  click(win, byTestid(win, 'x-item-detail-preview-button'));
+  assert.equal(group.getAttribute('data-mode'), 'view');
+  assert.equal(preview.querySelector('strong').textContent, 'unsaved preview');
+  assert.equal(textarea.value, '**unsaved preview**', 'preview does not rewrite source');
+
+  click(win, byTestid(win, 'x-item-detail-edit'));
+  assert.equal(group.getAttribute('data-mode'), 'edit');
+  assert.equal(textarea.selectionStart, 2);
+  assert.equal(textarea.selectionEnd, 9);
+});
+
+test('new detail opens in edit mode and parser failure leaves textarea usable', (t) => {
+  let loaded = load(t, markdownPanelHTML(true, 'draft'));
+  assert.equal(byTestid(loaded.win, 'x-item-detail-markdown').getAttribute('data-mode'), 'edit');
+  assert.equal(byTestid(loaded.win, 'x-item-detail-editor').hidden, false);
+
+  loaded = load(t, markdownPanelHTML(false, 'fallback'), { markdownit: false });
+  assert.equal(byTestid(loaded.win, 'x-item-detail-editor').hidden, false);
+  assert.equal(byTestid(loaded.win, 'x-item-detail-mode-controls').hidden, true);
+  assert.equal(byTestid(loaded.win, 'item-field-detail').value, 'fallback');
+
+  loaded = load(t, markdownPanelHTML(false, 'broken'), {
+    markdownit: () => ({ render() { throw new Error('parser failed'); } }),
+  });
+  assert.equal(byTestid(loaded.win, 'x-item-detail-editor').hidden, false);
+  assert.equal(byTestid(loaded.win, 'x-item-detail-mode-controls').hidden, true);
+});
+
+test('empty and oversized details have bounded safe presentations', (t) => {
+  let loaded = load(t, markdownPanelHTML(false, ''));
+  assert.equal(byTestid(loaded.win, 'x-item-detail-empty').hidden, false);
+  assert.equal(byTestid(loaded.win, 'x-item-detail-preview').hidden, true);
+
+  const large = '*' + 'x'.repeat(524288);
+  loaded = load(t, markdownPanelHTML(false, large));
+  const preview = byTestid(loaded.win, 'x-item-detail-preview');
+  assert.equal(preview.getAttribute('data-render'), 'plain-large');
+  assert.equal(preview.textContent, large);
+  assert.equal(preview.children.length, 0, 'large fallback inserts no markup');
+});
+
+test('real CodeMirror bundle enhances, synchronizes, previews, and tears down', (t) => {
+  const loaded = load(t, markdownPanelHTML(true, '# draft'), { codemirror: true });
+  const textarea = byTestid(loaded.win, 'item-field-detail');
+  const editor = textarea._mmCodeMirror;
+  assert.ok(editor, 'real bundle created an editor');
+  assert.equal(textarea.hidden, true);
+  assert.ok(byTestid(loaded.win, 'x-item-detail-codemirror'));
+
+  let inputEvents = 0;
+  textarea.addEventListener('input', () => inputEvents++);
+  editor.view.dispatch({changes: {from: 0, to: editor.view.state.doc.length, insert: '**changed**'}});
+  assert.equal(textarea.value, '**changed**', 'CodeMirror keeps canonical textarea synchronized');
+  assert.equal(inputEvents, 1, 'synchronization follows the ordinary input event path');
+
+  click(loaded.win, byTestid(loaded.win, 'x-item-detail-preview-button'));
+  assert.equal(byTestid(loaded.win, 'x-item-detail-preview').querySelector('strong').textContent, 'changed');
+  click(loaded.win, byTestid(loaded.win, 'x-item-detail-edit'));
+  assert.equal(textarea._mmCodeMirror, editor, 'preview round-trip preserves editor and history');
+
+  loaded.htmx.fire('htmx:beforeCleanupElement', {elt: byTestid(loaded.win, 'item-panel')});
+  assert.equal(textarea._mmCodeMirror, undefined);
+  assert.equal(textarea.hidden, false);
+  assert.equal(byTestid(loaded.win, 'x-item-detail-codemirror'), null);
+});
+
+test('CodeMirror failure and large source retain the native textarea', (t) => {
+  let loaded = load(t, markdownPanelHTML(true, 'fallback'));
+  loaded.win.mmCodeMirror = {create() { throw new Error('failed'); }};
+  // Re-run initialization through an htmx replacement because initial load had
+  // no editor factory.
+  const group = byTestid(loaded.win, 'x-item-detail-markdown');
+  group.removeAttribute('data-markdown-ready');
+  loaded.htmx.fire('htmx:afterSwap', {target: group});
+  let textarea = byTestid(loaded.win, 'item-field-detail');
+  assert.equal(textarea.hidden, false);
+  assert.equal(textarea.getAttribute('data-editor'), 'native-error');
+
+  loaded = load(t, markdownPanelHTML(true, 'x'.repeat(262145)), {codemirror: true});
+  textarea = byTestid(loaded.win, 'item-field-detail');
+  assert.equal(textarea.hidden, false);
+  assert.equal(textarea.getAttribute('data-editor'), 'native-large');
+  assert.equal(textarea._mmCodeMirror, undefined);
+});
 
 /* ------------------------------------------------------------------ busy */
 

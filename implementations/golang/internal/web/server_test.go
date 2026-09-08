@@ -62,7 +62,7 @@ func TestSpecVersionsMatchTheSpecs(t *testing.T) {
 func TestStaticAssetsAreEmbedded(t *testing.T) {
 	ts := newTestServer(t)
 
-	for _, name := range []string{"mm.css", "mm.js"} {
+	for _, name := range []string{"mm.css", "mm.js", "markdown-it.min.js", "markdown-it.LICENSE.txt", "markdown-it.vendor.txt", "codemirror.min.js", "codemirror.LICENSE.txt", "codemirror.vendor.txt"} {
 		r := ts.get("/static/" + name)
 		if r.Status != http.StatusOK {
 			t.Errorf("/static/%s returned %d", name, r.Status)

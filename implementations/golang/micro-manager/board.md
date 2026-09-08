@@ -26,14 +26,13 @@ audit: true
 - [ ] [T-0136] Morph the theme shell swap to preserve focus and scroll | stage:someday | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0136.md | created:2026-08-02 | reason:report Phase 3; needs idiomorph (T-0128); measure shell-swap cost first
 
 <!-- stage:ready -->
-- [ ] [T-0272] Implement markdown viewer for item detail | stage:ready | prio:med | detail:details/T-0272.md | created:2026-09-07
-- [ ] [T-0275] Implement a CodeMirror Markdown editor for item detail | stage:ready | prio:med | detail:details/T-0275.md | created:2026-09-07
 - [ ] [T-0273] Enable viewing and updating structure.md from UI | stage:ready | prio:med | detail:details/T-0273.md | created:2026-09-07
 - [ ] [T-0276] Add optional Vim keybindings to the CodeMirror detail editor | stage:ready | tags:gui,editor,vim | detail:details/T-0276.md | created:2026-09-07
 
 <!-- stage:blocked -->
 
 <!-- stage:working -->
+- [ ] [T-0275] Implement a CodeMirror Markdown editor for item detail | stage:working | prio:med | detail:details/T-0275.md | created:2026-09-07 | started:2026-09-07
 
 <!-- stage:review -->
 - [ ] [T-0263] Add shell-interpolation safety note to CLI help | stage:review | prio:med | tags:docs,cli,safety | detail:details/T-0263.md | created:2026-09-04 | started:2026-09-05
@@ -43,3 +42,4 @@ audit: true
 - [ ] [T-0270] Add an option to pause tickler tasks | stage:review | prio:med | detail:details/T-0270.md | created:2026-09-07 | started:2026-09-07
 - [ ] [T-0271] Research markdown parsing and presentation in the UI | stage:review | prio:med | tags:spike | detail:details/T-0271.md | created:2026-09-07 | started:2026-09-07
 - [ ] [T-0274] Research javascript text editor with syntax highlighting for markdown. | stage:review | prio:med | tags:spike | detail:details/T-0274.md | created:2026-09-07 | started:2026-09-07
+- [ ] [T-0272] Implement markdown viewer for item detail | stage:review | prio:med | detail:details/T-0272.md | created:2026-09-07 | started:2026-09-07

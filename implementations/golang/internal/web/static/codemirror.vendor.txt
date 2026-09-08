@@ -1,0 +1,34 @@
+CodeMirror editor bundle for micro-manager
+
+Generated: 2026-09-07
+Build input: internal/web/editor-build/editor.js
+Build command: cd internal/web/editor-build && npm install && npm run build
+Bundle: codemirror.min.js
+SHA-256: bb3d2dd0313c8d1361013f4dfa29f6b9ddc2ef3d8d90bcdb57850272967075a1
+Size: 539909 bytes uncompressed; 185381 bytes with gzip -9
+
+Direct packages (exact versions):
+  @codemirror/commands 6.11.0
+  @codemirror/lang-markdown 6.5.2
+  @codemirror/language 6.12.4
+  @codemirror/search 6.7.2
+  @codemirror/state 6.7.4
+  @codemirror/view 6.43.11
+  @lezer/highlight 1.2.3
+  esbuild 0.28.2 (build only)
+
+The complete resolved dependency graph and integrity hashes are recorded in
+internal/web/editor-build/package-lock.json. All bundled runtime packages are
+MIT licensed; notices are in codemirror.LICENSE.txt.
+
+Upstream sources:
+  https://github.com/codemirror/dev/
+  https://github.com/evanw/esbuild/
+
+Update procedure:
+  1. Select and record exact package versions in package.json.
+  2. Run npm install, review package-lock.json, and run npm audit.
+  3. Run npm run build.
+  4. Run the Go and JavaScript suites.
+  5. Recompute SHA-256 and compressed/uncompressed sizes and update this file.
+  6. Review package licenses and update codemirror.LICENSE.txt.

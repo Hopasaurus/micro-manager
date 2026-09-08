@@ -228,3 +228,8 @@ version: 2
 2026-09-07T14:34:39Z | id:T-0276 | field:tags | value:gui,editor,vim
 2026-09-07T14:34:39Z | id:T-0276 | field:created | value:2026-09-07
 2026-09-07T14:34:39Z | id:T-0276 | field:detail | value:
+2026-09-07T14:39:06Z | id:T-0272 | field:stage | value:working
+2026-09-07T14:39:06Z | id:T-0272 | field:started | value:2026-09-07
+2026-09-07T14:47:52Z | id:T-0272 | field:stage | value:review
+2026-09-07T15:03:18Z | id:T-0275 | field:stage | value:working
+2026-09-07T15:03:18Z | id:T-0275 | field:started | value:2026-09-07

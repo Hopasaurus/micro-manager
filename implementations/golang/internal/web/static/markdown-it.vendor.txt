@@ -1,0 +1,16 @@
+markdown-it browser build
+
+Version: 15.0.0
+License: MIT (see markdown-it.LICENSE.txt)
+Source: https://registry.npmjs.org/markdown-it/-/markdown-it-15.0.0.tgz
+Upstream path: dist/browser/markdown-it.umd.min.js
+SHA-256: 8d0f6aca8f4de3321b6d07e03286176c59ec19b7b84abb6eb31f0fa795e83abc
+
+Update procedure:
+
+1. Run `npm pack markdown-it@VERSION` in a temporary directory.
+2. Extract `package/dist/browser/markdown-it.umd.min.js` and `package/LICENSE`.
+3. Replace `markdown-it.min.js` and `markdown-it.LICENSE.txt` here.
+4. Update this file's version, source URL, and SHA-256.
+5. Run the full Go test suite; it includes the real browser artifact in the
+   Node/jsdom client behavior tests.

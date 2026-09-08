@@ -1,6 +1,6 @@
 # micro-manager — user interface specification
 
-    Product version: 0.2.2
+    Product version: 0.2.3
     Spec version: 2
     Date:         2026-08-20
     Status:       draft
@@ -659,6 +659,35 @@ form before saving.
 `item-action-remove` MUST carry `data-guarded="true"` and MUST open
 `dialog-confirm-remove` requiring explicit confirmation, per `spec-tools.md`
 §5.1.6. It MUST NOT be satisfiable by a single click.
+
+**Detail Markdown.** An existing item opens with its detail rendered as HTML;
+the new-item panel opens directly in source-edit mode. An explicit Edit control
+reveals the canonical `item-field-detail` textarea, and Preview renders its
+current unsaved value without submitting or advancing the item revision.
+Switching between the two MUST preserve the raw Markdown, selection, and scroll
+position. Saving always submits the textarea value, never generated HTML.
+
+The browser renderer is a locally vendored, version-pinned `markdown-it` build
+configured with `html:false`, `linkify:false`, and `typographer:false`. Raw HTML
+and unsafe URL protocols MUST remain inert. Runtime CDN access, inline script,
+`eval`, and a CSP relaxation are forbidden. If the parser is missing or throws,
+the textarea remains visible and usable. Sources over 512 KiB bypass Markdown
+parsing and display as escaped, wrapped plain text to bound main-thread work.
+The enhancement MUST be re-applied after htmx panel replacement.
+
+Source editing is progressively enhanced with a locally bundled, version-pinned
+CodeMirror 6 Markdown editor. The textarea remains the canonical form value and
+MUST be synchronized on every document change; it remains visible and usable
+when JavaScript or CodeMirror is unavailable, initialization fails, or the
+source exceeds 256 KiB. The editor provides Markdown highlighting, soft
+wrapping, undo/redo, search, bracket matching, spellcheck, and standard
+platform key bindings, without line numbers or Tab indentation by default.
+It MUST preserve the source bytes and the existing Edit/Preview, save,
+concurrency, dirty-form, and panel-close behavior. Editor instances MUST be
+destroyed before their panel is removed and recreated only for a live panel in
+edit mode after htmx replacement. Runtime network access, workers, `eval`,
+inline script, and CSP relaxation remain forbidden. Vim bindings are outside
+this base editor contract.
 
 For an item whose stage is `working`, `item-plan` renders the item's detail
 file's `## Plan` subtasks as `subtask-<n>` checkboxes and `item-notes`

@@ -1,6 +1,6 @@
 # micro-manager — tooling specification
 
-    Product version: 0.2.2
+    Product version: 0.2.3
     Spec version: 2
     Date:         2026-08-20
     Status:       draft

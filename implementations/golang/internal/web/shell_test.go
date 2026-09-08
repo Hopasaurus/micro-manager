@@ -302,7 +302,7 @@ func TestVendoredScriptsAreServed(t *testing.T) {
 	ts := newTestServer(t)
 
 	body := ts.get("/p/unknown/board").Body
-	for _, src := range []string{"/static/htmx.min.js", "/static/htmx-ext-sse.js", "/static/idiomorph-ext.min.js", "/static/mm.js"} {
+	for _, src := range []string{"/static/htmx.min.js", "/static/htmx-ext-sse.js", "/static/idiomorph-ext.min.js", "/static/markdown-it.min.js", "/static/codemirror.min.js", "/static/mm.js"} {
 		if !strings.Contains(body, src) {
 			t.Errorf("the shell does not load %s", src)
 		}
@@ -323,6 +323,12 @@ func TestVendoredScriptsAreServed(t *testing.T) {
 	if strings.Index(body, "/static/idiomorph-ext.min.js") > strings.Index(body, "/static/mm.js") {
 		t.Error("idiomorph-ext is loaded after mm.js")
 	}
+	if strings.Index(body, "/static/markdown-it.min.js") > strings.Index(body, "/static/mm.js") {
+		t.Error("markdown-it is loaded after mm.js")
+	}
+	if strings.Index(body, "/static/codemirror.min.js") > strings.Index(body, "/static/mm.js") {
+		t.Error("CodeMirror is loaded after mm.js")
+	}
 	// The vendored file is the htmx EXTENSION (bundles Idiomorph and registers
 	// the morph extension), not the bare library — guarding against a future
 	// replacement with the wrong build, which would silently disable morphing.
@@ -332,6 +338,12 @@ func TestVendoredScriptsAreServed(t *testing.T) {
 	}
 	if strings.Contains(body, "//unpkg.com") || strings.Contains(body, "//cdn.") {
 		t.Error("the shell references a CDN")
+	}
+	codeMirror := ts.get("/static/codemirror.min.js").Body
+	for _, forbidden := range []string{"eval(", "new Function", "fetch(", "XMLHttpRequest", "EventSource", "WebSocket", "Worker("} {
+		if strings.Contains(codeMirror, forbidden) {
+			t.Errorf("the CodeMirror runtime contains forbidden %q", forbidden)
+		}
 	}
 }
 

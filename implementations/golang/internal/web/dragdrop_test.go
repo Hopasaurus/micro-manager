@@ -339,8 +339,11 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 	// the panel is swapped in client-side — for 1030. T-0265 added dirty-form
 	// tracking and confirmation before an explicit stale-panel reload — for
 	// 1050. T-0266 made dirty state value-based and stale saves advisory-disabled
-	// while retaining the server precondition — for 1080.
-	if lines := strings.Count(js, "\n"); lines > 1080 {
+	// while retaining the server precondition — for 1080. T-0272 added the
+	// client-only Markdown render/Edit/Preview enhancement and its progressive
+	// fallback lifecycle — for 1160. T-0275 added the CodeMirror enhancement
+	// lifecycle (the editor itself remains in its generated asset) — for 1210.
+	if lines := strings.Count(js, "\n"); lines > 1210 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }

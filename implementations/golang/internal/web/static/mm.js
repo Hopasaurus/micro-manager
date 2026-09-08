@@ -1018,6 +1018,125 @@
   document.body.addEventListener('htmx:sseError', startPolling);
   document.body.addEventListener('htmx:sseOpen', stopPolling);
 
+  /* ---------------------------------------------------- Markdown detail */
+
+  // Above this measured threshold the native textarea is substantially faster
+  // to open and remains the accessible, fully functional editor fallback.
+  const CODEMIRROR_MAX_DETAIL_BYTES = 262144;
+  let detailMarkdown = null;
+  function markdownRenderer() {
+    if (detailMarkdown) return detailMarkdown;
+    if (typeof window.markdownit !== 'function') return null;
+    detailMarkdown = window.markdownit({ html: false, linkify: false, typographer: false });
+    return detailMarkdown;
+  }
+
+  function renderDetailMarkdown(group) {
+    const renderer = markdownRenderer();
+    const textarea = group.querySelector('[data-testid="item-field-detail"]');
+    const preview = group.querySelector('[data-testid="x-item-detail-preview"]');
+    const empty = group.querySelector('[data-testid="x-item-detail-empty"]');
+    if (!renderer || !textarea || !preview || !empty) return false;
+    const source = textarea.value;
+    // markdown-it's source HTML support is deliberately disabled above. Its
+    // generated markup is the only HTML assigned here; raw detail text never
+    // enters a script literal or innerHTML directly.
+    try {
+      if (source.length > 524288) {
+        preview.textContent = source;
+        preview.setAttribute('data-render', 'plain-large');
+      } else {
+        preview.innerHTML = renderer.render(source);
+        preview.setAttribute('data-render', 'markdown');
+      }
+    } catch (_) {
+      return false;
+    }
+    empty.hidden = source.trim() !== '';
+    preview.hidden = source.trim() === '';
+    return true;
+  }
+
+  function setDetailMarkdownMode(group, mode) {
+    const editor = group.querySelector('[data-testid="x-item-detail-editor"]');
+    const controls = group.querySelector('[data-testid="x-item-detail-mode-controls"]');
+    const edit = group.querySelector('[data-testid="x-item-detail-edit"]');
+    const previewButton = group.querySelector('[data-testid="x-item-detail-preview-button"]');
+    const textarea = group.querySelector('[data-testid="item-field-detail"]');
+    if (!editor || !controls || !edit || !previewButton || !textarea) return;
+    if (mode === 'view' && !renderDetailMarkdown(group)) return;
+
+    if (mode === 'view') {
+      group._mmDetailSelection = textarea._mmCodeMirror ? textarea._mmCodeMirror.capture() :
+        [textarea.selectionStart, textarea.selectionEnd, textarea.scrollTop];
+    }
+    group.setAttribute('data-mode', mode);
+    editor.hidden = mode === 'view';
+    controls.hidden = false;
+    edit.hidden = mode === 'edit';
+    previewButton.hidden = mode === 'view';
+    if (mode === 'edit') {
+      initializeCodeMirror(group);
+      if (textarea._mmCodeMirror) {
+        textarea._mmCodeMirror.restore(group._mmDetailSelection);
+        textarea._mmCodeMirror.focus();
+      } else if (Array.isArray(group._mmDetailSelection)) {
+        const [start, end, scroll] = group._mmDetailSelection;
+        textarea.setSelectionRange(start, end);
+        textarea.scrollTop = scroll;
+        textarea.focus();
+      }
+    }
+  }
+
+  function initializeCodeMirror(group) {
+    const textarea = group.querySelector('[data-testid="item-field-detail"]');
+    if (!textarea || textarea._mmCodeMirror || group.getAttribute('data-mode') !== 'edit') return;
+    if (!window.mmCodeMirror || typeof window.mmCodeMirror.create !== 'function') return;
+    const sourceBytes = typeof TextEncoder === 'function' ?
+      new TextEncoder().encode(textarea.value).length : textarea.value.length;
+    if (sourceBytes > CODEMIRROR_MAX_DETAIL_BYTES) {
+      textarea.setAttribute('data-editor', 'native-large');
+      return;
+    }
+    try {
+      window.mmCodeMirror.create(textarea);
+      textarea.setAttribute('data-editor', 'codemirror');
+    } catch (_) {
+      textarea.hidden = false;
+      textarea.setAttribute('data-editor', 'native-error');
+    }
+  }
+
+  function destroyCodeMirror(root) {
+    const textareas = root.matches && root.matches('[data-testid="item-field-detail"]') ? [root] :
+      Array.from(root.querySelectorAll ? root.querySelectorAll('[data-testid="item-field-detail"]') : []);
+    textareas.forEach((textarea) => {
+      if (textarea._mmCodeMirror) textarea._mmCodeMirror.destroy();
+    });
+  }
+
+  function initializeDetailMarkdown(root) {
+    if (!markdownRenderer()) return;
+    const groups = root.matches && root.matches('[data-testid="x-item-detail-markdown"]') ? [root] :
+      Array.from(root.querySelectorAll ? root.querySelectorAll('[data-testid="x-item-detail-markdown"]') : []);
+    groups.forEach((group) => {
+      if (group.getAttribute('data-markdown-ready') === 'true') return;
+      group.setAttribute('data-markdown-ready', 'true');
+      setDetailMarkdownMode(group, group.getAttribute('data-initial-mode') || 'edit');
+    });
+  }
+
+  document.body.addEventListener('click', (event) => {
+    const button = event.target.closest && event.target.closest(
+      '[data-testid="x-item-detail-edit"], [data-testid="x-item-detail-preview-button"]');
+    if (!button) return;
+    const group = button.closest('[data-testid="x-item-detail-markdown"]');
+    if (!group) return;
+    setDetailMarkdownMode(group,
+      button.getAttribute('data-testid') === 'x-item-detail-edit' ? 'edit' : 'view');
+  });
+
   /* Dirty means different from the originally rendered form, not merely that
      an input event occurred. Browser/programmatic initialization therefore
      stays clean, and reverting every value makes the form clean again. */
@@ -1033,6 +1152,7 @@
       const form = panel.querySelector('[data-testid="item-form"]');
       if (form && panel.getAttribute('data-new') === 'no') itemPanelBaselines.set(form, itemFormValue(form));
     });
+    initializeDetailMarkdown(root);
   }
   function updateItemPanelDirty(event) {
     const form = event.target.closest && event.target.closest('[data-testid="item-form"]');
@@ -1049,6 +1169,9 @@
     if (save) { save.disabled = true; save.setAttribute('aria-disabled', 'true'); }
   }
   initializeItemPanel(document);
+  document.body.addEventListener('htmx:beforeCleanupElement', (event) => {
+    destroyCodeMirror(event.detail && event.detail.elt || event.target);
+  });
   document.body.addEventListener('htmx:afterSwap', (event) => {
     initializeItemPanel(event.detail && event.detail.target || event.target);
     applyItemFreshness(event.detail && event.detail.target || event.target);

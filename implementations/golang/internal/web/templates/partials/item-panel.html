@@ -108,11 +108,21 @@
       {{template "tickler-group" dict "Group" $d.Tickler "New" false "Eligible" true "Sources" "" "Version2" $d.Version2}}
     {{end}}
 
-    <label class="mm-field">
-      <span>Detail</span>
-      <textarea data-testid="item-field-detail" name="detail" rows="10"
-                placeholder="The durable description. Worth reading a year from now.">{{$d.Detail}}</textarea>
-    </label>
+    <section data-testid="x-item-detail-markdown" class="mm-detail-markdown"
+             data-initial-mode="{{if $d.New}}edit{{else}}view{{end}}" data-mode="edit">
+      <div data-testid="x-item-detail-preview" class="mm-markdown" hidden></div>
+      <p data-testid="x-item-detail-empty" class="mm-detail-markdown__empty" hidden>No detail yet.</p>
+      <label data-testid="x-item-detail-editor" class="mm-field">
+        <span id="item-detail-label">Detail</span>
+        <textarea data-testid="item-field-detail" name="detail" rows="10"
+                  aria-labelledby="item-detail-label"
+                  placeholder="The durable description. Worth reading a year from now.">{{$d.Detail}}</textarea>
+      </label>
+      <div data-testid="x-item-detail-mode-controls" class="mm-detail-markdown__controls" hidden>
+        <button data-testid="x-item-detail-edit" class="mm-button" type="button">Edit detail</button>
+        <button data-testid="x-item-detail-preview-button" class="mm-button" type="button">Preview detail</button>
+      </div>
+    </section>
 
     <div class="mm-panel__buttons">
       <button data-testid="item-save" class="mm-button mm-button--primary" type="submit">Save</button>
