@@ -35,6 +35,7 @@ func TestItemPanel(t *testing.T) {
 		// T-0242: the resize handle, x- prefixed since resizing is a client
 		// affordance §5.1's closed testid list does not name.
 		"x-item-panel-resize-handle",
+		"x-item-panel-header", "x-item-panel-id", "x-item-panel-stage", "x-item-panel-save", "x-item-panel-close",
 		"x-item-detail-markdown", "x-item-detail-preview", "x-item-detail-empty",
 		"x-item-detail-editor", "x-item-detail-mode-controls",
 		"x-item-detail-edit", "x-item-detail-preview-button",
@@ -54,6 +55,22 @@ func TestItemPanel(t *testing.T) {
 	}
 	if attrOf(t, panel, "data-revision") == "" {
 		t.Error("item-panel carries no baseline revision")
+	}
+	if got := attrOf(t, panel, "data-board-url"); got != "/p/"+id+"/board" {
+		t.Errorf("item-panel board URL = %q", got)
+	}
+	if got := strings.TrimSpace(elementText(t, body, "x-item-panel-id")); got != "T-0001" {
+		t.Errorf("item-panel header ID = %q", got)
+	}
+	if got := strings.TrimSpace(elementText(t, body, "x-item-panel-stage")); got != "ready" {
+		t.Errorf("item-panel header stage = %q", got)
+	}
+	if got := strings.TrimSpace(elementText(t, body, "item-panel-title")); got != "Fix the deploy script" {
+		t.Errorf("item-panel header title = %q", got)
+	}
+	headerSave := testid(t, body, "x-item-panel-save")
+	if attrOf(t, headerSave, "form") != "item-form" || !strings.Contains(headerSave, " hidden") {
+		t.Errorf("header save is not initially hidden or associated with item-form: %s", headerSave)
 	}
 	fresh := testid(t, body, "x-item-freshness")
 	if got := attrOf(t, fresh, "hx-trigger"); got != "sse:item from:body" {

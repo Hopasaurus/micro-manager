@@ -1,13 +1,23 @@
 ---
 doc: done
 version: 2
-updated: 2026-09-07
+updated: 2026-10-03
 ---
 
 # Done
 
 Closed items, newest month first, newest item first within a month. Cancelled
 work stays here too — see [structure.md](structure.md).
+
+## 2026-10
+
+- [x] [T-0281] time for code & coffee | prio:med | created:2026-09-25 | done:2026-10-03 | outcome:obsolete
+- [x] [T-0279] time for code & coffee | prio:med | created:2026-09-18 | done:2026-10-03 | outcome:obsolete
+- [x] [T-0278] tie your shoes | prio:med | created:2026-09-14 | done:2026-10-03 | outcome:obsolete
+- [x] [T-0277] time for code & coffee | prio:med | created:2026-09-11 | done:2026-10-03 | outcome:obsolete
+- [x] [T-0280] tie your shoes | prio:med | created:2026-09-21 | done:2026-10-03 | outcome:obsolete
+- [x] [T-0282] tie your shoes | prio:med | created:2026-09-28 | done:2026-10-03 | outcome:obsolete
+- [x] [T-0283] time for code & coffee | prio:med | created:2026-10-02 | done:2026-10-03 | outcome:obsolete
 
 ## 2026-09
 

@@ -534,8 +534,9 @@ body {
      inline width from the stored preference (default 33vw, its own floor)
      before first paint, the same way T-0150's collapse state is. */
   width: min(32rem, 100%);
-  overflow-y: auto;
-  padding: var(--mm-space-4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--mm-color-bg-overlay);
   border-left: var(--mm-border-width-thin) solid var(--mm-color-border-default);
   box-shadow: var(--mm-shadow-lg);
@@ -547,6 +548,7 @@ body {
   top: 0;
   left: 0;
   bottom: 0;
+  z-index: 2;
   width: 6px;
   cursor: ew-resize;
   touch-action: none;
@@ -557,7 +559,87 @@ body {
   background: var(--mm-color-accent-base);
 }
 
-.mm-panel__title { margin-top: 0; font-size: var(--mm-font-size-lg); }
+.mm-panel__header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--mm-space-3);
+  padding: var(--mm-space-3) var(--mm-space-4);
+  border-bottom: var(--mm-border-width-thin) solid var(--mm-color-border-default);
+  background: var(--mm-color-bg-overlay);
+}
+
+.mm-panel__heading {
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--mm-space-2);
+}
+
+.mm-panel__id,
+.mm-panel__stage {
+  color: var(--mm-color-fg-muted);
+  font-family: var(--mm-font-family-mono);
+  font-size: var(--mm-font-size-sm);
+}
+
+.mm-panel__stage {
+  padding: var(--mm-space-1) var(--mm-space-2);
+  border: var(--mm-border-width-thin) solid var(--mm-color-border-default);
+  border-radius: var(--mm-radius-sm);
+}
+
+.mm-panel__title {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--mm-font-size-lg);
+}
+
+.mm-panel__header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--mm-space-1);
+}
+
+.mm-panel__save,
+.mm-panel__close {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--mm-color-fg-muted);
+  font: inherit;
+  font-size: var(--mm-font-size-lg);
+  cursor: pointer;
+}
+
+.mm-panel__save:hover:not(:disabled),
+.mm-panel__close:hover { color: var(--mm-color-fg-default); }
+
+.mm-panel__save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mm-panel__content {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--mm-space-4);
+}
+
+@media (max-width: 640px) {
+  .mm-panel__resize { display: none; }
+}
+
 .mm-panel__form { display: flex; flex-direction: column; gap: var(--mm-space-3); }
 
 .mm-link { color: var(--mm-color-accent-base); text-decoration: none; }

@@ -896,6 +896,7 @@
      viewport. 90 is the ceiling, leaving a sliver of the board in view. */
   const PANEL_MIN_VW = 33;
   const PANEL_MAX_VW = 90;
+  const PANEL_MOBILE_PX = 640;
 
   function panelWidthVw() {
     try {
@@ -915,7 +916,7 @@
      to the stored width a frame later. */
   function applyPanelWidth() {
     const panel = document.querySelector('[data-testid="item-panel"]');
-    if (panel) panel.style.width = panelWidthVw() + 'vw';
+    if (panel) panel.style.width = window.innerWidth <= PANEL_MOBILE_PX ? '100vw' : panelWidthVw() + 'vw';
   }
 
   document.body.addEventListener('htmx:afterSwap', applyPanelWidth);
@@ -942,7 +943,7 @@
     const handle = e.target.closest('[data-testid="x-item-panel-resize-handle"]');
     if (!handle) return;
     const panel = handle.closest('[data-testid="item-panel"]');
-    if (!panel) return;
+    if (!panel || window.innerWidth <= PANEL_MOBILE_PX) return;
     e.preventDefault();
     try { handle.setPointerCapture(e.pointerId); } catch (_) { /* not in jsdom */ }
     handle.setAttribute('data-dragging', 'true');
@@ -961,6 +962,28 @@
     };
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
+  });
+
+  /* The panel is an overlay whose board remains mounted underneath it. Both
+     explicit dismissal and a click on that board remove the same panel and
+     restore the board URL without a full-page navigation. */
+  function closeItemPanel(panel) {
+    if (!panel) return;
+    if (panel.getAttribute('data-dirty') === 'true' &&
+        !window.confirm('Discard your unsaved changes?')) return;
+    const boardURL = panel.getAttribute('data-board-url');
+    destroyCodeMirror(panel);
+    panel.remove();
+    if (boardURL && window.location.pathname !== boardURL) {
+      window.history.pushState({}, '', boardURL);
+    }
+  }
+
+  document.body.addEventListener('click', (event) => {
+    const panel = document.querySelector('[data-testid="item-panel"]');
+    if (!panel) return;
+    const close = event.target.closest && event.target.closest('[data-testid="x-item-panel-close"]');
+    if (close || !panel.contains(event.target)) closeItemPanel(panel);
   });
 
   /* --------------------------------------------------- SSE-down polling */
@@ -1159,14 +1182,17 @@
     const panel = form && form.closest('[data-testid="item-panel"][data-new="no"]');
     if (!panel) return;
     if (!itemPanelBaselines.has(form)) itemPanelBaselines.set(form, itemFormValue(form));
-    panel.setAttribute('data-dirty', itemFormValue(form) === itemPanelBaselines.get(form) ? 'false' : 'true');
+    const dirty = itemFormValue(form) !== itemPanelBaselines.get(form);
+    panel.setAttribute('data-dirty', dirty ? 'true' : 'false');
+    const headerSave = panel.querySelector('[data-testid="x-item-panel-save"]');
+    if (headerSave) headerSave.hidden = !dirty;
   }
   function applyItemFreshness(root) {
     const region = root.closest && root.closest('[data-testid="x-item-freshness"]');
     if (!region || region.getAttribute('data-state') === 'unchanged') return;
     const panel = region.closest('[data-testid="item-panel"]');
-    const save = panel && panel.querySelector('[data-testid="item-save"]');
-    if (save) { save.disabled = true; save.setAttribute('aria-disabled', 'true'); }
+    const saves = panel ? panel.querySelectorAll('[data-testid="item-save"], [data-testid="x-item-panel-save"]') : [];
+    saves.forEach((save) => { save.disabled = true; save.setAttribute('aria-disabled', 'true'); });
   }
   initializeItemPanel(document);
   document.body.addEventListener('htmx:beforeCleanupElement', (event) => {

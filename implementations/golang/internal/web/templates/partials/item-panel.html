@@ -16,6 +16,7 @@
 <aside data-testid="item-panel" class="mm-panel"
        {{if not $d.New}}data-item-id="{{$i.ID}}"{{end}}
        {{if not $d.New}}data-revision="{{$d.Revision}}" data-dirty="false"{{end}}
+       data-board-url="/p/{{$p.ID}}/board"
        data-state="ready" data-new="{{yesno $d.New}}"
        role="dialog" aria-modal="false" aria-labelledby="item-panel-title">
 
@@ -27,16 +28,34 @@
   <div data-testid="x-item-panel-resize-handle" class="mm-panel__resize"
        aria-hidden="true"></div>
 
-  <h2 data-testid="item-panel-title" id="item-panel-title" class="mm-panel__title">
-    {{if $d.New}}New item{{else}}{{$i.ID}} — {{$i.Title}}{{end}}
-  </h2>
+  <header data-testid="x-item-panel-header" class="mm-panel__header">
+    <div class="mm-panel__heading">
+      <span data-testid="x-item-panel-id" class="mm-panel__id">{{if $d.New}}New item{{else}}{{$i.ID}}{{end}}</span>
+      <h2 data-testid="item-panel-title" id="item-panel-title" class="mm-panel__title">
+        {{if $d.New}}Task detail{{else}}{{$i.Title}}{{end}}
+      </h2>
+      <span data-testid="x-item-panel-stage" class="mm-panel__stage">{{if $d.New}}{{$d.Stage}}{{else if $i.Stage}}{{$i.Stage}}{{else if $i.Section}}{{$i.Section}}{{else}}{{$i.State}}{{end}}</span>
+    </div>
+    <div class="mm-panel__header-actions">
+      {{if not $d.New}}
+      <button data-testid="x-item-panel-save" class="mm-panel__save" type="submit"
+              form="item-form" aria-label="Save changes" title="Save changes" hidden>
+        <span aria-hidden="true">&#128190;</span>
+      </button>
+      {{end}}
+      <button data-testid="x-item-panel-close" class="mm-panel__close" type="button"
+              aria-label="Close task detail" title="Close task detail">&times;</button>
+    </div>
+  </header>
+
+  <div class="mm-panel__content">
 
   {{if not $d.New}}{{template "item-freshness" dict "Data" (dict "ProjectID" $p.ID "ItemID" $i.ID "Baseline" $d.Revision "State" "unchanged")}}{{end}}
 
   {{/* outerHTML, NOT morph (T-0138): morphing the board from outside it leaks
        an htmx polling chain per mutation. See partials/dialogs.html for the
        mechanism; the board's own refresh still morphs. */}}
-  <form data-testid="item-form" class="mm-panel__form"
+  <form data-testid="item-form" id="item-form" class="mm-panel__form"
         {{if $d.New}}
         hx-post="/p/{{$p.ID}}/items"
         {{else}}
@@ -223,6 +242,7 @@
     </dl>
   </section>
   {{end}}
+  </div>
 </aside>
 {{- end}}
 

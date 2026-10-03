@@ -114,7 +114,8 @@ function panelHTML(kind = 'never', stage = 'ready') {
   const hide = (k) => (k === kind ? '' : 'hidden');
   const panel = `
   <aside data-testid="item-panel" class="mm-panel" data-new="no" data-dirty="false">
-    <form data-testid="item-form">
+    <button data-testid="x-item-panel-save" type="submit" form="item-form" hidden>Save</button>
+    <form data-testid="item-form" id="item-form">
       <input data-testid="item-field-title" name="title" value="First">
       <select data-testid="item-field-stage" name="stage">
         <option value="ready" ${stage === 'ready' ? 'selected' : ''}>Ready</option>
@@ -968,9 +969,14 @@ test('a fresh project with no stored preference seeds from the server default', 
 
 const PANEL_RESIZE_HTML = `
 <div data-testid="app" data-project-id="panel-project" hx-ext="sse,morph">
-  <aside data-testid="item-panel" class="mm-panel">
+  <aside data-testid="item-panel" class="mm-panel" data-board-url="/p/panel-project/board">
     <div data-testid="x-item-panel-resize-handle" class="mm-panel__resize"></div>
+    <header data-testid="x-item-panel-header" class="mm-panel__header">
+      <button data-testid="x-item-panel-close" type="button">Close</button>
+    </header>
+    <div class="mm-panel__content"><input data-testid="inside-panel"></div>
   </aside>
+  <button data-testid="outside-panel" type="button">Board</button>
 </div>
 `;
 
@@ -1042,6 +1048,65 @@ test('a stored width outside the floor/ceiling is clamped on load, not trusted v
   win.document.dispatchEvent(new win.Event('DOMContentLoaded', { bubbles: true }));
 
   assert.equal(byTestid(win, 'item-panel').style.width, '33vw');
+});
+
+test('the panel fills a narrow viewport instead of applying its desktop width', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  stubViewportWidth(win, 390);
+
+  win.document.dispatchEvent(new win.Event('DOMContentLoaded', { bubbles: true }));
+
+  assert.equal(byTestid(win, 'item-panel').style.width, '100vw');
+});
+
+test('the close button dismisses the item panel and restores the board URL', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  win.history.replaceState({}, '', '/p/panel-project/item/T-0001');
+
+  click(win, byTestid(win, 'x-item-panel-close'));
+
+  assert.equal(win.document.querySelector('[data-testid="item-panel"]'), null);
+  assert.equal(win.location.pathname, '/p/panel-project/board');
+});
+
+test('clicking outside dismisses the item panel while clicking inside leaves it open', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  win.history.replaceState({}, '', '/p/panel-project/item/T-0001');
+
+  click(win, byTestid(win, 'inside-panel'));
+  assert.ok(byTestid(win, 'item-panel'), 'inside click keeps the panel open');
+
+  click(win, byTestid(win, 'outside-panel'));
+  assert.equal(win.document.querySelector('[data-testid="item-panel"]'), null);
+  assert.equal(win.location.pathname, '/p/panel-project/board');
+});
+
+test('clicking outside a dirty panel asks before discarding changes', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  const panel = byTestid(win, 'item-panel');
+  panel.setAttribute('data-dirty', 'true');
+  let confirmations = 0;
+  win.confirm = () => { confirmations += 1; return false; };
+
+  click(win, byTestid(win, 'outside-panel'));
+  assert.equal(confirmations, 1);
+  assert.ok(byTestid(win, 'item-panel'), 'declining keeps the dirty panel open');
+
+  win.confirm = () => { confirmations += 1; return true; };
+  click(win, byTestid(win, 'outside-panel'));
+  assert.equal(confirmations, 2);
+  assert.equal(win.document.querySelector('[data-testid="item-panel"]'), null,
+    'confirming closes the dirty panel');
+});
+
+test('the close button also guards dirty changes', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  byTestid(win, 'item-panel').setAttribute('data-dirty', 'true');
+  win.confirm = () => false;
+
+  click(win, byTestid(win, 'x-item-panel-close'));
+
+  assert.ok(byTestid(win, 'item-panel'), 'declining keeps the dirty panel open');
 });
 
 /* -------------------------------------- new-item panel autofocus (T-0252) ------------------------------------------- */
@@ -1390,11 +1455,15 @@ test('item freshness polling preserves input and dirty reload asks first', (t) =
   title.value = 'local edit';
   title.dispatchEvent(new win.Event('input', { bubbles: true }));
   assert.equal(byTestid(win, 'item-panel').getAttribute('data-dirty'), 'true');
+  assert.equal(byTestid(win, 'x-item-panel-save').hidden, false,
+    'header save appears after a real change');
 
   title.value = 'First';
   title.dispatchEvent(new win.Event('input', { bubbles: true }));
   assert.equal(byTestid(win, 'item-panel').getAttribute('data-dirty'), 'false',
     'reverting to the rendered values makes the form clean');
+  assert.equal(byTestid(win, 'x-item-panel-save').hidden, true,
+    'header save hides when the form returns to its baseline');
   title.value = 'local edit';
   title.dispatchEvent(new win.Event('input', { bubbles: true }));
 
@@ -1414,6 +1483,8 @@ test('item freshness polling preserves input and dirty reload asks first', (t) =
   htmx.fire('htmx:afterSwap', { target: freshness });
   htmx.fire('htmx:afterSwap', { target: freshness });
   assert.equal(byTestid(win, 'item-save').disabled, true, 'stale save is disabled as guidance');
+  assert.equal(byTestid(win, 'x-item-panel-save').disabled, true,
+    'stale state also disables the header save');
   assert.equal(win.document.activeElement, title, 'repeated notices do not steal focus');
   assert.equal(title.value, 'local edit', 'repeated notices preserve local input');
 });

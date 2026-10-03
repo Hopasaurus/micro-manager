@@ -343,7 +343,10 @@ func TestDragAttributesArePresentInTheClient(t *testing.T) {
 	// client-only Markdown render/Edit/Preview enhancement and its progressive
 	// fallback lifecycle — for 1160. T-0275 added the CodeMirror enhancement
 	// lifecycle (the editor itself remains in its generated asset) — for 1210.
-	if lines := strings.Count(js, "\n"); lines > 1210 {
+	// T-0284 added item-panel dismissal without a page load and a narrow-screen
+	// width guard: the close button and outside click both remove the overlay
+	// and restore the board URL — for 1240.
+	if lines := strings.Count(js, "\n"); lines > 1240 {
 		t.Errorf("mm.js is %d lines; something has drifted onto the client", lines)
 	}
 }

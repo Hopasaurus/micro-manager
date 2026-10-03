@@ -2,8 +2,8 @@
 doc: board
 version: 2
 project: micro-manager — Go implementation
-next_id: T-0277
-updated: 2026-09-07
+next_id: T-0285
+updated: 2026-10-03
 stages: someday,ready,blocked,working,review
 wip.working: 4
 audit: true
@@ -17,10 +17,10 @@ audit: true
 - [ ] [T-0190] Need a way to make drag scroll down | stage:someday | prio:med | detail:details/T-0190.md | created:2026-08-06
 - [ ] [T-0195] slim down the skill | stage:someday | prio:med | tags:needs-refinement | detail:details/T-0195.md | created:2026-08-06
 - [ ] [T-0196] think about removing the spec from the project files | stage:someday | prio:med | tags:needs-refinement | detail:details/T-0196.md | created:2026-08-06
-- [ ] [T-0199] tie your shoes | stage:someday | prio:med | created:2026-08-06 | tickler:mon@07:00 | tickled:2026-09-07
+- [ ] [T-0199] tie your shoes | stage:someday | prio:med | created:2026-08-06 | tickler:mon@07:00 | tickler_paused:true | tickled:2026-09-28
 - [ ] [T-0201] make sure ui is local and storage is time zoned | stage:someday | prio:med | created:2026-08-06
 - [ ] [T-0192] Investigate caching, was: Make sure the UI has a place to enter the time when setting a wakeup type. | stage:someday | prio:med | detail:details/T-0192.md | created:2026-08-06
-- [ ] [T-0208] time for code & coffee | stage:someday | prio:med | created:2026-08-07 | tickler:fri@08:30 | tickled:2026-09-04
+- [ ] [T-0208] time for code & coffee | stage:someday | prio:med | created:2026-08-07 | tickler:fri@08:30 | tickler_paused:true | tickled:2026-10-02
 - [ ] [T-0209] a single button for board and global settings is confusing | stage:someday | prio:med | tags:needs-refinement,spike | created:2026-08-07
 - [ ] [T-0212] Testing around directories | stage:someday | prio:med | detail:details/T-0212.md | created:2026-08-08
 - [ ] [T-0136] Morph the theme shell swap to preserve focus and scroll | stage:someday | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0136.md | created:2026-08-02 | reason:report Phase 3; needs idiomorph (T-0128); measure shell-swap cost first
@@ -43,3 +43,4 @@ audit: true
 - [ ] [T-0271] Research markdown parsing and presentation in the UI | stage:review | prio:med | tags:spike | detail:details/T-0271.md | created:2026-09-07 | started:2026-09-07
 - [ ] [T-0274] Research javascript text editor with syntax highlighting for markdown. | stage:review | prio:med | tags:spike | detail:details/T-0274.md | created:2026-09-07 | started:2026-09-07
 - [ ] [T-0272] Implement markdown viewer for item detail | stage:review | prio:med | detail:details/T-0272.md | created:2026-09-07 | started:2026-09-07
+- [ ] [T-0284] Fix task detail resizing, sticky header, and dismissal | stage:review | tags:gui | detail:details/T-0284.md | created:2026-10-03 | started:2026-10-03
