@@ -1,6 +1,6 @@
 # micro-manager — data file format specification
 
-    Product version: 0.2.4
+    Product version: 0.2.5
     Spec version: 2
     Date:         2026-08-20
     Status:       draft

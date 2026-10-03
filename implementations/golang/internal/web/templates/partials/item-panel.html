@@ -31,7 +31,8 @@
   <header data-testid="x-item-panel-header" class="mm-panel__header">
     <div class="mm-panel__heading">
       <span data-testid="x-item-panel-id" class="mm-panel__id">{{if $d.New}}New item{{else}}{{$i.ID}}{{end}}</span>
-      <h2 data-testid="item-panel-title" id="item-panel-title" class="mm-panel__title">
+      <h2 data-testid="item-panel-title" id="item-panel-title" class="mm-panel__title"
+          {{if not $d.New}}title="{{$i.Title}}"{{end}}>
         {{if $d.New}}Task detail{{else}}{{$i.Title}}{{end}}
       </h2>
       <span data-testid="x-item-panel-stage" class="mm-panel__stage">{{if $d.New}}{{$d.Stage}}{{else if $i.Stage}}{{$i.Stage}}{{else if $i.Section}}{{$i.Section}}{{else}}{{$i.State}}{{end}}</span>

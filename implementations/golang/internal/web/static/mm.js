@@ -1173,13 +1173,13 @@
       Array.from(root.querySelectorAll ? root.querySelectorAll('[data-testid="item-panel"]') : []);
     panels.forEach((panel) => {
       const form = panel.querySelector('[data-testid="item-form"]');
-      if (form && panel.getAttribute('data-new') === 'no') itemPanelBaselines.set(form, itemFormValue(form));
+      if (form && panel.getAttribute('data-new') === 'false') itemPanelBaselines.set(form, itemFormValue(form));
     });
     initializeDetailMarkdown(root);
   }
   function updateItemPanelDirty(event) {
     const form = event.target.closest && event.target.closest('[data-testid="item-form"]');
-    const panel = form && form.closest('[data-testid="item-panel"][data-new="no"]');
+    const panel = form && form.closest('[data-testid="item-panel"][data-new="false"]');
     if (!panel) return;
     if (!itemPanelBaselines.has(form)) itemPanelBaselines.set(form, itemFormValue(form));
     const dirty = itemFormValue(form) !== itemPanelBaselines.get(form);

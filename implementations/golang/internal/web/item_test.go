@@ -53,6 +53,9 @@ func TestItemPanel(t *testing.T) {
 	if got := attrOf(t, panel, "data-item-id"); got != "T-0001" {
 		t.Errorf("data-item-id = %q", got)
 	}
+	if got := attrOf(t, panel, "data-new"); got != "false" {
+		t.Errorf("existing item panel data-new = %q, want false", got)
+	}
 	if attrOf(t, panel, "data-revision") == "" {
 		t.Error("item-panel carries no baseline revision")
 	}
@@ -67,6 +70,9 @@ func TestItemPanel(t *testing.T) {
 	}
 	if got := strings.TrimSpace(elementText(t, body, "item-panel-title")); got != "Fix the deploy script" {
 		t.Errorf("item-panel header title = %q", got)
+	}
+	if got := attrOf(t, testid(t, body, "item-panel-title"), "title"); got != "Fix the deploy script" {
+		t.Errorf("item-panel header title tooltip = %q", got)
 	}
 	headerSave := testid(t, body, "x-item-panel-save")
 	if attrOf(t, headerSave, "form") != "item-form" || !strings.Contains(headerSave, " hidden") {

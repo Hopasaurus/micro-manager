@@ -113,7 +113,7 @@ const COLLAPSED_HTML = BOARD_HTML.replace(
 function panelHTML(kind = 'never', stage = 'ready') {
   const hide = (k) => (k === kind ? '' : 'hidden');
   const panel = `
-  <aside data-testid="item-panel" class="mm-panel" data-new="no" data-dirty="false">
+  <aside data-testid="item-panel" class="mm-panel" data-new="false" data-dirty="false">
     <button data-testid="x-item-panel-save" type="submit" form="item-form" hidden>Save</button>
     <form data-testid="item-form" id="item-form">
       <input data-testid="item-field-title" name="title" value="First">
@@ -230,7 +230,7 @@ function load(t, html = BOARD_HTML, opts = {}) {
 function markdownPanelHTML(isNew = false, source = '# Heading\n\nSome **detail**.') {
   const escaped = source.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   const panel = `
-  <aside data-testid="item-panel" data-new="${isNew ? 'yes' : 'no'}">
+  <aside data-testid="item-panel" data-new="${isNew ? 'true' : 'false'}">
     <form data-testid="item-form">
       <section data-testid="x-item-detail-markdown" data-initial-mode="${isNew ? 'edit' : 'view'}" data-mode="edit">
         <div data-testid="x-item-detail-preview" hidden></div>
