@@ -61,6 +61,71 @@ func TestAppShellTestids(t *testing.T) {
 	}
 }
 
+func TestProjectSwitcherShowsPrefixAndPath(t *testing.T) {
+	ts, id := boardServer(t, "clean-id-grammar")
+	ts.get("/p/" + id + "/board").expectStatus(http.StatusOK)
+	body := ts.get("/p/" + id + "/board").Body
+
+	entry := testid(t, body, "project-switcher-entry-"+id)
+	if got := attrOf(t, entry, "title"); got != ts.Dirs[0] {
+		t.Errorf("switcher entry title = %q, want board path %q", got, ts.Dirs[0])
+	}
+	if !strings.Contains(body, ">Clean ID Grammar (X)</a>") {
+		t.Error("switcher entry does not show its custom ID prefix in parentheses")
+	}
+}
+
+func TestProjectSwitcherDeduplicatesVisibleFavoritesFromRecent(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+	ts.get("/p/" + id + "/board").expectStatus(http.StatusOK)
+
+	paths := mm.NewSystemPaths(ts.ConfigHome)
+	if err := mm.UpdateProjectList(paths.Favorites, mm.ListFavorites, func(l *mm.ProjectList) error {
+		l.Add(mm.ListEntry{ProjectID: id, Path: ts.Dirs[0], Name: "Clean Full"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	body := ts.get("/p/" + id + "/board").Body
+	if got := strings.Count(body, `data-testid="project-switcher-entry-`+id+`"`); got != 1 {
+		t.Errorf("switcher renders the favorite/recent project %d times, want 1", got)
+	}
+	if got := attrOf(t, testid(t, body, "project-switcher-favorites"), "data-count"); got != "1" {
+		t.Errorf("favorites data-count = %q, want 1", got)
+	}
+	if got := attrOf(t, testid(t, body, "project-switcher-recent"), "data-count"); got != "0" {
+		t.Errorf("recent data-count = %q, want 0 after deduplication", got)
+	}
+}
+
+func TestProjectSwitcherKeepsRecentWhenMatchingFavoriteIsNotDisplayed(t *testing.T) {
+	cfg := mm.DefaultConfig()
+	cfg.UI.FavoritesCount = 0
+	ts := newTestServerCfg(t, cfg, "clean-full")
+	id, err := mm.ProjectID(ts.Dirs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts.get("/p/" + id + "/board").expectStatus(http.StatusOK)
+
+	paths := mm.NewSystemPaths(ts.ConfigHome)
+	if err := mm.UpdateProjectList(paths.Favorites, mm.ListFavorites, func(l *mm.ProjectList) error {
+		l.Add(mm.ListEntry{ProjectID: id, Path: ts.Dirs[0], Name: "Clean Full"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	body := ts.get("/p/" + id + "/board").Body
+	if got := attrOf(t, testid(t, body, "project-switcher-favorites"), "data-count"); got != "0" {
+		t.Errorf("favorites data-count = %q, want 0", got)
+	}
+	if got := attrOf(t, testid(t, body, "project-switcher-recent"), "data-count"); got != "1" {
+		t.Errorf("recent data-count = %q, want 1 when the favorite is not displayed", got)
+	}
+}
+
 // data-busy="false" is the quiescence signal an external suite waits on (§5.1).
 // A rendered response IS the view fully reflecting server state.
 func TestAppRootAttributes(t *testing.T) {

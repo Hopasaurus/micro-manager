@@ -50,6 +50,9 @@ func TestOpeningABoardRecordsIt(t *testing.T) {
 	if !hasTestid(home, "project-card-"+id) {
 		t.Error("the opened project is not on Home")
 	}
+	if !strings.Contains(home, ">Clean Full - T</a>") {
+		t.Error("the recent project card does not show its ID prefix after its name")
+	}
 
 	// Opening again moves it, never duplicates it (§10 rule 1).
 	ts.get("/p/" + id + "/board")
@@ -99,6 +102,17 @@ func TestProjectsList(t *testing.T) {
 	for _, part := range []string{"project-card-name", "project-card-path", "project-card-wip", "project-card-favorite-toggle"} {
 		if !hasTestid(body, part) {
 			t.Errorf("a project card is missing %s", part)
+		}
+	}
+}
+
+func TestProjectsListShowsIDPrefixAfterBoardName(t *testing.T) {
+	ts := newTestServer(t, "clean-full", "clean-id-grammar")
+	body := ts.get("/projects").expectStatus(http.StatusOK).Body
+
+	for _, want := range []string{"Clean Full - T", "Clean ID Grammar - X"} {
+		if !strings.Contains(body, ">"+want+"</a>") {
+			t.Errorf("projects view does not contain linked board name %q", want)
 		}
 	}
 }

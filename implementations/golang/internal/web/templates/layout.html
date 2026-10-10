@@ -119,7 +119,7 @@
        spec's testid list (§5.1) is closed except for x- additions, and the
        panel itself carries item-panel. The id is the swap hook, exactly as
        htmx's default OOB matching works. */}}
-  <div id="item-panel-root"></div>
+  <div id="item-panel-root">{{block "initial-item-panel" .}}{{end}}</div>
 </div>
 {{- end}}
 
@@ -196,7 +196,8 @@
 {{define "switcherEntry" -}}
 <a data-testid="project-switcher-entry-{{.ProjectID}}" role="option"
    href="/p/{{.ProjectID}}/board"
+   title="{{.Path}}"
    data-project-id="{{.ProjectID}}"
    data-missing="{{yesno .Missing}}"
-   data-favorite="{{yesno .Favorite}}">{{.Name}}</a>
+   data-favorite="{{yesno .Favorite}}">{{.Name}}{{with .Prefix}} ({{.}}){{end}}</a>
 {{- end}}

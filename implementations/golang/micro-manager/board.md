@@ -2,8 +2,8 @@
 doc: board
 version: 2
 project: micro-manager — Go implementation
-next_id: T-0285
-updated: 2026-10-03
+next_id: T-0290
+updated: 2026-10-09
 stages: someday,ready,blocked,working,review
 wip.working: 4
 audit: true
@@ -26,7 +26,7 @@ audit: true
 - [ ] [T-0136] Morph the theme shell swap to preserve focus and scroll | stage:someday | prio:low | tags:gui,flicker-fix,phase-3 | detail:details/T-0136.md | created:2026-08-02 | reason:report Phase 3; needs idiomorph (T-0128); measure shell-swap cost first
 
 <!-- stage:ready -->
-- [ ] [T-0273] Enable viewing and updating structure.md from UI | stage:ready | prio:med | detail:details/T-0273.md | created:2026-09-07
+- [ ] [T-0273] Enable viewing and updating structure.md from UI. | stage:ready | prio:med | detail:details/T-0273.md | created:2026-09-07
 - [ ] [T-0276] Add optional Vim keybindings to the CodeMirror detail editor | stage:ready | tags:gui,editor,vim | detail:details/T-0276.md | created:2026-09-07
 
 <!-- stage:blocked -->
@@ -44,3 +44,8 @@ audit: true
 - [ ] [T-0274] Research javascript text editor with syntax highlighting for markdown. | stage:review | prio:med | tags:spike | detail:details/T-0274.md | created:2026-09-07 | started:2026-09-07
 - [ ] [T-0272] Implement markdown viewer for item detail | stage:review | prio:med | detail:details/T-0272.md | created:2026-09-07 | started:2026-09-07
 - [ ] [T-0284] Fix task detail resizing, sticky header, and dismissal | stage:review | tags:gui | detail:details/T-0284.md | created:2026-10-03 | started:2026-10-03
+- [ ] [T-0285] Show board prefixes in project cards | stage:review | tags:gui | detail:details/T-0285.md | created:2026-10-09 | started:2026-10-09
+- [ ] [T-0286] Switch item detail on background item click | stage:review | tags:gui | detail:details/T-0286.md | created:2026-10-09 | started:2026-10-09
+- [ ] [T-0287] Prevent duplicate item panels after resize and switch | stage:review | tags:gui | detail:details/T-0287.md | created:2026-10-09 | started:2026-10-09
+- [ ] [T-0288] Show prefixes and paths in project switcher | stage:review | tags:gui | detail:details/T-0288.md | created:2026-10-09 | started:2026-10-09
+- [ ] [T-0289] Deduplicate favorites and recent in project switcher | stage:review | tags:gui | detail:details/T-0289.md | created:2026-10-09 | started:2026-10-09

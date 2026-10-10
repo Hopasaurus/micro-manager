@@ -100,6 +100,7 @@ type stageStatusRow struct {
 type entryData struct {
 	ProjectID string
 	Name      string
+	Prefix    string
 	Path      string
 	Missing   bool
 	Favorite  bool
@@ -302,19 +303,29 @@ func (s *Server) listsFor() (favorites, recent []entryData) {
 	for _, e := range favoritesList.Entries {
 		favIDs[e.ProjectID] = true
 	}
+	displayedFavIDs := map[string]bool{}
 	for _, e := range favoritesList.Display(s.opts.Config.UI.FavoritesCount) {
-		favorites = append(favorites, entryData{
-			ProjectID: e.ProjectID, Name: e.Display(), Path: e.Path,
-			Missing: e.Missing(), Favorite: true,
-		})
+		favorites = append(favorites, s.switcherEntryFor(e, true))
+		displayedFavIDs[e.ProjectID] = true
 	}
 	for _, e := range recentList.Display(s.opts.Config.UI.RecentCount) {
-		recent = append(recent, entryData{
-			ProjectID: e.ProjectID, Name: e.Display(), Path: e.Path,
-			Missing: e.Missing(), Favorite: favIDs[e.ProjectID],
-		})
+		if displayedFavIDs[e.ProjectID] {
+			continue
+		}
+		recent = append(recent, s.switcherEntryFor(e, favIDs[e.ProjectID]))
 	}
 	return favorites, recent
+}
+
+func (s *Server) switcherEntryFor(e mm.ListEntry, favorite bool) entryData {
+	entry := entryData{
+		ProjectID: e.ProjectID, Name: e.Display(), Path: e.Path,
+		Missing: e.Missing(), Favorite: favorite,
+	}
+	if d, known := s.registry.directory(e.ProjectID); known {
+		entry.Prefix = d.IDPrefix
+	}
+	return entry
 }
 
 // notFound renders the not-found view with 404.

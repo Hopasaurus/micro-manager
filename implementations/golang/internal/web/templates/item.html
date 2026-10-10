@@ -5,6 +5,12 @@
 */}}
 {{define "content" -}}
 {{template "board" (withData . .Data.Board)}}
+{{- end}}
+
+{{/* A direct item/new load and an htmx item switch must put the panel under
+     the same owner. Otherwise the first switch inserts a second panel into
+     #item-panel-root while the directly rendered panel remains in app-main. */}}
+{{define "initial-item-panel" -}}
 {{template "item-panel" (withData . .Data.Panel)}}
 {{- end}}
 

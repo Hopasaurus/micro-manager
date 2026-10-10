@@ -47,6 +47,7 @@ type projectGroup struct {
 type projectCard struct {
 	ProjectID string
 	Name      string
+	Prefix    string
 	Path      string
 	WipUsed   int
 	WipLimit  int
@@ -112,6 +113,7 @@ func (s *Server) projects(c *echo.Context) error {
 			group.Cards = append(group.Cards, projectCard{
 				ProjectID: d.ProjectID,
 				Name:      directoryName(d),
+				Prefix:    d.IDPrefix,
 				Path:      d.Path,
 				WipUsed:   d.WipUsed,
 				WipLimit:  d.WipLimit,
@@ -184,6 +186,7 @@ func (s *Server) cardFor(e mm.ListEntry, favorite bool) projectCard {
 		Favorite:  favorite,
 	}
 	if d, known := s.registry.directory(e.ProjectID); known {
+		card.Prefix = d.IDPrefix
 		card.WipUsed, card.WipLimit = d.WipUsed, d.WipLimit
 	}
 	return card

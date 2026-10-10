@@ -14,7 +14,7 @@
          data-favorite="{{yesno .Favorite}}"
          data-missing="{{yesno .Missing}}">
   <h3 data-testid="project-card-name" class="mm-project-card__name">
-    <a href="/p/{{.ProjectID}}/board">{{.Name}}</a>
+    <a href="/p/{{.ProjectID}}/board">{{.Name}}{{with .Prefix}} - {{.}}{{end}}</a>
   </h3>
   <span data-testid="project-card-path" class="mm-project-card__path">{{.Path}}</span>
   <span data-testid="project-card-wip" class="mm-project-card__wip"

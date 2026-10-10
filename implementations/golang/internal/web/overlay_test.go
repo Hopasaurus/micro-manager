@@ -62,6 +62,24 @@ func TestPanelOpensFromCard(t *testing.T) {
 	}
 }
 
+// A direct load must put its initial panel inside the same swap root used by a
+// later card click. Rendering it beside the root leaves the old panel mounted
+// when htmx inserts the newly selected item (T-0287).
+func TestDirectPanelLivesInSwapRoot(t *testing.T) {
+	ts, id := boardServer(t, "clean-full")
+	insideRoot := regexp.MustCompile(`(?s)<div id="item-panel-root">\s*<aside data-testid="item-panel"`)
+
+	for _, path := range []string{"/p/" + id + "/item/T-0001", "/p/" + id + "/new"} {
+		body := ts.get(path).expectStatus(http.StatusOK).Body
+		if !insideRoot.MatchString(body) {
+			t.Errorf("%s does not render its panel inside #item-panel-root", path)
+		}
+		if got := strings.Count(body, `data-testid="item-panel"`); got != 1 {
+			t.Errorf("%s renders %d item panels, want 1", path, got)
+		}
+	}
+}
+
 // T-0078: saving a NEW item dismisses the panel — the board swap carries the
 // dismissal out of band.
 func TestNewItemSaveDismissesPanel(t *testing.T) {
@@ -116,8 +134,8 @@ func TestAddAnotherKeepsFreshPanel(t *testing.T) {
 	if !strings.Contains(r.Body, `<div hx-swap-oob="innerHTML:#item-panel-root">`) {
 		t.Errorf("the add-another response does not re-open the panel:\n%s", r.Body)
 	}
-	// The old panel must be REMOVED wherever it lives (app-main on a direct
-	// load, #item-panel-root on an htmx flow) — one panel in the DOM, ever.
+	// The old panel must be removed before the fresh one reopens: one panel in
+	// the DOM, ever.
 	if !strings.Contains(r.Body, panelDismiss) {
 		t.Errorf("the add-another response does not dismiss the old panel:\n%s", r.Body)
 	}

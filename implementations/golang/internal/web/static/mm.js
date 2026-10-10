@@ -967,10 +967,13 @@
   /* The panel is an overlay whose board remains mounted underneath it. Both
      explicit dismissal and a click on that board remove the same panel and
      restore the board URL without a full-page navigation. */
+  function canLeaveItemPanel(panel) {
+    return panel.getAttribute('data-dirty') !== 'true' ||
+      window.confirm('Discard your unsaved changes?');
+  }
+
   function closeItemPanel(panel) {
-    if (!panel) return;
-    if (panel.getAttribute('data-dirty') === 'true' &&
-        !window.confirm('Discard your unsaved changes?')) return;
+    if (!panel || !canLeaveItemPanel(panel)) return;
     const boardURL = panel.getAttribute('data-board-url');
     destroyCodeMirror(panel);
     panel.remove();
@@ -983,8 +986,16 @@
     const panel = document.querySelector('[data-testid="item-panel"]');
     if (!panel) return;
     const close = event.target.closest && event.target.closest('[data-testid="x-item-panel-close"]');
+    const itemOpener = event.target.closest && event.target.closest('[hx-target="#item-panel-root"]');
+    if (itemOpener && !panel.contains(itemOpener)) {
+      if (!canLeaveItemPanel(panel)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+      return;
+    }
     if (close || !panel.contains(event.target)) closeItemPanel(panel);
-  });
+  }, true);
 
   /* --------------------------------------------------- SSE-down polling */
 

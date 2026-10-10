@@ -19,11 +19,9 @@
 
 {{/*
   "Save and add another" (T-0080): the board swap, then a FRESH empty form
-  swapped into #item-panel-root. The panel must be replaced wherever the old
-  one lives: a direct load of /new renders the panel inside the page (board
-  and panel are content siblings), while an htmx flow swaps it into
-  #item-panel-root. So board-swap-again reuses the standard dismissal first,
-  then panel-replace-oob re-opens the form in the container. htmx's OOB
+  swapped into #item-panel-root. Direct loads and htmx flows both keep the
+  panel in that root, so board-swap-again dismisses the old panel before
+  panel-replace-oob re-opens the form there. htmx's OOB
   innerHTML inserts the carrier's CHILDREN, so the carrier wraps the panel.
 */}}
 {{define "board-swap-again" -}}

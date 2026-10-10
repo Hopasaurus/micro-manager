@@ -969,6 +969,7 @@ test('a fresh project with no stored preference seeds from the server default', 
 
 const PANEL_RESIZE_HTML = `
 <div data-testid="app" data-project-id="panel-project" hx-ext="sse,morph">
+  <div id="item-panel-root">
   <aside data-testid="item-panel" class="mm-panel" data-board-url="/p/panel-project/board">
     <div data-testid="x-item-panel-resize-handle" class="mm-panel__resize"></div>
     <header data-testid="x-item-panel-header" class="mm-panel__header">
@@ -976,9 +977,19 @@ const PANEL_RESIZE_HTML = `
     </header>
     <div class="mm-panel__content"><input data-testid="inside-panel"></div>
   </aside>
+  </div>
+  <a data-testid="background-item-link" href="/p/panel-project/item/T-0002"
+     hx-get="/p/panel-project/item/T-0002" hx-target="#item-panel-root">Second item</a>
   <button data-testid="outside-panel" type="button">Board</button>
 </div>
 `;
+
+function simulateItemPanelSwap(win) {
+  byTestid(win, 'background-item-link').addEventListener('click', () => {
+    win.document.querySelector('#item-panel-root').innerHTML =
+      '<aside data-testid="item-panel" data-item-id="T-0002"></aside>';
+  });
+}
 
 // Real DOM layout metrics (innerWidth, getBoundingClientRect) are all
 // jsdom-computed zeros, so this stubs only window.innerWidth - the one input
@@ -1079,6 +1090,31 @@ test('clicking outside dismisses the item panel while clicking inside leaves it 
   click(win, byTestid(win, 'outside-panel'));
   assert.equal(win.document.querySelector('[data-testid="item-panel"]'), null);
   assert.equal(win.location.pathname, '/p/panel-project/board');
+});
+
+test('clicking a background item link switches the open panel on the first click', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  simulateItemPanelSwap(win);
+
+  click(win, byTestid(win, 'background-item-link'));
+
+  assert.equal(byTestid(win, 'item-panel').getAttribute('data-item-id'), 'T-0002');
+});
+
+test('switching items asks before discarding a dirty panel', (t) => {
+  const { win } = load(t, PANEL_RESIZE_HTML);
+  byTestid(win, 'item-panel').setAttribute('data-dirty', 'true');
+  simulateItemPanelSwap(win);
+  win.confirm = () => false;
+
+  click(win, byTestid(win, 'background-item-link'));
+  assert.equal(byTestid(win, 'item-panel').getAttribute('data-item-id'), null,
+    'declining keeps the current item open');
+
+  win.confirm = () => true;
+  click(win, byTestid(win, 'background-item-link'));
+  assert.equal(byTestid(win, 'item-panel').getAttribute('data-item-id'), 'T-0002',
+    'accepting switches items with the same click');
 });
 
 test('clicking outside a dirty panel asks before discarding changes', (t) => {
